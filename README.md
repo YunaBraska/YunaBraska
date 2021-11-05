@@ -1,4 +1,5 @@
-### Hi there 👋
+[![YunaBraska's GitHub stats](https://github-readme-stats.vercel.app/api?username=YunaBraska&count_private=true&show_icons=true&theme=dracula)](https://github.com/YunaBraska/github-readme-stats)
+
 
 <!--
 **YunaBraska/YunaBraska** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
