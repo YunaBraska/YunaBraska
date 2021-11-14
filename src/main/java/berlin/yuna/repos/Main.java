@@ -15,11 +15,14 @@ import static berlin.yuna.repos.Helper.PROJECT_DIR;
 import static berlin.yuna.repos.Helper.REPO_MAP;
 import static berlin.yuna.repos.Helper.asUrl;
 import static berlin.yuna.repos.Helper.getArray;
+import static java.lang.System.lineSeparator;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.joining;
 
 
 public class Main {
+
+    private static final String LINE_SEPARATOR = lineSeparator();
 
     //TODO:
     // mvn wrapper
