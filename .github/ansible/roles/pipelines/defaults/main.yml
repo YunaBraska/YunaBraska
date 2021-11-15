@@ -1,0 +1,11 @@
+---
+name: "CI"
+jdk: 11
+
+piplines:
+  - name: surveys
+    branches: [ master ]
+    jdk: "{{ jdk }}"
+    run:
+      - name: "Setup requirements run"
+        cmd: "sudo apt-get -qq -y install graphviz > /dev/null"

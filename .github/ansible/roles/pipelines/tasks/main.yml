@@ -1,0 +1,4 @@
+---
+- name: test
+  ansible.builtin.include_tasks: pipline.yml
+  loop: "{{ piplines }}"

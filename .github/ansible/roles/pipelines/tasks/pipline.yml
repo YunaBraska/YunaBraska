@@ -1,0 +1,37 @@
+---
+- name: Git checkout
+  ansible.builtin.git:
+    repo: "https://github.com/YunaBraska/{{ item.name }}.git"
+    dest: ./{{ item.name }}
+    force: true
+
+- name: Render ci.yml
+  ansible.builtin.template:
+    src: ci.yml.j2
+    dest: "./{{ item.name }}/.github/workflows/ci.yml"
+  vars:
+    is_deply_ci: false
+
+- name: Render ci_deploy.yml
+  ansible.builtin.template:
+    src: ci.yml.j2
+    dest: "./{{ item.name }}/.github/workflows/ci_deploy.yml"
+  vars:
+    is_deply_ci: true
+
+- name: Push changes
+  git_acp:
+    user: YunaBraska
+    token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
+    path: ./{{ item.name }}
+    branch: master
+    comment: "chore: github actions pipeline update"
+    remote: origin
+    add: [ "." ]
+    mode: https
+    url: "https://github.com/YunaBraska/{{ item.name }}.git"
+
+- name: Recursively remove directory
+  ansible.builtin.file:
+    path: ./{{ item.name }}
+    state: absent
