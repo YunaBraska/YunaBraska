@@ -1,25 +1,25 @@
 ---
-- name: Git checkout
+- name: Git checkout ({{ item.name }})
   ansible.builtin.git:
     repo: "https://github.com/YunaBraska/{{ item.name }}.git"
     dest: ./{{ item.name }}
     force: true
 
-- name: Render ci.yml
+- name: Render ci.yml ({{ item.name }})
   ansible.builtin.template:
     src: ci.yml.j2
     dest: "./{{ item.name }}/.github/workflows/ci.yml"
   vars:
     is_deply_ci: false
 
-- name: Render ci_deploy.yml
+- name: Render ci_deploy.yml ({{ item.name }})
   ansible.builtin.template:
     src: ci.yml.j2
     dest: "./{{ item.name }}/.github/workflows/ci_deploy.yml"
   vars:
     is_deply_ci: true
 
-- name: Push changes
+- name: Push changes ({{ item.name }})
   git_acp:
     user: YunaBraska
     token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
@@ -31,7 +31,7 @@
     mode: https
     url: "https://github.com/YunaBraska/{{ item.name }}.git"
 
-- name: Recursively remove directory
+- name: Remove tmp dir ({{ item.name }})
   ansible.builtin.file:
     path: ./{{ item.name }}
     state: absent

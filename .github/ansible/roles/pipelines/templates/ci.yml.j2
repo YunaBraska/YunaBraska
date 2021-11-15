@@ -4,10 +4,15 @@ name: {% if is_deply_ci %}JAVA_CI_DEPLOY{% else %}JAVA_CI{% endif %}
 on:
   workflow_dispatch:
     branches: {{ item.branches }}
+{% if is_deply_ci %}
+  schedule:
+    - cron: "0 {{ item_index + 1 }} * * *"
+{% else %}
   push:
     branches: {{ item.branches }}
   pull_request:
     branches: {{ item.branches }}
+{% endif %}
 {% if is_deply_ci %}
 
 env:
@@ -32,7 +37,7 @@ jobs:
 {% endif %}
       - name: Maven compile and update dependencies
         run: |
-          ./mvnw -N io.takari:maven:wrapper
+          ./mvnw -B -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
           ./mvnw -B -q clean verify -Dmaven.test.skip=true
       - name: Run tests
@@ -47,7 +52,12 @@ jobs:
         with:
           coverageLocations: ${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco
       - name: Tag and Push
-        run: .github/scripts/push_changes.sh "https://x-access-token:${{ secrets.CI_TOKEN }}@github.com/${{ github.repository }}"
+        run: |
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/versions.sh -P .github/scripts
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/push_changes.sh -P .github/scripts
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/increment_version.sh -P .github/scripts
+          chmod +x .github/scripts/versions.sh .github/scripts/push_changes.sh .github/scripts/increment_version.sh
+          .github/scripts/push_changes.sh "https://x-access-token:${{ secrets.CI_TOKEN }}@github.com/${{ github.repository }}"
 {%- endraw %}
 {% if is_deply_ci %}
 {% raw %}

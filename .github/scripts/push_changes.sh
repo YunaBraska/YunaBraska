@@ -7,6 +7,8 @@ cd "$(dirname "$0")/../../" || exit 1
 rm -rf coverage*
 rm -rf codeclimate*
 rm -rf ./*reporter*
+git checkout .github
+git checkout src/test/resources/diagram_example.svg &> /dev/null
 # SETUP GIT CONFIG
 git config --global user.name 'Kira'
 git config --global user.email 'yuna-@web.de'
@@ -30,7 +32,7 @@ fi
 git fetch --all --force || true
 git fetch --tags --force || true
 TAG_OLD=$(git describe --tag --always --abbrev=0)
-VERSION=$(./mvnw -q -Dexec.executable=echo -Dexec.args="\${project.version}" --non-recursive exec:exec)
+VERSION=$(./mvnw -B -q -Dexec.executable=echo -Dexec.args="\${project.version}" --non-recursive exec:exec)
 git tag "${VERSION}" &>/dev/null || true
 TAG_NEW=$(git describe --tag --always --abbrev=0)
 echo "TAG_OLD [${TAG_OLD}] <> TAG_NEW [${TAG_NEW}]"

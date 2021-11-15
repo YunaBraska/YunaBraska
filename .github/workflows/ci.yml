@@ -18,6 +18,7 @@ jobs:
           java-version: 17
       - name: Maven compile and update dependencies
         run: |
+          ./mvnw -B -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
           ./mvnw -B -q clean verify -Dmaven.test.skip=true
       - name: Run tests
