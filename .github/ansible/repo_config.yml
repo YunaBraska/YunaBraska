@@ -1,5 +1,0 @@
-pipeline:
-  name: CI
-  jdk: 17
-  codeclimate_token: xxx
-  src: ffff
