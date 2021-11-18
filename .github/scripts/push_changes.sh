@@ -3,14 +3,6 @@ set -e
 git --version
 increment_version="$(dirname "$0")/increment_version.sh"
 cd "$(dirname "$0")/../../" || exit 1
-# REMOVE COVERAGE FILES
-rm -rf coverage*
-rm -rf codeclimate*
-rm -rf ./*reporter*
-git checkout .github
-git checkout .github/scripts
-git checkout .github/workflows
-git checkout src/test/resources/diagram_example.svg &> /dev/null
 # SETUP GIT CONFIG
 git config --global user.name 'Kira'
 git config --global user.email 'yuna-@web.de'
@@ -47,3 +39,4 @@ else
   git push origin --all -u -f || true
   git push origin --tags -f || true
 fi
+
