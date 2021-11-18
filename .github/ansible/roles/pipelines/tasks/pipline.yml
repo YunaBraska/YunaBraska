@@ -19,11 +19,6 @@
   vars:
     is_deply_ci: true
 
-- name: "Remove tmp dir ({{ item.name }})/.github/scrips"
-  ansible.builtin.file:
-    path: "./projects/({{ item.name }})/.github/scrips"
-    state: absent
-
 - name: "Push changes ({{ item.name }})"
   git_acp:
     user: YunaBraska
