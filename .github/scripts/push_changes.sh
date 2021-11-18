@@ -8,6 +8,8 @@ rm -rf coverage*
 rm -rf codeclimate*
 rm -rf ./*reporter*
 git checkout .github
+git checkout .github/scripts
+git checkout .github/workflows
 git checkout src/test/resources/diagram_example.svg &> /dev/null
 # SETUP GIT CONFIG
 git config --global user.name 'Kira'

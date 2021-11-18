@@ -16,6 +16,7 @@ on:
 {% if is_deply_ci %}
 
 env:
+  SPRING_PROFILE: ci
   ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 {% endif %}
 
@@ -29,10 +30,10 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: {{ item.jdk }}
-{% if item.run is defined %}
-{% for run in item.run %}
-      - name: {{ run.name }}
-        run: {{ run.cmd }}
+{% if item.setup is defined %}
+{% for setup in item.setup %}
+      - name: {{ setup.name }}
+        run: {{ setup.cmd }}
 {% endfor %}
 {% endif %}
       - name: Maven compile and update dependencies

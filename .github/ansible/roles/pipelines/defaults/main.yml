@@ -3,9 +3,36 @@ name: "CI"
 jdk: 11
 
 piplines:
+  - name: wiser-unit
+    branches: [ master ]
+    jdk: "8"
+  - name: and-wait-matcher
+    branches: [ master ]
+    jdk: "8"
+  - name: command-line-util
+    branches: [ main ]
+    jdk: "8"
+  - name: config-metadata-generator
+    branches: [ master ]
+    jdk: "8"
   - name: surveys
     branches: [ master ]
-    jdk: "{{ jdk }}"
-    run:
+    jdk: "11"
+    setup:
       - name: "Setup requirements run"
         cmd: "sudo apt-get -qq -y install graphviz > /dev/null"
+  - name: nats-server
+    branches: [ main ]
+    jdk: "8"
+  - name: nats-streaming-server
+    branches: [ main ]
+    jdk: "8"
+  - name: nats-server-embedded
+    branches: [ main ]
+    jdk: "8"
+  - name: nats-streaming-server-embedded
+    branches: [ main ]
+    jdk: "8"
+  - name: paginator
+    branches: [ master ]
+    jdk: "11"

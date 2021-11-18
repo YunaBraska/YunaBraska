@@ -1,37 +1,42 @@
 ---
-- name: Git checkout ({{ item.name }})
+- name: "Git checkout ({{ item.name }})"
   ansible.builtin.git:
     repo: "https://github.com/YunaBraska/{{ item.name }}.git"
-    dest: ./{{ item.name }}
-    force: true
+    dest: "./projects/{{ item.name }}"
+  register: git_test
 
-- name: Render ci.yml ({{ item.name }})
+- name: "Render ci.yml ({{ item.name }})"
   ansible.builtin.template:
     src: ci.yml.j2
-    dest: "./{{ item.name }}/.github/workflows/ci.yml"
+    dest: "./projects/{{ item.name }}/.github/workflows/ci.yml"
   vars:
     is_deply_ci: false
 
-- name: Render ci_deploy.yml ({{ item.name }})
+- name: "Render ci_deploy.yml ({{ item.name }})"
   ansible.builtin.template:
     src: ci.yml.j2
-    dest: "./{{ item.name }}/.github/workflows/ci_deploy.yml"
+    dest: "./projects/{{ item.name }}/.github/workflows/ci_deploy.yml"
   vars:
     is_deply_ci: true
 
-- name: Push changes ({{ item.name }})
+- name: "Remove tmp dir ({{ item.name }})/.github/scrips"
+  ansible.builtin.file:
+    path: "./projects/({{ item.name }})/.github/scrips"
+    state: absent
+
+- name: "Push changes ({{ item.name }})"
   git_acp:
     user: YunaBraska
     token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
-    path: ./{{ item.name }}
-    branch: master
+    path: "./projects/{{ item.name }}"
+    branch: "{{ item.branches[ 0 ] }}"
     comment: "chore: github actions pipeline update"
     remote: origin
     add: [ "." ]
     mode: https
     url: "https://github.com/YunaBraska/{{ item.name }}.git"
 
-- name: Remove tmp dir ({{ item.name }})
+- name: "Remove tmp dir ({{ item.name }})"
   ansible.builtin.file:
-    path: ./{{ item.name }}
+    path: "./projects/{{ item.name }}"
     state: absent
