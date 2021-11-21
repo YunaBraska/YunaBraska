@@ -60,7 +60,8 @@ public class Main {
     private static void writeReadmeFile() throws IOException {
         final var result = new StringBuilder();
         final var sortedMap = new LinkedHashMap<String, LinkedHashMap<String, String>>();
-        REPO_MAP.entrySet().stream().sorted(Map.Entry.comparingByValue((o1, o2) -> String.CASE_INSENSITIVE_ORDER.compare(o2.get("Updated"), o1.get("Updated")))).forEachOrdered(x -> sortedMap.put(x.getKey(), x.getValue()));
+//        REPO_MAP.entrySet().stream().sorted(Map.Entry.comparingByValue((o1, o2) -> String.CASE_INSENSITIVE_ORDER.compare(o2.get("Updated"), o1.get("Updated")))).forEachOrdered(x -> sortedMap.put(x.getKey(), x.getValue()));
+        REPO_MAP.entrySet().stream().sorted(Map.Entry.comparingByValue((o1, o2) -> String.CASE_INSENSITIVE_ORDER.compare(o1.get("Name"), o2.get("Name")))).forEachOrdered(x -> sortedMap.put(x.getKey(), x.getValue()));
         result
                 .append("[![YunaBraska's GitHub stats](https://github-readme-stats.vercel.app/api?username=YunaBraska&count_private=true&show_icons=true&theme=dracula)](https://github.com/YunaBraska/github-readme-stats)")
                 .append(LINE_SEPARATOR)
