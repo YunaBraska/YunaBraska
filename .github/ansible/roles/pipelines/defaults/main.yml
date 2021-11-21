@@ -35,4 +35,4 @@ piplines:
     jdk: "8"
   - name: paginator
     branches: [ master ]
-    jdk: "11"
+    jdk: "8"
