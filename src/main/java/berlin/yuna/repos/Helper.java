@@ -21,7 +21,7 @@ public class Helper {
     public static final String PROJECT_DIR = System.getProperty("user.dir");
     private static final String GITHUB_TOKEN = System.getenv("GITHUB_TOKEN");
 
-    public static String asUrl(String name, String url) {
+    public static String asUrl(final String name, final String url) {
         return "[" + name + "](" + url + ")";
     }
 
@@ -33,7 +33,7 @@ public class Helper {
         return getJson(url).readArray();
     }
 
-    private static JsonReader getJson(String url) throws IOException {
+    private static JsonReader getJson(final String url) throws IOException {
         final HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
         if (GITHUB_TOKEN != null && GITHUB_TOKEN.length() > 5 && url.contains("github.com")) {
             con.setRequestProperty("Authorization", "token " + GITHUB_TOKEN);

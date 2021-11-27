@@ -17,7 +17,7 @@ if [[ $(git status --porcelain) ]]; then
   "${increment_version}" -p
   echo "Pushing new git changes"
   git add .
-  git commit -am "Updated dependencies"
+  git commit -am "chore: updated dependencies"
   git push origin -f
 else
   echo "No git changes to push"

@@ -25,12 +25,8 @@ public class Main {
     private static final String LINE_SEPARATOR = lineSeparator();
 
     //TODO:
-    // mvn wrapper
-    // mvn dependency update
-    // mvn maven central template
     // gitignore
-    // git workflow template
-    public static void main(String[] args) throws IOException {
+    public static void main(final String[] args) throws IOException {
         REPO_MAP.clear();
         final var repos = getArray("https://api.github.com/users/YunaBraska/repos");
         for (JsonValue repoRaw : repos) {
