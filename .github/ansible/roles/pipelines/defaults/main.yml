@@ -24,6 +24,9 @@ piplines:
   - name: nats-server
     branches: [ main ]
     jdk: "8"
+  - name: nats-server-junit
+    branches: [ main ]
+    jdk: "8"
   - name: nats-streaming-server
     branches: [ main ]
     jdk: "8"
