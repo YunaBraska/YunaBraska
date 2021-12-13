@@ -16,4 +16,4 @@
 |[version-endpoint](https://github.com/YunaBraska/version-endpoint)|[0.2.2](https://github.com/YunaBraska/version-endpoint/tags)|2020-12-12|[0](https://github.com/YunaBraska/version-endpoint/stargazers)|[0](https://github.com/YunaBraska/version-endpoint/issues)|161|![maintainability](https://img.shields.io/codeclimate/maintainability/YunaBraska/version-endpoint?style=flat-square)|![coverage](https://img.shields.io/codeclimate/coverage/YunaBraska/version-endpoint?style=flat-square)|A simple spring boot version endpoint with git properties|
 |[wiser-unit](https://github.com/YunaBraska/wiser-unit)|[0.0.15](https://github.com/YunaBraska/wiser-unit/tags)|2021-11-29|[0](https://github.com/YunaBraska/wiser-unit/stargazers)|[0](https://github.com/YunaBraska/wiser-unit/issues)|480|![maintainability](https://img.shields.io/codeclimate/maintainability/YunaBraska/wiser-unit?style=flat-square)|![coverage](https://img.shields.io/codeclimate/coverage/YunaBraska/wiser-unit?style=flat-square)|BDD test methods and generates report|
 
-Last update [2021-12-06]
+Last update [2021-12-13]
