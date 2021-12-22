@@ -9,6 +9,9 @@ piplines:
   - name: and-wait-matcher
     branches: [ master ]
     jdk: "8"
+  - name: just-log
+    branches: [ main ]
+    jdk: "11"
   - name: command-line-util
     branches: [ main ]
     jdk: "8"
