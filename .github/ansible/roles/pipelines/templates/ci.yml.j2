@@ -3,7 +3,7 @@ name: {% if is_deply_ci %}JAVA_CI_DEPLOY{% else %}JAVA_CI{% endif %}
 
 on:
   workflow_dispatch:
-    branches: {{ item.branches }}
+#    branches: {{ item.branches }}
 {% if is_deply_ci %}
   schedule:
     - cron: "0 {{ item_index + 1 }} * * *"
