@@ -5,6 +5,12 @@
     dest: "./projects/{{ item.name }}"
   register: git_test
 
+- name: "Create .github/ISSUE_TEMPLATE ({{ item.name }})"
+  file:
+    path: "./projects/{{ item.name }}/.github/ISSUE_TEMPLATE"
+    state: directory
+    recurse: yes
+
 - name: "Render ci.yml ({{ item.name }})"
   ansible.builtin.template:
     src: ci.yml.j2
@@ -18,6 +24,26 @@
     dest: "./projects/{{ item.name }}/.github/workflows/ci_deploy.yml"
   vars:
     is_deply_ci: true
+
+- name: "Render pull_request_template.md ({{ item.name }})"
+  ansible.builtin.template:
+    src: pull_request_template.md.j2
+    dest: "./projects/{{ item.name }}/.github/pull_request_template.md"
+
+- name: "Render ------help.md ({{ item.name }})"
+  ansible.builtin.template:
+    src: ------help.md.j2
+    dest: "./projects/{{ item.name }}/.github/ISSUE_TEMPLATE/------help.md"
+
+- name: "Render ---bug-report.md ({{ item.name }})"
+  ansible.builtin.template:
+    src: ---bug-report.md.j2
+    dest: "./projects/{{ item.name }}/.github/ISSUE_TEMPLATE/---bug-report.md"
+
+- name: "Render ---feature-request.md.j2 ({{ item.name }})"
+  ansible.builtin.template:
+    src: ---feature-request.md.j2
+    dest: "./projects/{{ item.name }}/.github/ISSUE_TEMPLATE/---feature-request.md"
 
 - name: "Push changes ({{ item.name }})"
   git_acp:
