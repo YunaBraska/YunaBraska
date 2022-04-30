@@ -40,10 +40,20 @@
     src: ---bug-report.md.j2
     dest: "./projects/{{ item.name }}/.github/ISSUE_TEMPLATE/---bug-report.md"
 
-- name: "Render ---feature-request.md.j2 ({{ item.name }})"
+- name: "Render ---feature-request.md ({{ item.name }})"
   ansible.builtin.template:
     src: ---feature-request.md.j2
     dest: "./projects/{{ item.name }}/.github/ISSUE_TEMPLATE/---feature-request.md"
+
+- name: "Render FUNDING.yml ({{ item.name }})"
+  ansible.builtin.template:
+    src: FUNDING.yml.j2
+    dest: "./projects/{{ item.name }}/.github/FUNDING.yml"
+
+- name: "Render CONTRIBUTING.yml ({{ item.name }})"
+  ansible.builtin.template:
+    src: CONTRIBUTING.md.j2
+    dest: "./projects/{{ item.name }}/CONTRIBUTING.md"
 
 - name: "Push changes ({{ item.name }})"
   git_acp:
