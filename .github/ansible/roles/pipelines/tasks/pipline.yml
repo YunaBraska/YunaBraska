@@ -3,6 +3,7 @@
   ansible.builtin.git:
     repo: "https://github.com/YunaBraska/{{ item.name }}.git"
     dest: "./projects/{{ item.name }}"
+    force: true
   register: git_test
 
 - name: "Create .github/ISSUE_TEMPLATE ({{ item.name }})"
@@ -54,20 +55,25 @@
   ansible.builtin.template:
     src: CONTRIBUTING.md.j2
     dest: "./projects/{{ item.name }}/CONTRIBUTING.md"
+- name: Print return information from the previous task
+  ansible.builtin.debug:
+    var: pipeline__test
+- name: Push if not test
+  block:
+    - name: "Push changes ({{ item.name }})"
+      git_acp:
+        user: YunaBraska
+        token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
+        path: "./projects/{{ item.name }}"
+        branch: "{{ item.branches[ 0 ] }}"
+        comment: "chore: github actions pipeline update"
+        remote: origin
+        add: [ "." ]
+        mode: https
+        url: "https://github.com/YunaBraska/{{ item.name }}.git"
 
-- name: "Push changes ({{ item.name }})"
-  git_acp:
-    user: YunaBraska
-    token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
-    path: "./projects/{{ item.name }}"
-    branch: "{{ item.branches[ 0 ] }}"
-    comment: "chore: github actions pipeline update"
-    remote: origin
-    add: [ "." ]
-    mode: https
-    url: "https://github.com/YunaBraska/{{ item.name }}.git"
-
-- name: "Remove tmp dir ({{ item.name }})"
-  ansible.builtin.file:
-    path: "./projects/{{ item.name }}"
-    state: absent
+    - name: "Remove tmp dir ({{ item.name }})"
+      ansible.builtin.file:
+        path: "./projects/{{ item.name }}"
+        state: absent
+  when: not pipeline__test | default(true) | bool

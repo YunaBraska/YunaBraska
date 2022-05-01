@@ -1,6 +1,7 @@
 ---
 name: "CI"
 jdk: 11
+pipeline__test: True
 
 piplines:
   - name: wiser-unit
