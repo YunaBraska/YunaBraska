@@ -24,7 +24,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 {% if item.jdk %}
       - name: Set up JDK {{ item.jdk }}
         uses: actions/setup-java@v3
@@ -32,6 +33,7 @@ jobs:
           java-version: {{ item.jdk }}
           distribution: 'adopt'
 {%- raw %}
+          server-id: ossrh
           server-username: OSSRH_USERNAME
           server-password: OSSRH_TOKEN
           gpg-private-key: ${{ secrets.GPG_SIGNING_KEY }} # Value of the GPG private key to import
@@ -81,9 +83,6 @@ jobs:
         run: |
           git fetch origin release:release &>/dev/null || true
           if git rev-parse --verify "release" &>/dev/null; then echo "::set-env name=HAS_RELEASE_BRANCH::true"; fi
-      - name: Import GPG key
-        if: env.HAS_RELEASE_BRANCH == 'true'
-        id: import_gpg
       - name: Publish package
         if: env.HAS_RELEASE_BRANCH == 'true'
         run: mvn -B clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
