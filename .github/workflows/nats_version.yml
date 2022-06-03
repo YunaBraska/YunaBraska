@@ -9,14 +9,33 @@ jobs:
     steps:
       - name: "Checkout"
         uses: actions/checkout@v2
-      - id: nats_version_receive
+      - name: "Receive Nats Version"
+        id: nats_version_receive
         uses: pozetroninc/github-action-get-latest-release@master
         with:
           owner: nats-io
           repo: nats-server
           excludes: prerelease, draft
-      - id: nats_version_check
-        run: if [ "$(cat .github/nats/nats.version)" == "${{ steps.nats_version.outputs.release }}" ]; then echo "true"; else echo "false"; fi
-      - id: nats_version_output
-        if: steps.id.nats_version_check.outputs.stdout == 'false'
-        run: echo "Nats version old [${{ steps.nats_version_check.outputs.stdout }}] > new [${{ steps.nats_version.outputs.release }}]"
+      - name: "Check if new Version"
+        id: nats_version_check
+        run: |
+          trigger=$(if [ "$(cat .github/nats/nats.version)" == "${{ steps.nats_version_receive.outputs.release }}" ]; then echo "false"; else echo "true"; fi)
+          echo "Nats version old [$(cat .github/nats/nats.version)] new [${{ steps.nats_version_receive.outputs.release }}] trigger [$trigger]"
+          echo "${{ steps.nats_version_receive.outputs.release }}" > .github/nats/nats.version
+          echo "::set-output name=trigger::$trigger"
+      - name: "Save new Version"
+        if: steps.nats_version_check.outputs.trigger == 'true'
+        run: |
+          git config --global user.name 'Kira'
+          git config --global user.email 'github@yuna.berlin'
+          git commit -am "chore: updated nats version"
+          git push origin -f
+      - name: "Trigger new release"
+        if: steps.nats_version_check.outputs.trigger == 'true'
+        uses: passeidireto/trigger-external-workflow-action@main
+        env:
+          PAYLOAD_NATS_VERSION: ${{ steps.nats_version_receive.outputs.release }}
+        with:
+          repository: YunaBraska/YunaBraska
+          event: release_version
+          github_pat: ${{ secrets.GITHUB_TOKEN }}
