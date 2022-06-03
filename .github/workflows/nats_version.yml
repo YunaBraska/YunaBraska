@@ -19,17 +19,28 @@ jobs:
       - name: "Check if new Version"
         id: nats_version_check
         run: |
-          trigger=$(if [ "$(cat .github/nats/nats.version)" == "${{ steps.nats_version_receive.outputs.release }}" ]; then echo "false"; else echo "true"; fi)
-          echo "Nats version old [$(cat .github/nats/nats.version)] new [${{ steps.nats_version_receive.outputs.release }}] trigger [$trigger]"
-          echo "${{ steps.nats_version_receive.outputs.release }}" > .github/nats/nats.version
+          version_file=".github/nats/nats.version"
+          branch_name="${GITHUB_REF##*/}"
+          version_old="$(cat $version_file)"
+          version_new="${{ steps.nats_version_receive.outputs.release }}"
+          trigger=$(if [ "$version_old" == "version_new" ]; then echo "false"; else echo "true"; fi)
+          echo "Nats version [$version_old] > [$version_new] trigger [$trigger] branch [$branch_name]"
+          echo "$version_new" > $version_file
           echo "::set-output name=trigger::$trigger"
+          echo "::set-output name=version_old::$version_old"
+          echo "::set-output name=version_new::$version_new"
+          echo "::set-output name=branch_name::$branch_name"
       - name: "Save new Version"
         if: steps.nats_version_check.outputs.trigger == 'true'
-        run: |
-          git config --global user.name 'Kira'
-          git config --global user.email 'github@yuna.berlin'
-          git commit -am "chore: updated nats version"
-          git push origin -f
+        uses: github-actions-x/commit@v2.9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          push-branch: ${{ steps.nats_version_check.outputs.branch_name }}
+          commit-message: "Update Nats Version [${{ steps.nats_version_check.outputs.version_old }}] > [${{ steps.nats_version_check.outputs.version_new }}]"
+          force-add: 'true'
+          files: ${{ steps.nats_version_check.outputs.version_file }}
+          name: Kira
+          email: github@yuna.berlin
       - name: "Trigger new release"
         if: steps.nats_version_check.outputs.trigger == 'true'
         uses: passeidireto/trigger-external-workflow-action@main
