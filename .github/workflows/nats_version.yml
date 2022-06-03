@@ -1,0 +1,20 @@
+name: JAVA_CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - id: nats_version_receive
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          owner: nats-io
+          repo: nats-server
+          excludes: prerelease, draft
+      - id: nats_version_check
+        run: if [ "$(cat .github/nats/nats.version)" == "${{ steps.nats_version.outputs.release }}" ]; then echo "true"; else echo "false"; fi
+      - id: nats_version_output
+        if: steps.id.nats_version_check.outputs.stdout == 'false'
+        run: echo "Nats version old [${{ steps.nats_version_check.outputs.stdout }}] > new [${{ steps.nats_version.outputs.release }}]"
