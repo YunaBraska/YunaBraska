@@ -5,38 +5,41 @@ on:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        nats: [ nats-server, nats-streaming-server ]
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
         uses: actions/checkout@v2
-      - name: "Receive Nats Version"
+      - name: "Receive version"
         id: nats_version_receive
         uses: pozetroninc/github-action-get-latest-release@master
         with:
           owner: nats-io
-          repo: nats-server
+          repo: ${{ matrix.nats }}
           excludes: prerelease, draft
-      - name: "Check if new Version"
+      - name: "Check on new version"
         id: nats_version_check
         run: |
-          version_file=".github/nats/nats.version"
-          branch_name="${GITHUB_REF##*/}"
+          version_file=".github/nats/${{ matrix.nats }}.version"
+          branch_name="${GITHUB_REF#refs/heads/}"
           version_old="$(cat $version_file)"
           version_new="${{ steps.nats_version_receive.outputs.release }}"
           trigger=$(if [ "$version_old" == "version_new" ]; then echo "false"; else echo "true"; fi)
-          echo "Nats version [$version_old] > [$version_new] trigger [$trigger] branch [$branch_name]"
+          echo "${{ matrix.nats }} version [$version_old] > [$version_new] trigger [$trigger] branch [$branch_name]"
           echo "$version_new" > $version_file
           echo "::set-output name=trigger::$trigger"
           echo "::set-output name=version_old::$version_old"
           echo "::set-output name=version_new::$version_new"
           echo "::set-output name=branch_name::$branch_name"
-      - name: "Save new Version"
+      - name: "Save new version"
         if: steps.nats_version_check.outputs.trigger == 'true'
         uses: github-actions-x/commit@v2.9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           push-branch: ${{ steps.nats_version_check.outputs.branch_name }}
-          commit-message: "Update Nats Version [${{ steps.nats_version_check.outputs.version_old }}] > [${{ steps.nats_version_check.outputs.version_new }}]"
+          commit-message: "Update ${{ matrix.nats }} version [${{ steps.nats_version_check.outputs.version_old }}] > [${{ steps.nats_version_check.outputs.version_new }}]"
           force-add: 'true'
           files: ${{ steps.nats_version_check.outputs.version_file }}
           name: Kira
@@ -47,6 +50,6 @@ jobs:
         env:
           PAYLOAD_NATS_VERSION: ${{ steps.nats_version_receive.outputs.release }}
         with:
-          repository: YunaBraska/YunaBraska
+          repository: YunaBraska/${{ matrix.nats }}
           event: release_version
           github_pat: ${{ secrets.GITHUB_TOKEN }}
