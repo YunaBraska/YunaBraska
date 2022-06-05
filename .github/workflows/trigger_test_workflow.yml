@@ -18,5 +18,5 @@ jobs:
         with:
           repository: YunaBraska/YunaBraska
           event: test_event
-          github_pat: ${{ secrets.GITHUB_TOKEN }}
+          github_pat: ${{ secrets.CI_TOKEN }}
 
