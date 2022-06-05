@@ -3,20 +3,22 @@ name: TRIGGER_TEST_WORKFLOW
 on:
   workflow_dispatch:
 
+
 jobs:
   workflow_call:
+    name: workflow_call
+    uses: YunaBraska/YunaBraska/.github/workflows/test_workflow.yml@main
+    with:
+      my_field: "BBB"
+  repository_dispatch:
     runs-on: ubuntu-latest
     steps:
-#      - name: workflow_call
-#        uses: YunaBraska/YunaBraska/.github/workflows/test_workflow.yml@main
-#        with:
-#          my_field: "BBB"
       - name: repository_dispatch
         uses: passeidireto/trigger-external-workflow-action@main
-        env:
-          PAYLOAD_my_field: "CCC"
-        with:
-          repository: YunaBraska/YunaBraska
-          event: test_event
-          github_pat: ${{ secrets.CI_TOKEN }}
+      env:
+        PAYLOAD_my_field: "CCC"
+      with:
+        repository: YunaBraska/YunaBraska
+        event: test_event
+        github_pat: ${{ secrets.CI_TOKEN }}
 

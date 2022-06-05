@@ -23,6 +23,7 @@ jobs:
       - run: |
           echo "workflow_dispatch_my_field [$workflow_dispatch_my_field]"
           echo "repository_dispatch_my_field [$repository_dispatch_my_field]"
+          echo "Combined [${workflow_dispatch_my_field:-${repository_dispatch_my_field:-default}}]"
         env:
           workflow_dispatch_my_field: ${{ github.event.inputs.my_field }}
           repository_dispatch_my_field: ${{ github.event.client_payload.my_field }}
