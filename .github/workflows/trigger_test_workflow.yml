@@ -14,7 +14,7 @@ jobs:
       - name: repository_dispatch
         uses: passeidireto/trigger-external-workflow-action@main
         env:
-          PAYLOAD_test_event: "CCC"
+          PAYLOAD_my_field: "CCC"
         with:
           repository: YunaBraska/YunaBraska
           event: test_event
