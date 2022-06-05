@@ -1,4 +1,5 @@
-NAME "TRIGGER_TEST_WORKFLOW"
+name: TRIGGER_TEST_WORKFLOW
+
 on:
   workflow_dispatch:
 
