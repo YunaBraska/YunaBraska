@@ -7,10 +7,10 @@ jobs:
   workflow_call:
     runs-on: ubuntu-latest
     steps:
-      - name: workflow_call
-        uses: YunaBraska/YunaBraska/.github/workflows/test_workflow.yml@main
-        with:
-          my_field: "BBB"
+#      - name: workflow_call
+#        uses: YunaBraska/YunaBraska/.github/workflows/test_workflow.yml@main
+#        with:
+#          my_field: "BBB"
       - name: repository_dispatch
         uses: passeidireto/trigger-external-workflow-action@main
         env:
