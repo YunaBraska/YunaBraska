@@ -48,7 +48,7 @@ jobs:
         if: steps.nats_version_check.outputs.trigger == 'true'
         uses: passeidireto/trigger-external-workflow-action@main
         env:
-          PAYLOAD_NATS_VERSION: ${{ steps.nats_version_receive.outputs.release }}
+          PAYLOAD_natsVersion: ${{ steps.nats_version_receive.outputs.release }}
         with:
           repository: YunaBraska/${{ matrix.nats }}
           event: release_version

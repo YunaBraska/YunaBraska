@@ -1,0 +1,29 @@
+name: TEST_WORKFLOW
+
+on:
+  workflow_dispatch:
+    inputs:
+      my_field:
+        type: string
+        description: "Test String"
+        required: true
+  workflow_call:
+      inputs:
+        my_field:
+          type: string
+          description: "Test String"
+          required: true
+  repository_dispatch:
+    types: [ test_event ]
+
+jobs:
+  log-the-inputs:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "workflow_dispatch_my_field [$workflow_dispatch_my_field]"
+          echo "repository_dispatch_my_field [$repository_dispatch_my_field]"
+        env:
+          workflow_dispatch_my_field: ${{ github.event.inputs.my_field }}
+          repository_dispatch_field: ${{ github.event.client_payload.my_field }}
+
