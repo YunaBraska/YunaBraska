@@ -21,14 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "workflow_call_my_field [$workflow_call_my_field]"
-          echo "workflow_dispatch_my_field [$workflow_dispatch_my_field]"
-          echo "repository_dispatch_my_field [$repository_dispatch_my_field]"
-          echo "Combined [${workflow_dispatch_my_field:-${repository_dispatch_my_field:-default}}]"
-          echo "Combined2 [${combined3}]"
+          echo "my_field [${my_field_A:-${my_field_B:-${my_field_C}}}]"
         env:
-          workflow_call_my_field: ${{ inputs.my_field }}
-          workflow_dispatch_my_field: ${{ github.event.inputs.my_field }}
-          repository_dispatch_my_field: ${{ github.event.client_payload.my_field }}
-          combined3: {% if variable is defined %}variable is defined{% else %}variable is not defined{% endif %}
+          my_field_A: ${{ inputs.my_field }}
+          my_field_B: ${{ github.event.inputs.my_field }}
+          my_field_C: ${{ github.event.client_payload.my_field }}
 
