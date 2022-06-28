@@ -104,8 +104,8 @@ jobs:
       - name: "Checkout Repository"
         uses: actions/checkout@v3
         with:
-          ref: ${{ jobs.prep.outputs.branch }}
-          repository: ${{ jobs.prep.outputs.repository }}
+          ref: ${{ prep.outputs.branch }}
+          repository: ${{ prep.outputs.repository }}
           token: ${{ secrets.CI_TOKEN }}
   maven:
     name: "Maven Build & Test"
