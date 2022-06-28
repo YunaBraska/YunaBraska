@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import re
+import json
 
 # e.g. [1.2.3-rc.1+30]
 SEMANTIC_PATTERN = re.compile(
@@ -118,7 +119,7 @@ def start(args):
         add_result(sem_ver)
 
         if args.output == 'ALL' or args.output == 'all':
-            return str(sem_ver)
+            return json.dumps(sem_ver)
         elif args.output in sem_ver.keys():
             return sem_ver[args.output]
         else:

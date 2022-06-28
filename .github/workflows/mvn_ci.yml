@@ -141,7 +141,20 @@ jobs:
           
           echo "git_analyze [$git_analyze]"
           
+          has_changes=${{fromJson(env.git_analyze).has_changes}}
+          tag_needed=${{fromJson(env.git_analyze).tag_needed}}
+          tag_new=${{fromJson(env.git_analyze).tag_new}}
+          commit_msg=${{fromJson(env.git_analyze).commit_msg}}
 
+          echo "has_changes [$has_changes]"
+          echo "tag_needed [$tag_needed]"
+          echo "tag_new [$tag_new]"
+          echo "commit_msg [$commit_msg]"
+
+          echo "::set-output name=has_changes::$has_changes"
+          echo "::set-output name=tag_needed::$tag_needed"
+          echo "::set-output name=tag_new::$tag_new"
+          echo "::set-output name=commit_msg::$commit_msg"
       - name: "release"
         if: steps.analyze.outputs.tag_needed == 'true'
         uses: ncipollo/release-action@v1

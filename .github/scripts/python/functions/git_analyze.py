@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import os
 import subprocess
 
@@ -142,7 +143,7 @@ def start(args):
 
     if 'tag_new' not in result.keys():
         result['tag_new'] = tag_increase(result)
-    result['changes'] = changes
+    result['changes'] = list(changes)
     result['commit_msg'] = "\n".join(result['changes'])
 
     do_pom_update(result)
@@ -152,7 +153,7 @@ def start(args):
     if result['output'] in result.keys():
         return result[result['output']]
     else:
-        return dict(sorted(result.items()))
+        return json.dumps(dict(sorted(result.items())))
 
 
 def handle_set_version(changes, result):
