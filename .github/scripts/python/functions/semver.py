@@ -20,23 +20,24 @@ def parse_args():
         help='Input SemVer to process'
     )
     parser.add_argument(
-        '-p', '--print',
-        metavar='',
-        type=bool,
-        required=False,
-        nargs='?',
-        const=True,
-        help='Prints parsed SemVer',
-    )
-    parser.add_argument(
         '-i', '--increase',
         metavar='',
         type=str,
         required=False,
         nargs='?',
-        const='last',
+        const='patch',
         choices=['major', 'minor', 'patch', 'rc', 'meta', 'last'],
-        help='SemVer increase version (default = last)'
+        help='SemVer increase version strategy [\'major\', \'minor\', \'patch\', \'rc\', \'meta\']'
+    )
+    parser.add_argument(
+        '-o', '--output',
+        metavar='',
+        type=str,
+        required=False,
+        nargs='?',
+        default='ALL',
+        const='ALL',
+        help='Outputs the value from the given key',
     )
     return parser.parse_args()
 
@@ -56,9 +57,9 @@ def parse_sem_ver(args):
         sem_ver['meta_int'] = to_int(group_int(m_meta, 'int'))
         sem_ver['rc'] = concat(sem_ver['rc_str'], sem_ver['rc_int'])
         sem_ver['meta'] = concat(sem_ver['meta_str'], sem_ver['meta_int'])
+        sem_ver['output'] = args.output
         return sem_ver
-    print(f'Invalid semantic version [{args.version}] see [https://semver.org]')
-    exit(1)
+    raise Exception(f'Invalid semantic version [{args.version}] see [https://semver.org]')
 
 
 def concat(*texts):
@@ -115,11 +116,13 @@ def start(args):
             count_up(sem_ver, args.increase)
 
         add_result(sem_ver)
-        if args.print is not None:
-            print(f'sem_ver [{sem_ver}]')
+
+        if args.output == 'ALL' or args.output == 'all':
+            return str(sem_ver)
+        elif args.output in sem_ver.keys():
+            return sem_ver[args.output]
         else:
-            print(sem_ver['result'])
-        exit(0)
+            return sem_ver['result']
 
 
 def add_result(sem_ver):
@@ -143,5 +146,14 @@ def to_string(opt, fallback=None):
     return fallback
 
 
+def run(args):
+    try:
+        print(start(args))
+        exit(0)
+    except Exception as e:
+        print(str(e))
+        exit(1)
+
+
 if __name__ == '__main__':
-    start(parse_args())
+    run(parse_args())
