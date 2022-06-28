@@ -155,7 +155,7 @@ jobs:
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=commit_msg::$commit_msg"
       - name: "release"
-        if: ${{ ${{jobs.maven.steps.analyze.outputs.tag_needed}} == "true"}} }}
+        if: ${{ ${{needs.analyze.outputs.tag_needed}} == "true"}} }}
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.maven.outputs.new_version }}
