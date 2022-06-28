@@ -156,7 +156,7 @@ jobs:
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=commit_msg::$commit_msg"
       - name: "release"
-        if: ${{steps.analyze.outputs.tag_needed}} == "true"}}
+        if: steps.analyze.outputs.tag_needed == 'true'
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.maven.outputs.new_version }}
@@ -166,7 +166,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: "Publish code quality"
         uses: paambaati/codeclimate-action@v2.7.4
-        if: ${{ needs.prep.info.outputs.trigger_cc_test_id  == "true" }}
+        if: needs.prep.info.outputs.trigger_cc_test_id  == 'true'
         env:
           CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
           JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
