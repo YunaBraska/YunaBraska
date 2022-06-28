@@ -166,7 +166,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: "Publish code quality"
         uses: paambaati/codeclimate-action@v2.7.4
-        if: ${{ ${{jobs.prep.steps.info.outputs.trigger_cc_test_id}} == "true" }}
+        if: ${{ jobs.prep.info.outputs.trigger_cc_test_id  == "true" }}
         env:
           CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
           JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
