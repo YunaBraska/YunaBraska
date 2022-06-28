@@ -51,7 +51,7 @@ jobs:
     name: "Preparation"
     runs-on: ubuntu-latest
 
-    #Dynamic ENVs [usage: ${{ jobs.prep.outputs.branch }} or ${{ current_job_id.prep.outputs.branch }}]
+    #Dynamic ENVs [usage: ${{ needs.prep.outputs.branch }} or ${{ current_job_id.prep.outputs.branch }}]
     outputs:
       #INFO INPUTS
       branch: ${{ steps.info_input.outputs.branch }}
@@ -114,8 +114,8 @@ jobs:
       - name: "Checkout Repository"
         uses: actions/checkout@v3
         with:
-          ref: ${{ jobs.prep.outputs.branch }}
-          repository: ${{ jobs.prep.outputs.repository }}
+          ref: ${{ needs.prep.outputs.branch }}
+          repository: ${{ needs.prep.outputs.repository }}
           token: ${{ secrets.CI_TOKEN }}
       - name: "Preparation"
         run: |
