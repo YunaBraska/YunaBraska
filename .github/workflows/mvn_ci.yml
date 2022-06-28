@@ -1,0 +1,228 @@
+name: CI_MVN
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        type: string
+        description: "[repository] [default:${GITHUB_REPOSITORY}] (e.g. my-org/my-repo)"
+        required: false
+      branch:
+        type: string
+        description: "[branch] [default:${GITHUB_REF}] (e.g. my-branch)"
+        required: false
+      tag_new:
+        type: string
+        description: "[tag_new] [default:''] (e.g. 1.2.3-RC4+Meta5)"
+        required: false
+      increase:
+        type: string
+        options:
+          - major
+          - minor
+          - patch
+          - rc
+          - meta
+        description: "[increase] fallback to increase the version [default:rc] (e.g. major, minor, patch, rc, meta)"
+        required: false
+  workflow_call:
+    inputs:
+      repository:
+        type: string
+        description: "[repository] [default:${GITHUB_REPOSITORY}] (e.g. my-org/my-repo)"
+        required: false
+      branch:
+        type: string
+        description: "[branch] [default:${GITHUB_REF}] (e.g. my-branch)"
+        required: false
+      tag_new:
+        type: string
+        description: "[tag_new] [default:''] (e.g. 1.2.3-RC4+Meta5)"
+        required: false
+      increase:
+        type: string
+        description: "[increase] fallback to increase the version [default:rc] (e.g. major, minor, patch, rc, meta)"
+        required: false
+  repository_dispatch:
+    types: [ EVENT_CI_MVN ]
+
+jobs:
+  prep:
+    name: "Preparation"
+    runs-on: ubuntu-latest
+
+    #Dynamic ENVs [usage: ${{ jobs.prep.outputs.branch }} or ${{ current_job_id.prep.outputs.branch }}]
+    outputs:
+      #INFO INPUTS
+      branch: ${{ steps.info_input.outputs.branch }}
+      repository: ${{ steps.info_input.outputs.repository }}
+      tag_new: ${{ steps.info_input.outputs.tag_new }}
+      increase: ${{ steps.info_input.outputs.increase }}
+      #INFO REPO
+      tag: ${{ steps.info_repo.outputs.tag }}
+      has_pom_file: ${{ steps.info_repo.outputs.has_pom_file }}
+      #TRIGGER
+      trigger_cc_test_id: ${{ steps.info_input.outputs.trigger_cc_test_id }}
+
+    steps:
+      - name: "Read Inputs"
+        id: "info_input"
+        run: |
+          branch="${branch_A:-${branch_B:-${branch_C:-${GITHUB_REF}}}}"
+          repository="${repository_A:-${repository_B:-${repository_C:-${GITHUB_REPOSITORY}}}}"
+          tag_new="${tag_new_A:-${tag_new_B:-${tag_new_C}}}"
+          increase="${increase_A:-${increase_B:-${increase_C:-rc}}}"
+          trigger_cc_test_id=${{ env.CC_TEST_REPORTER_ID != '' }}
+          
+          echo "branch [$branch]"
+          echo "repository [$repository]"
+          echo "tag_new [$tag_new]"
+          echo "increase [$increase]"
+          echo "trigger_cc_test_id [$trigger_cc_test_id]"
+          
+          echo "::set-output name=branch::$branch"
+          echo "::set-output name=repository::$repository"
+          echo "::set-output name=tag_new::$tag_new"
+          echo "::set-output name=increase::$increase"
+          echo "::set-output name=trigger_cc_test_id::$trigger_cc_test_id"
+        env:
+          branch_A: ${{ inputs.branch }}
+          branch_B: ${{ github.event.inputs.branch }}
+          branch_C: ${{ github.event.client_payload.branch }}
+
+          repository_A: ${{ inputs.repository }}
+          repository_B: ${{ github.event.inputs.repository }}
+          repository_C: ${{ github.event.client_payload.repository }}
+
+          tag_new_A: ${{ inputs.tag_new }}
+          tag_new_B: ${{ github.event.inputs.tag_new }}
+          tag_new_C: ${{ github.event.client_payload.tag_new }}
+
+          increase_A: ${{ inputs.increase }}
+          increase_B: ${{ github.event.inputs.increase }}
+          increase_C: ${{ github.event.client_payload.increase }}
+      - name: "Checkout Repository"
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ jobs.prep.outputs.branch }}
+          repository: ${{ jobs.prep.outputs.repository }}
+          token: ${{ secrets.CI_TOKEN }}
+#      - name: "Read git Info"
+#      - id: "info_repo"
+#        run: |
+#          tag="${git describe --tags $(git rev-parse HEAD) 2>/dev/null || echo '0.0.0'}"
+#          has_pom_file=$([ -e "pom.xml" ] && echo "true" || echo "false")
+#
+#          echo "tag [$tag]"
+#          echo "has_pom_file [$has_pom_file]"
+#
+#          echo "::set-output name=tag::$tag"
+#          echo "::set-output name=has_pom_file::$has_pom_file"
+  maven:
+    name: "Maven Build & Test"
+    runs-on: ubuntu-latest
+#    if: ${{ ${{jobs.prep.steps.info.outputs.has_pom_file}} == "true" }}
+#
+#    outputs:
+#      branch: ${{ jobs.prep.outputs.branch }}
+#      repository: ${{ jobs.prep.outputs.repository }}
+#      tag_needed: ${{ jobs.maven.steps.analyze.outputs.tag_needed }}
+#      has_changes: ${{ jobs.maven.steps.analyze.outputs.has_changes }}
+
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ jobs.prep.outputs.branch }}
+          repository: ${{ jobs.prep.outputs.repository }}
+          token: ${{ secrets.CI_TOKEN }}
+      - name: "Preparation"
+        run: |
+          ./mvnw -B -N io.takari:maven:wrapper
+          ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
+          ./mvnw dependency:resolve-plugins -q -U
+          ./mvnw dependency:resolve -q -U
+      - name: "Run Test"
+        run: ./mvnw -B clean package
+      - name: "Execute Scripts"
+        run: |
+        id: "analyze"
+          mkdir -p target
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/semver.py -P target/semver.py
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/xml_reader.py -P target/xml_reader.py
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/git_analyze.py -P target/git_analyze.py
+          
+          git config --global user.name 'Kira'
+          git config --global user.email 'yuna-@web.de'
+          git_analyze=$(target/git_analyze.py --set_tag=${{ steps.info_input.outputs.tag_new }} --increase=${{ steps.info_input.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
+
+          echo "git_analyze: $git_analyze"
+          
+          has_changes=${{fromJson($git_analyze).has_changes}}
+          tag_needed=${{fromJson($git_analyze).tag_needed}}
+          tag_new=${{fromJson($git_analyze).tag_new}}
+          commit_msg=${{fromJson($git_analyze).commit_msg}}
+#          has_changes=$(target/git_analyze.py --output=has_changes)
+#          tag_needed=$(target/git_analyze.py --output=tag_needed)
+#          tag_new=$(target/git_analyze.py --output=tag_new)
+#          commit_msg=$(target/git_analyze.py --output=commit_msg)
+#
+          echo "has_changes [$has_changes]"
+          echo "tag_needed [$tag_needed]"
+          echo "tag_new [$tag_new]"
+          echo "commit_msg [$commit_msg]"
+#
+          echo "::set-output name=has_changes::$has_changes"
+          echo "::set-output name=tag_needed::$tag_needed"
+          echo "::set-output name=tag_new::$tag_new"
+          echo "::set-output name=commit_msg::$commit_msg"
+#      - name: "Detect Changes"
+#        id: "analyze"
+#        run: |
+#          tag_custom=${{ steps.info_input.outputs.tag_new }}
+#          tag_needed=$(target/git_analyze.py --output=tag_needed)
+#          tag_needed=$(if [ "$tag_needed" = "True" ] || [ ! -z "$tag_custom" ]; then echo "true"; fi)
+#          has_changes=$(target/git_analyze.py --output=has_changes)
+#
+#          echo "tag_needed [$tag_needed]
+#          echo "has_changes [$has_changes]
+#
+#          echo "::set-output name=tag_needed::$tag_needed"
+#          echo "::set-output name=has_changes::$has_changes"
+      #  git commit -m "$(.github/scripts/python/functions/git_analyze.py --output=commit_msg)"
+#      - name: "Increase Version"
+#        if: ${{ ${{jobs.maven.outputs.tag_needed}} == "true" }}
+#        run: |
+#          new_version=$(target/git_analyze.py --output=latest_tag --tag_fallback=0.0.0)
+#          new_version=.github/scripts/python/functions/semver.py --version=$new_version --increase=${{ jobs.prep.outputs.increase }}
+#
+#          echo "new_version [$new_version] tag_custom [$tag_custom]"
+#          new_version=$(if [ ! -z "$tag_custom" ]; then echo "$tag_custom"; else echo "$new_version" ; fi)
+#          echo "new_version [$new_version]"
+#          ./mvnw versions:set -DnewVersion="$new_version" -DgenerateBackupPoms=false
+      - name: "release"
+        if: ${{ ${{jobs.maven.steps.analyze.outputs.tag_needed}} == "true"}} }}
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.maven.outputs.new_version }}
+          artifacts: "target/*.jar,build/*.jar"
+          generateReleaseNotes: true
+          bodyFile: target/release.log
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Publish code quality"
+        uses: paambaati/codeclimate-action@v2.7.4
+        if: ${{ ${{jobs.prep.steps.info.outputs.trigger_cc_test_id}} == "true" }}
+        env:
+          CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
+          JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
+        with:
+          coverageLocations: ${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco
+      - name: "Remove workflow files"
+        run: |
+          rm -rf coverage* &>/dev/null || true
+          rm -rf codeclimate* &>/dev/null || true
+          rm -rf ./*reporter* &>/dev/null || true
+
+
+
+
