@@ -140,10 +140,10 @@ jobs:
           
           echo "git_analyze [$git_analyze]"
           
-          has_changes=${{fromJson($git_analyze).has_changes}}
-          tag_needed=${{fromJson($git_analyze).tag_needed}}
-          tag_new=${{fromJson($git_analyze).tag_new}}
-          commit_msg=${{fromJson($git_analyze).commit_msg}}
+          has_changes=${{fromJson(env.git_analyze).has_changes}}
+          tag_needed=${{fromJson(env.git_analyze).tag_needed}}
+          tag_new=${{fromJson(env.git_analyze).tag_new}}
+          commit_msg=${{fromJson(env.git_analyze).commit_msg}}
 
           echo "has_changes [$has_changes]"
           echo "tag_needed [$tag_needed]"
