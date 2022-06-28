@@ -144,16 +144,12 @@ jobs:
           tag_needed=${{fromJson($git_analyze).tag_needed}}
           tag_new=${{fromJson($git_analyze).tag_new}}
           commit_msg=${{fromJson($git_analyze).commit_msg}}
-#          has_changes=$(target/git_analyze.py --output=has_changes)
-#          tag_needed=$(target/git_analyze.py --output=tag_needed)
-#          tag_new=$(target/git_analyze.py --output=tag_new)
-#          commit_msg=$(target/git_analyze.py --output=commit_msg)
-#
+
           echo "has_changes [$has_changes]"
           echo "tag_needed [$tag_needed]"
           echo "tag_new [$tag_new]"
           echo "commit_msg [$commit_msg]"
-#
+
           echo "::set-output name=has_changes::$has_changes"
           echo "::set-output name=tag_needed::$tag_needed"
           echo "::set-output name=tag_new::$tag_new"
