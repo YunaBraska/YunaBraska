@@ -107,28 +107,9 @@ jobs:
           ref: ${{ jobs.prep.outputs.branch }}
           repository: ${{ jobs.prep.outputs.repository }}
           token: ${{ secrets.CI_TOKEN }}
-#      - name: "Read git Info"
-#      - id: "info_repo"
-#        run: |
-#          tag="${git describe --tags $(git rev-parse HEAD) 2>/dev/null || echo '0.0.0'}"
-#          has_pom_file=$([ -e "pom.xml" ] && echo "true" || echo "false")
-#
-#          echo "tag [$tag]"
-#          echo "has_pom_file [$has_pom_file]"
-#
-#          echo "::set-output name=tag::$tag"
-#          echo "::set-output name=has_pom_file::$has_pom_file"
   maven:
     name: "Maven Build & Test"
     runs-on: ubuntu-latest
-#    if: ${{ ${{jobs.prep.steps.info.outputs.has_pom_file}} == "true" }}
-#
-#    outputs:
-#      branch: ${{ jobs.prep.outputs.branch }}
-#      repository: ${{ jobs.prep.outputs.repository }}
-#      tag_needed: ${{ jobs.maven.steps.analyze.outputs.tag_needed }}
-#      has_changes: ${{ jobs.maven.steps.analyze.outputs.has_changes }}
-
     steps:
       - name: "Checkout Repository"
         uses: actions/checkout@v3
@@ -143,10 +124,11 @@ jobs:
           ./mvnw dependency:resolve-plugins -q -U
           ./mvnw dependency:resolve -q -U
       - name: "Run Test"
-        run: ./mvnw -B clean package
-      - name: "Execute Scripts"
         run: |
+          ./mvnw -B clean package
+      - name: "Execute Scripts"
         id: "analyze"
+        run: |
           mkdir -p target
           wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/semver.py -P target/semver.py
           wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/xml_reader.py -P target/xml_reader.py
@@ -176,30 +158,6 @@ jobs:
           echo "::set-output name=tag_needed::$tag_needed"
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=commit_msg::$commit_msg"
-#      - name: "Detect Changes"
-#        id: "analyze"
-#        run: |
-#          tag_custom=${{ steps.info_input.outputs.tag_new }}
-#          tag_needed=$(target/git_analyze.py --output=tag_needed)
-#          tag_needed=$(if [ "$tag_needed" = "True" ] || [ ! -z "$tag_custom" ]; then echo "true"; fi)
-#          has_changes=$(target/git_analyze.py --output=has_changes)
-#
-#          echo "tag_needed [$tag_needed]
-#          echo "has_changes [$has_changes]
-#
-#          echo "::set-output name=tag_needed::$tag_needed"
-#          echo "::set-output name=has_changes::$has_changes"
-      #  git commit -m "$(.github/scripts/python/functions/git_analyze.py --output=commit_msg)"
-#      - name: "Increase Version"
-#        if: ${{ ${{jobs.maven.outputs.tag_needed}} == "true" }}
-#        run: |
-#          new_version=$(target/git_analyze.py --output=latest_tag --tag_fallback=0.0.0)
-#          new_version=.github/scripts/python/functions/semver.py --version=$new_version --increase=${{ jobs.prep.outputs.increase }}
-#
-#          echo "new_version [$new_version] tag_custom [$tag_custom]"
-#          new_version=$(if [ ! -z "$tag_custom" ]; then echo "$tag_custom"; else echo "$new_version" ; fi)
-#          echo "new_version [$new_version]"
-#          ./mvnw versions:set -DnewVersion="$new_version" -DgenerateBackupPoms=false
       - name: "release"
         if: ${{ ${{jobs.maven.steps.analyze.outputs.tag_needed}} == "true"}} }}
         uses: ncipollo/release-action@v1
