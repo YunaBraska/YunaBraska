@@ -134,8 +134,7 @@ jobs:
           wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
           wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target
           wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/git_analyze.py -P target
-          
-          java --version
+          chmod +x target/git_analyze.py target/semver.py target/semver.py
           
           git config --global user.name 'Kira'
           git config --global user.email 'yuna-@web.de'
