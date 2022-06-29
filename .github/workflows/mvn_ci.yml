@@ -131,9 +131,9 @@ jobs:
         id: "analyze"
         run: |
           mkdir -p target
-          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target/semver.py
-          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target/xml_reader.py
-          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/git_analyze.py -P target/git_analyze.py
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target
+          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/git_analyze.py -P target
           
           echo $(ls -lah)
           echo $(ls -lah target)
