@@ -138,6 +138,7 @@ jobs:
           
           git config --global user.name 'Kira'
           git config --global user.email 'yuna-@web.de'
+          echo "target/git_analyze.py --set_tag=${{ steps.info_input.outputs.tag_new }} --increase=${{ steps.info_input.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes"
           git_analyze=$(target/git_analyze.py --set_tag=${{ steps.info_input.outputs.tag_new }} --increase=${{ steps.info_input.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
           echo "git_analyze [$git_analyze]"
           
@@ -155,6 +156,7 @@ jobs:
           echo "::set-output name=tag_needed::$tag_needed"
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=commit_msg::$commit_msg"
+          rm -rf target/git_analyze.py target/semver.py target/semver.py
       - name: "release"
         if: steps.analyze.outputs.tag_needed == 'true'
         uses: ncipollo/release-action@v1
