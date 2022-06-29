@@ -135,18 +135,28 @@ jobs:
           wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target/xml_reader.py
           wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/git_analyze.py -P target/git_analyze.py
           
+          echo $(ls -lah)
+          echo $(ls -lah target)
+          
           git config --global user.name 'Kira'
           git config --global user.email 'yuna-@web.de'
           git_analyze=$(target/git_analyze.py --set_tag=${{ steps.info_input.outputs.tag_new }} --increase=${{ steps.info_input.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
           echo "git_analyze [$git_analyze]"
           
-          git_analyze="${git_analyze//'%'/'%25'}"
-          git_analyze="${git_analyze//$'\n'/'%0A'}"
-          git_analyze="${git_analyze//$'\r'/'%0D'}"
-          
-          echo "git_analyze [$git_analyze]"
-          
+          has_changes=$(echo $json | jq '.has_changes')
+          tag_needed=$(echo $json | jq '.tag_needed')
+          tag_new=$(echo $json | jq '.tag_new')
+          commit_msg=$(echo $json | jq '.commit_msg')
 
+          echo "has_changes [$has_changes]"
+          echo "tag_needed [$tag_needed]"
+          echo "tag_new [$tag_new]"
+          echo "commit_msg [$commit_msg]"
+
+          echo "::set-output name=has_changes::$has_changes"
+          echo "::set-output name=tag_needed::$tag_needed"
+          echo "::set-output name=tag_new::$tag_new"
+          echo "::set-output name=commit_msg::$commit_msg"
       - name: "release"
         if: steps.analyze.outputs.tag_needed == 'true'
         uses: ncipollo/release-action@v1
