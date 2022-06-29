@@ -138,8 +138,8 @@ jobs:
           
           git config --global user.name 'Kira'
           git config --global user.email 'yuna-@web.de'
-          echo "target/git_analyze.py --set_tag=${{ steps.info_input.outputs.tag_new }} --increase=${{ steps.info_input.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes"
-          git_analyze=$(target/git_analyze.py --set_tag=${{ steps.info_input.outputs.tag_new }} --increase=${{ steps.info_input.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
+          echo "target/git_analyze.py --set_tag=${{ needs.prep.outputs.tag_new }} --increase=${{ needs.prep.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes"
+          git_analyze=$(target/git_analyze.py --set_tag=${{ needs.prep.outputs.tag_new }} --increase=${{ needs.prep.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
           echo "git_analyze [$git_analyze]"
           
           has_changes=$(echo $json | jq '.has_changes')
