@@ -131,9 +131,9 @@ jobs:
         id: "analyze"
         run: |
           mkdir -p target
-          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
-          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target
-          wget -nc https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/git_analyze.py -P target
+          wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
+          wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target
+          wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/git_analyze.py -P target
           chmod +x target/git_analyze.py target/semver.py target/semver.py
           
           git config --global user.name 'Kira'
