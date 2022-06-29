@@ -125,6 +125,7 @@ def start(args):
         "git", "rev-parse", "--abbrev-ref", "HEAD"
     ]).decode(result['encoding']).strip()
     subprocess.call(["git", "add", "."], stderr=DEVNULL, stdout=DEVNULL)
+    subprocess.call(["git", "fetch", "--all", "--tags"], stderr=DEVNULL, stdout=DEVNULL)
     result['sha_latest'] = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode(result['encoding']).strip()
     git_status = subprocess.check_output(["git", "status", "--porcelain"]).decode(result['encoding'])
     result['has_changes'] = git_status.strip() != ""

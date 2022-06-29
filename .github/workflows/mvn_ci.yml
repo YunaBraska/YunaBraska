@@ -142,10 +142,10 @@ jobs:
           git_analyze=$(target/git_analyze.py --set_tag=${{ needs.prep.outputs.tag_new }} --increase=${{ needs.prep.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
           echo "git_analyze [$git_analyze]"
           
-          has_changes=$(echo $json | jq '.has_changes')
-          tag_needed=$(echo $json | jq '.tag_needed')
-          tag_new=$(echo $json | jq '.tag_new')
-          commit_msg=$(echo $json | jq '.commit_msg')
+          has_changes=$(echo $git_analyze | jq '.has_changes')
+          tag_needed=$(echo $git_analyze | jq '.tag_needed')
+          tag_new=$(echo $git_analyze | jq '.tag_new')
+          commit_msg=$(echo $git_analyze | jq '.commit_msg')
 
           echo "has_changes [$has_changes]"
           echo "tag_needed [$tag_needed]"
