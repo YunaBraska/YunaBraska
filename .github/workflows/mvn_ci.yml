@@ -79,7 +79,7 @@ jobs:
           tag_new="${tag_new_A:-${tag_new_B:-${tag_new_C}}}"
           increase="${increase_A:-${increase_B:-${increase_C:-rc}}}"
           codeclimate_id="${codeclimate_id_A:-${codeclimate_id_B:-${codeclimate_id_C:-${{secrets.CC_TEST_REPORTER_ID}}}}}"
-          trigger_cc_test_id=$([[ "$codeclimate_id" != "" ]] && echo Match )
+
           
           echo "branch [$branch]"
           echo "repository [$repository]"
