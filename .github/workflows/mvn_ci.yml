@@ -120,7 +120,7 @@ jobs:
           ref: ${{ steps.prep.outputs.branch }}
           repository: ${{ steps.prep.outputs.repository }}
           token: ${{ secrets.CI_TOKEN }}
-      - name: "Setup Pyton"
+      - name: "Setup Python"
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
