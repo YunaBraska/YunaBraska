@@ -175,6 +175,7 @@ jobs:
           echo $commit_msg > target/release.log
           rm -rf target/git_analyze.py target/semver.py
       - name: "Test Output"
+        id: "test_out"
         run: |
           git_analyze=$(cat target/git_analyze.log)
           echo "git_analyze [$git_analyze]"
@@ -197,6 +198,19 @@ jobs:
           echo "env.has_changes [${{ env.has_changes }}]"
           echo "steps.repo_analyze.outputs.has_changes [${{ steps.repo_analyze.outputs.has_changes }}]"
           echo "needs.repo_analyze.outputs.has_changes [${{ needs.repo_analyze.outputs.has_changes }}]"
+          echo "needs.maven.outputs.has_changes [${{ needs.maven.outputs.has_changes }}]"
+      - name: "Test Output 2"
+        run: |
+          echo "trigger_release [$trigger_release]"
+          echo "env.trigger_release [${{ env.trigger_release }}]"
+          echo "steps.test_out.outputs.trigger_release [${{ steps.test_out.outputs.trigger_release }}]"
+          echo "needs.test_out.outputs.trigger_release [${{ needs.test_out.outputs.trigger_release }}]"
+          echo "needs.maven.outputs.trigger_release [${{ needs.maven.outputs.trigger_release }}]"
+          
+          echo "has_changes [$has_changes]"
+          echo "env.has_changes [${{ env.has_changes }}]"
+          echo "steps.test_out.outputs.has_changes [${{ steps.test_out.outputs.has_changes }}]"
+          echo "needs.test_out.outputs.has_changes [${{ needs.test_out.outputs.has_changes }}]"
           echo "needs.maven.outputs.has_changes [${{ needs.maven.outputs.has_changes }}]"
       - name: "Create release"
         if: steps.repo_analyze.outputs.trigger_release == 'true'
