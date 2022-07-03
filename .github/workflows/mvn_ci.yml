@@ -139,6 +139,10 @@ jobs:
     needs: prep
     name: "Maven Build & Test"
     runs-on: ubuntu-latest
+
+    outputs:
+      do_release: ${{ steps.analyze.outputs.do_release }}
+
     steps:
       - name: "Checkout Repository"
         uses: actions/checkout@v3
@@ -200,8 +204,9 @@ jobs:
           echo "do_release ${{ env.do_release }}"
           echo "do_release ${{ steps.analyze.outputs.do_release }}"
           echo "do_release ${{ needs.analyze.outputs.do_release }}"
+          echo "do_release ${{ needs.maven.outputs.do_release }}"
       - name: "Create release"
-        if: steps.analyze.outputs.do_release == 'true'
+        if: needs.maven.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.maven.outputs.new_version }}
