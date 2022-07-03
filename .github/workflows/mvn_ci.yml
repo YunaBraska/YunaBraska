@@ -67,6 +67,7 @@ jobs:
       increase: ${{ steps.info_input.outputs.increase }}
       java_version: ${{ steps.detect_java.outputs.java_version }}
       codeclimate_id: ${{ steps.info_input.outputs.codeclimate_id }}
+      do_release: ${{ steps.repo_analyze.outputs.do_release }}
       #TRIGGER
       trigger_cc_test_id: ${{ steps.info_input.outputs.trigger_cc_test_id }}
 
@@ -196,7 +197,8 @@ jobs:
           echo "::set-output name=commit_msg::$commit_msg"
           echo "::set-output name=is_branch_default::$is_branch_default
           echo "::set-output name=do_release::true
-
+          echo $commit_msg > target/release.log
+          rm -rf target/git_analyze.py target/semver.py
       - name: "Test Output"
         run: |
           echo "do_release $do_release"
