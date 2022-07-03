@@ -64,11 +64,11 @@ def parse_args():
         required=False,
         nargs='?',
         const='true',
-        choices=['true', 'false', 'tag_needed', 'has_changes', 'is_branch_default'],
+        choices=['true', 'false', 'tag_needed', 'has_local_changes', 'has_changes', 'is_branch_default'],
         help='Update pom version'
              ' with [tag_new]'
              ' default [false]'
-             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'is_branch_default\']',
+             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'has_local_changes\', \'is_branch_default\']',
     )
     parser.add_argument(
         '-c', '--do_commit',
@@ -77,11 +77,11 @@ def parse_args():
         required=False,
         nargs='?',
         const='true',
-        choices=['true', 'false', 'has_changes', 'tag_needed', 'is_branch_default'],
+        choices=['true', 'false', 'has_changes', 'has_local_changes', 'tag_needed', 'is_branch_default'],
         help='Commit'
              ' with [commit_msg]'
              ' default [false]'
-             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'is_branch_default\']',
+             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'has_local_changes\', \'is_branch_default\']',
     )
     parser.add_argument(
         '-t', '--do_tag',
@@ -90,11 +90,11 @@ def parse_args():
         required=False,
         nargs='?',
         const='true',
-        choices=['true', 'false', 'has_changes', 'tag_needed', 'is_branch_default'],
+        choices=['true', 'false', 'has_changes', 'has_local_changes', 'tag_needed', 'is_branch_default'],
         help='Commit'
              ' with [tag_new]'
              ' default [false]'
-             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'is_branch_default\']',
+             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'has_local_changes\', \'is_branch_default\']',
     )
     parser.add_argument(
         '-s', '--set_tag',
@@ -129,7 +129,7 @@ def start(args):
     result['sha_latest'] = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode(result['encoding']).strip()
     git_status = subprocess.check_output(["git", "status", "--porcelain"]).decode(result['encoding'])
     result['has_local_changes'] = git_status.strip() != ""
-    result['has_changes'] = git_status.strip() != ""
+    result['has_changes'] = False
 
     set_tag_sha_latest(result)
 
@@ -144,7 +144,7 @@ def start(args):
     handle_set_version(changes, result)
 
     if 'tag_new' not in result.keys():
-        result['tag_new'] = tag_increase(result)
+        result['tag_new'] = tag_increase(result).strip('\"').strip('\'')
     result['changes'] = list(changes)
     result['commit_msg'] = "\n".join(result['changes'])
 
@@ -175,8 +175,8 @@ def get_default_branch(result):
     try:
         return delete_branch_prefix(subprocess.check_output([
             "git", "symbolic-ref", "refs/remotes/origin/HEAD"
-        ]).decode(result['encoding']).strip())
-    except:
+        ], shell=True).decode(result['encoding']).strip())
+    except subprocess.CalledProcessError as grepexc:
         return delete_branch_prefix(subprocess.check_output([
             "git", "symbolic-ref", "HEAD"
         ]).decode(result['encoding']).strip())
