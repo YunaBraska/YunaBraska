@@ -196,8 +196,9 @@ jobs:
           echo "${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco [$(ls -lah ${{github.workspace}}/target/site/jacoco)]" 
           echo "target/site/jacoco/jacoco.xml:jacoco [$(ls -lah target/site/jacoco)]" 
           echo "pwd [$(pwd)]" 
+          echo "pwd [ls -lah $(pwd)]" 
           rm -rf target/git_analyze.py target/semver.py
-      - name: "create release"
+      - name: "Create release"
         if: steps.analyze.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1
         with:
@@ -209,7 +210,7 @@ jobs:
           repo: ${{ needs.prep.outputs.repository }}
       - name: "Publish code quality"
         uses: paambaati/codeclimate-action@v3.0.0
-        if: needs.prep.outputs.trigger_cc_test_id  == 'true'
+        if: needs.prep.outputs.trigger_cc_test_id  == 'true_skipped'
         env:
           CC_TEST_REPORTER_ID: ${{ needs.prep.outputs.codeclimate_id }}
           JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
