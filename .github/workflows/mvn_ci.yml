@@ -196,7 +196,8 @@ jobs:
           echo "${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco [$(ls -lah ${{github.workspace}}/target/site/jacoco)]" 
           echo "target/site/jacoco/jacoco.xml:jacoco [$(ls -lah target/site/jacoco)]" 
           echo "pwd [$(pwd)]" 
-          echo "pwd [ls -lah $(pwd)]" 
+          echo "pwd [$(ls -lah)]" 
+          echo "pwd [$(cat pom.xml)]" 
           rm -rf target/git_analyze.py target/semver.py
       - name: "Create release"
         if: steps.analyze.outputs.do_release == 'true'
