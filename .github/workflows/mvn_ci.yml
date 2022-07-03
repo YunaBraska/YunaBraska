@@ -191,7 +191,7 @@ jobs:
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=commit_msg::$commit_msg"
           echo "::set-output name=is_branch_default::$is_branch_default
-          echo "::set-output name=do_release::$do_release
+          echo "::set-output name=do_release::abc
           echo $commit_msg > target/release.log
           rm -rf target/git_analyze.py target/semver.py
       - name: "Test Output"
