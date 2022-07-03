@@ -65,7 +65,7 @@ jobs:
       repository: ${{ steps.info_input.outputs.repository }}
       tag_new: ${{ steps.info_input.outputs.tag_new }}
       increase: ${{ steps.info_input.outputs.increase }}
-      java_version: ${{ steps.info_input.outputs.java_version }}
+      java_version: ${{ steps.detect_java.outputs.java_version }}
       codeclimate_id: ${{ steps.info_input.outputs.codeclimate_id }}
       #TRIGGER
       trigger_cc_test_id: ${{ steps.info_input.outputs.trigger_cc_test_id }}
@@ -124,6 +124,7 @@ jobs:
         with:
           python-version: '3.x'
       - name: "Detect Java Version"
+        id: "detect_java"
         run: |
           echo "Python [$(python --version)]"
           echo "Python3 [$(python3 --version)]"
