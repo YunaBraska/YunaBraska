@@ -64,11 +64,11 @@ def parse_args():
         required=False,
         nargs='?',
         const='true',
-        choices=['true', 'false', 'tag_needed', 'has_changes'],
+        choices=['true', 'false', 'tag_needed', 'has_changes', 'is_branch_default'],
         help='Update pom version'
              ' with [tag_new]'
              ' default [false]'
-             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\']',
+             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'is_branch_default\']',
     )
     parser.add_argument(
         '-c', '--do_commit',
@@ -77,11 +77,11 @@ def parse_args():
         required=False,
         nargs='?',
         const='true',
-        choices=['true', 'false', 'has_changes', 'tag_needed'],
+        choices=['true', 'false', 'has_changes', 'tag_needed', 'is_branch_default'],
         help='Commit'
              ' with [commit_msg]'
              ' default [false]'
-             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\']',
+             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'is_branch_default\']',
     )
     parser.add_argument(
         '-t', '--do_tag',
@@ -90,11 +90,11 @@ def parse_args():
         required=False,
         nargs='?',
         const='true',
-        choices=['true', 'false', 'has_changes', 'tag_needed'],
+        choices=['true', 'false', 'has_changes', 'tag_needed', 'is_branch_default'],
         help='Commit'
              ' with [tag_new]'
              ' default [false]'
-             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\']',
+             ' values [\'true\', \'false\', \'tag_needed\', \'has_changes\', \'is_branch_default\']',
     )
     parser.add_argument(
         '-s', '--set_tag',
@@ -121,25 +121,26 @@ def start(args):
     result['do_pom_update'] = args.do_update_pom if args.do_update_pom is not None else 'false'
     result['do_commit'] = args.do_commit if args.do_commit is not None else 'false'
     result['do_tag'] = args.do_tag if args.do_tag is not None else 'false'
-    result['branch'] = subprocess.check_output([
-        "git", "rev-parse", "--abbrev-ref", "HEAD"
-    ]).decode(result['encoding']).strip()
+    result['branch'] = get_current_branch(result)
+    result['branch_default'] = get_default_branch(result)
+    result['is_branch_default'] = result['branch'] == result['branch_default']
     subprocess.call(["git", "add", "."], stderr=DEVNULL, stdout=DEVNULL)
     subprocess.call(["git", "fetch", "--all", "--tags"], stderr=DEVNULL, stdout=DEVNULL)
     result['sha_latest'] = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode(result['encoding']).strip()
     git_status = subprocess.check_output(["git", "status", "--porcelain"]).decode(result['encoding'])
+    result['has_local_changes'] = git_status.strip() != ""
     result['has_changes'] = git_status.strip() != ""
 
     set_tag_sha_latest(result)
 
     if result['sha_latest'] != result['sha_latest_tag']:
+        result['has_changes'] = True
         add_changes(changes, subprocess.check_output([
             "git", "diff", result['sha_latest'], result['sha_latest_tag'], "--name-only"
         ]).decode(result['encoding']), result)
         read_diff(result['encoding'], changes, result)
 
     add_changes(changes, git_status, result)
-
     handle_set_version(changes, result)
 
     if 'tag_new' not in result.keys():
@@ -152,9 +153,33 @@ def start(args):
     do_tag(result)
 
     if result['output'] in result.keys():
-        return result[result['output']]
+        return json.dumps(result[result['output']])
     else:
         return json.dumps(dict(sorted(result.items())))
+
+
+def delete_branch_prefix(string):
+    index = string.rfind('/')
+    if index > 0:
+        return string[index + 1:]
+    return string
+
+
+def get_current_branch(result):
+    return delete_branch_prefix(subprocess.check_output([
+        "git", "rev-parse", "--abbrev-ref", "HEAD"
+    ]).decode(result['encoding']).strip())
+
+
+def get_default_branch(result):
+    try:
+        return delete_branch_prefix(subprocess.check_output([
+            "git", "symbolic-ref", "refs/remotes/origin/HEAD"
+        ]).decode(result['encoding']).strip())
+    except:
+        return delete_branch_prefix(subprocess.check_output([
+            "git", "symbolic-ref", "HEAD"
+        ]).decode(result['encoding']).strip())
 
 
 def handle_set_version(changes, result):
@@ -208,6 +233,7 @@ def do_pom_update(result):
 
 
 def do_commit(result):
+    # of not is_branch_default
     # TODO: hardcode set version
     # TODO: git squash https://stackoverflow.com/questions/33901565/how-can-i-squash-a-range-of-git-commits-together-given-starting-and-ending-shas
     if true_or_key(result, result['do_commit']):

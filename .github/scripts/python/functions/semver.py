@@ -121,7 +121,7 @@ def start(args):
         if args.output == 'ALL' or args.output == 'all':
             return json.dumps(sem_ver)
         elif args.output in sem_ver.keys():
-            return sem_ver[args.output]
+            return json.dumps(sem_ver[args.output])
         else:
             return sem_ver['result']
 

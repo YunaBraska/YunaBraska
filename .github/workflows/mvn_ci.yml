@@ -25,6 +25,10 @@ on:
           - meta
         description: "[increase] fallback to increase the version [default:rc] (e.g. major, minor, patch, rc, meta)"
         required: false
+      codeclimate_id:
+        type: string
+        description: "[codeclimate_id] will send code cov to codeclimate [default:'']"
+        required: false
   workflow_call:
     inputs:
       repository:
@@ -43,6 +47,10 @@ on:
         type: string
         description: "[increase] fallback to increase the version [default:rc] (e.g. major, minor, patch, rc, meta)"
         required: false
+      codeclimate_id:
+        type: string
+        description: "[codeclimate_id] will send code cov to codeclimate [default:'']"
+        required: false
   repository_dispatch:
     types: [ EVENT_CI_MVN ]
 
@@ -51,16 +59,14 @@ jobs:
     name: "Preparation"
     runs-on: ubuntu-latest
 
-    #Dynamic ENVs [usage: ${{ needs.prep.outputs.branch }} or ${{ current_job_id.prep.outputs.branch }}]
     outputs:
       #INFO INPUTS
       branch: ${{ steps.info_input.outputs.branch }}
       repository: ${{ steps.info_input.outputs.repository }}
       tag_new: ${{ steps.info_input.outputs.tag_new }}
       increase: ${{ steps.info_input.outputs.increase }}
-      #INFO REPO
-      tag: ${{ steps.info_repo.outputs.tag }}
-      has_pom_file: ${{ steps.info_repo.outputs.has_pom_file }}
+      java_version: ${{ steps.info_input.outputs.java_version }}
+      codeclimate_id: ${{ steps.info_input.outputs.codeclimate_id }}
       #TRIGGER
       trigger_cc_test_id: ${{ steps.info_input.outputs.trigger_cc_test_id }}
 
@@ -72,7 +78,8 @@ jobs:
           repository="${repository_A:-${repository_B:-${repository_C:-${GITHUB_REPOSITORY}}}}"
           tag_new="${tag_new_A:-${tag_new_B:-${tag_new_C}}}"
           increase="${increase_A:-${increase_B:-${increase_C:-rc}}}"
-          trigger_cc_test_id=${{ env.CC_TEST_REPORTER_ID != '' }}
+          codeclimate_id="${codeclimate_id_A:-${codeclimate_id_B:-${codeclimate_id_C:-${env.CC_TEST_REPORTER_ID}}}}"
+          trigger_cc_test_id=$([[ "$codeclimate_id" != "" ]] && echo Match )
           
           echo "branch [$branch]"
           echo "repository [$repository]"
@@ -84,6 +91,7 @@ jobs:
           echo "::set-output name=repository::$repository"
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=increase::$increase"
+          echo "::set-output name=codeclimate_id::$tcodeclimate_id"
           echo "::set-output name=trigger_cc_test_id::$trigger_cc_test_id"
         env:
           branch_A: ${{ inputs.branch }}
@@ -101,12 +109,24 @@ jobs:
           increase_A: ${{ inputs.increase }}
           increase_B: ${{ github.event.inputs.increase }}
           increase_C: ${{ github.event.client_payload.increase }}
+
+          codeclimate_id_A: ${{ inputs.codeclimate_id }}
+          codeclimate_ide_B: ${{ github.event.inputs.codeclimate_id }}
+          codeclimate_id_C: ${{ github.event.client_payload.codeclimate_id }}
       - name: "Checkout Repository"
         uses: actions/checkout@v3
         with:
-          ref: ${{ steps.info_input.outputs.branch }}
-          repository: ${{ steps.info_input.outputs.repository }}
+          ref: ${{ needs.prep.outputs.branch }}
+          repository: ${{ needs.prep.outputs.repository }}
           token: ${{ secrets.CI_TOKEN }}
+      - name: "Detect Java Version"
+        run: |
+          wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target
+          chmod +x target/xml_reader.py
+          java_version = target/xml_reader.py --pjv
+          echo "java_version [$java_version]"
+          echo "::set-output name=java_version::$java_version"
+          rm -rf target/git_analyze.py target/semver.py target/xml_reader.py
   maven:
     needs: prep
     name: "Maven Build & Test"
@@ -118,6 +138,10 @@ jobs:
           ref: ${{ needs.prep.outputs.branch }}
           repository: ${{ needs.prep.outputs.repository }}
           token: ${{ secrets.CI_TOKEN }}
+      - name: "Setup Java"
+        uses: actions/setup-java@v1
+        with:
+          java-version: ${{ needs.prep.outputs.java_version }}
       - name: "Preparation"
         run: |
           ./mvnw -B -N io.takari:maven:wrapper
@@ -132,13 +156,11 @@ jobs:
         run: |
           mkdir -p target
           wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
-          wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target
           wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/git_analyze.py -P target
-          chmod +x target/git_analyze.py target/semver.py target/semver.py
+          chmod +x target/git_analyze.py target/semver.py
           
           git config --global user.name 'Kira'
           git config --global user.email 'yuna-@web.de'
-          echo "target/git_analyze.py --set_tag=${{ needs.prep.outputs.tag_new }} --increase=${{ needs.prep.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes"
           git_analyze=$(target/git_analyze.py --set_tag=${{ needs.prep.outputs.tag_new }} --increase=${{ needs.prep.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
           echo "git_analyze [$git_analyze]"
           
@@ -146,19 +168,26 @@ jobs:
           tag_needed=$(echo $git_analyze | jq '.tag_needed')
           tag_new=$(echo $git_analyze | jq '.tag_new')
           commit_msg=$(echo $git_analyze | jq '.commit_msg')
+          is_branch_default=$(echo $git_analyze | jq '.is_branch_default')
+          do_release=$([[ "$tag_needed" == "$is_branch_default" ]] && echo true)
 
           echo "has_changes [$has_changes]"
           echo "tag_needed [$tag_needed]"
           echo "tag_new [$tag_new]"
           echo "commit_msg [$commit_msg]"
+          echo "is_branch_default [$is_branch_default]"
+          echo "do_release [$do_release]"
 
           echo "::set-output name=has_changes::$has_changes"
           echo "::set-output name=tag_needed::$tag_needed"
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=commit_msg::$commit_msg"
-          rm -rf target/git_analyze.py target/semver.py target/semver.py
-      - name: "release"
-        if: steps.analyze.outputs.tag_needed == 'true'
+          echo "::set-output name=is_branch_default::$is_branch_default
+          echo "::set-output name=do_release::$do_release
+          echo $commit_msg > target/release.log
+          rm -rf target/git_analyze.py target/semver.py
+      - name: "create release"
+        if: steps.analyze.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.maven.outputs.new_version }}
@@ -166,11 +195,12 @@ jobs:
           generateReleaseNotes: true
           bodyFile: target/release.log
           token: ${{ secrets.GITHUB_TOKEN }}
+          repo: ${{ needs.prep.outputs.repository }}
       - name: "Publish code quality"
         uses: paambaati/codeclimate-action@v2.7.4
-        if: needs.prep.info.outputs.trigger_cc_test_id  == 'true'
+        if: needs.prep.outputs.trigger_cc_test_id  == 'true'
         env:
-          CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
+          CC_TEST_REPORTER_ID: ${{ needs.prep.outputs.codeclimate_id }}
           JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
         with:
           coverageLocations: ${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco
