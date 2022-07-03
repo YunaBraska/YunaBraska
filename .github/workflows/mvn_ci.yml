@@ -186,7 +186,12 @@ jobs:
           is_branch_default=$(echo $git_analyze | jq '.is_branch_default')
           trigger_release=$(if [[ "$tag_needed" == "true" && "$tag_needed" == "$is_branch_default" ]]; then echo "true"; else echo "false"; fi)
           
-          
+          echo "::set-output name=has_changes::$has_changes"
+          echo "::set-output name=tag_needed::$tag_needed"
+          echo "::set-output name=tag_new::$tag_new"
+          echo "::set-output name=commit_msg::$commit_msg"
+          echo "::set-output name=is_branch_default::$is_branch_default
+          echo "::set-output name=trigger_release::$trigger_release
           
           echo "trigger_release [$trigger_release]"
           echo "env.trigger_release [${{ env.trigger_release }}]"
