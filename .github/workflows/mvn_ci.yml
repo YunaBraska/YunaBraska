@@ -194,7 +194,7 @@ jobs:
           echo "::set-output name=do_release::$do_release
           echo $commit_msg > target/release.log
           echo "${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco [$(ls -lah ${{github.workspace}}/target/site/jacoco)]" 
-          echo "target/site/jacoco/jacoco.xml:jacoco [$(ls -lah ${{target/site/jacoco)]" 
+          echo "target/site/jacoco/jacoco.xml:jacoco [$(ls -lah target/site/jacoco)]" 
           echo "pwd [$(pwd)]" 
           rm -rf target/git_analyze.py target/semver.py
       - name: "create release"
