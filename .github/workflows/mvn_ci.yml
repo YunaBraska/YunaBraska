@@ -176,7 +176,8 @@ jobs:
           rm -rf target/git_analyze.py target/semver.py
       - name: "Test Output"
         run: |
-          $git_analyze=$(cat target/git_analyze.log)
+          git_analyze=$(cat target/git_analyze.log)
+          echo "git_analyze [$git_analyze]"
           has_changes=$(echo $git_analyze | jq '.has_changes')
           tag_needed=$(echo $git_analyze | jq '.tag_needed')
           tag_new=$(echo $git_analyze | jq '.tag_new')
