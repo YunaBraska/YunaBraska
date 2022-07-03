@@ -141,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      do_release: ${{ steps.analyze.outputs.do_release }}
+      do_release: ${{ steps.repo_analyze.outputs.do_release }}
 
     steps:
       - name: "Checkout Repository"
@@ -164,7 +164,7 @@ jobs:
         run: |
           ./mvnw -B clean package
       - name: "Execute Scripts"
-        id: "analyze"
+        id: "repo_analyze"
         run: |
           mkdir -p target
           wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
@@ -202,8 +202,8 @@ jobs:
         run: |
           echo "do_release $do_release"
           echo "do_release ${{ env.do_release }}"
-          echo "do_release ${{ steps.analyze.outputs.do_release }}"
-          echo "do_release ${{ needs.analyze.outputs.do_release }}"
+          echo "do_release ${{ steps.repo_analyze.outputs.do_release }}"
+          echo "do_release ${{ needs.repo_analyze.outputs.do_release }}"
           echo "do_release ${{ needs.maven.outputs.do_release }}"
       - name: "Create release"
         if: needs.maven.outputs.do_release == 'true'
