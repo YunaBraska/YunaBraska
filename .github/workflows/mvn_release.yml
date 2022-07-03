@@ -1,4 +1,4 @@
-name: CI_MVN
+name: CI_MVN_RELEASE
 
 on:
   workflow_dispatch:
