@@ -121,6 +121,8 @@ jobs:
           token: ${{ secrets.CI_TOKEN }}
       - name: "Detect Java Version"
         run: |
+          echo "Python [$(python --version)]"
+          echo "Python3 [$(python3 --version)]"
           pip install lxml
           wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target
           chmod +x target/xml_reader.py
