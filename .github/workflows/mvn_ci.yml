@@ -180,6 +180,12 @@ jobs:
           echo "steps.repo_analyze.outputs.trigger_release [${{ steps.repo_analyze.outputs.trigger_release }}]"
           echo "needs.repo_analyze.outputs.trigger_release [${{ needs.repo_analyze.outputs.trigger_release }}]"
           echo "needs.maven.outputs.trigger_release [${{ needs.maven.outputs.trigger_release }}]"
+          
+          echo "has_changes [$has_changes]"
+          echo "env.has_changes [${{ env.has_changes }}]"
+          echo "steps.repo_analyze.outputs.has_changes [${{ steps.repo_analyze.outputs.has_changes }}]"
+          echo "needs.repo_analyze.outputs.has_changes [${{ needs.repo_analyze.outputs.has_changes }}]"
+          echo "needs.maven.outputs.has_changes [${{ needs.maven.outputs.has_changes }}]"
       - name: "Create release"
         if: steps.repo_analyze.outputs.trigger_release == 'true'
         uses: ncipollo/release-action@v1
