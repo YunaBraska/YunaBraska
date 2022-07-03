@@ -200,8 +200,6 @@ jobs:
           echo "do_release [${{env.do_release}}]"
           echo "do_release [${{steps.analyze.outputs.do_release}}]"
           echo "do_release [${{needs.analyze.outputs.do_release}}]"
-          echo "do_release [${{jobs.maven.steps.analyze.outputs.do_release}}]"
-          echo "do_release [${{jobs.maven.needs.analyze.outputs.do_release}}]"
       - name: "Create release"
         if: steps.analyze.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1
