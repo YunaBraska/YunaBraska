@@ -197,15 +197,16 @@ jobs:
           echo "::set-output name=commit_msg::$commit_msg"
           echo "::set-output name=is_branch_default::$is_branch_default
           echo "::set-output name=do_release::$do_release
+          
           echo $commit_msg > target/release.log
           rm -rf target/git_analyze.py target/semver.py
       - name: "Test Output"
         run: |
           echo "do_release [$do_release]"
-          echo "do_release [${{ env.do_release }}]"
-          echo "do_release [${{ steps.repo_analyze.outputs.do_release }}]"
-          echo "do_release [${{ needs.repo_analyze.outputs.do_release }}]"
-          echo "do_release [${{ needs.maven.outputs.do_release }}]"
+          echo "env.do_release [${{ env.do_release }}]"
+          echo "steps.repo_analyze.outputs.do_release [${{ steps.repo_analyze.outputs.do_release }}]"
+          echo "needs.repo_analyze.outputs.do_release [${{ needs.repo_analyze.outputs.do_release }}]"
+          echo "needs.maven.outputs.do_release [${{ needs.maven.outputs.do_release }}]"
       - name: "Create release"
         if: needs.maven.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1
