@@ -1,4 +1,4 @@
-name: CI_MVN
+name: CI_MVN_BROKEN
 
 on:
   workflow_dispatch:
@@ -67,9 +67,9 @@ jobs:
       increase: ${{ steps.info_input.outputs.increase }}
       java_version: ${{ steps.detect_java.outputs.java_version }}
       codeclimate_id: ${{ steps.info_input.outputs.codeclimate_id }}
+      do_release: ${{ steps.repo_analyze.outputs.do_release }}
       #TRIGGER
       trigger_cc_test_id: ${{ steps.info_input.outputs.trigger_cc_test_id }}
-      do_release: ${{ steps.repo_analyze.outputs.do_release }}
 
     steps:
       - name: "Read Inputs"
@@ -117,8 +117,8 @@ jobs:
       - name: "Checkout Repository"
         uses: actions/checkout@v3
         with:
-          ref: ${{ steps.prep.outputs.branch }}
-          repository: ${{ steps.prep.outputs.repository }}
+          ref: ${{ needs.prep.outputs.branch }}
+          repository: ${{ needs.prep.outputs.repository }}
           token: ${{ secrets.CI_TOKEN }}
       - name: "Setup Pyton"
         uses: actions/setup-python@v4
@@ -136,10 +136,25 @@ jobs:
           echo "java_version [$java_version]"
           echo "::set-output name=java_version::$java_version"
           rm -rf target/git_analyze.py target/semver.py target/xml_reader.py
+  maven:
+    needs: prep
+    name: "Maven Build & Test"
+    runs-on: ubuntu-latest
+
+    outputs:
+      do_release: ${{ steps.repo_analyze.outputs.do_release }}
+
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.prep.outputs.branch }}
+          repository: ${{ needs.prep.outputs.repository }}
+          token: ${{ secrets.CI_TOKEN }}
       - name: "Setup Java"
         uses: actions/setup-java@v1
         with:
-          java-version: ${{ steps.prep.outputs.java_version }}
+          java-version: ${{ needs.prep.outputs.java_version }}
       - name: "Preparation"
         run: |
           ./mvnw -B -N io.takari:maven:wrapper
@@ -159,7 +174,7 @@ jobs:
           
           git config --global user.name 'Kira'
           git config --global user.email 'yuna-@web.de'
-          git_analyze=$(target/git_analyze.py --set_tag=${{ steps.prep.outputs.tag_new }} --increase=${{ steps.prep.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
+          git_analyze=$(target/git_analyze.py --set_tag=${{ needs.prep.outputs.tag_new }} --increase=${{ needs.prep.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
           echo "git_analyze [$git_analyze]"
           
           has_changes=$(echo $git_analyze | jq '.has_changes')
@@ -201,12 +216,12 @@ jobs:
           generateReleaseNotes: true
           bodyFile: target/release.log
           token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ steps.prep.outputs.repository }}
+          repo: ${{ needs.prep.outputs.repository }}
       - name: "Publish code quality"
         uses: paambaati/codeclimate-action@v3.0.0
-        if: steps.prep.outputs.trigger_cc_test_id  == 'true_skipped'
+        if: needs.prep.outputs.trigger_cc_test_id  == 'true_skipped'
         env:
-          CC_TEST_REPORTER_ID: ${{ steps.prep.outputs.codeclimate_id }}
+          CC_TEST_REPORTER_ID: ${{ needs.prep.outputs.codeclimate_id }}
           JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
         with:
           coverageLocations: ${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco
