@@ -79,7 +79,7 @@ jobs:
           tag_new="${tag_new_A:-${tag_new_B:-${tag_new_C}}}"
           increase="${increase_A:-${increase_B:-${increase_C:-rc}}}"
           codeclimate_id="${codeclimate_id_A:-${codeclimate_id_B:-${codeclimate_id_C:-${{secrets.CC_TEST_REPORTER_ID}}}}}"
-          trigger_cc_test_id=$(if [[ "$codeclimate_id" == "" ]]; then echo "true"; else echo "false"; fi )
+          trigger_cc_test_id=$(if [[ "$codeclimate_id" == "" ]]; then echo "true"; else echo "false"; fi)
           
           echo "branch [$branch]"
           echo "repository [$repository]"
@@ -177,7 +177,7 @@ jobs:
           tag_new=$(echo $git_analyze | jq '.tag_new')
           commit_msg=$(echo $git_analyze | jq '.commit_msg')
           is_branch_default=$(echo $git_analyze | jq '.is_branch_default')
-          do_release=$([[ "$tag_needed" == "$is_branch_default" ]] && echo true)
+          do_release=$(if [[ "$tag_needed" == "$is_branch_default" ]]; then echo "true"; else echo "false"; fi)
 
           echo "has_changes [$has_changes]"
           echo "tag_needed [$tag_needed]"
