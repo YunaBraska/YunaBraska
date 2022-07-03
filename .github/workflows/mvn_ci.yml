@@ -182,7 +182,7 @@ jobs:
           tag_new=$(echo $git_analyze | jq '.tag_new')
           commit_msg=$(echo $git_analyze | jq '.commit_msg')
           is_branch_default=$(echo $git_analyze | jq '.is_branch_default')
-          do_release=$(if [[ "$tag_needed" == "$is_branch_default" ]]; then echo "true"; else echo "false"; fi)
+          do_release=$(if [[ "$tag_needed" == "true" && "$tag_needed" == "$is_branch_default" ]]; then echo "true"; else echo "false"; fi)
 
           echo "has_changes [$has_changes]"
           echo "tag_needed [$tag_needed]"
@@ -196,16 +196,16 @@ jobs:
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=commit_msg::$commit_msg"
           echo "::set-output name=is_branch_default::$is_branch_default
-          echo "::set-output name=do_release::true
+          echo "::set-output name=do_release::$do_release
           echo $commit_msg > target/release.log
           rm -rf target/git_analyze.py target/semver.py
       - name: "Test Output"
         run: |
-          echo "do_release $do_release"
-          echo "do_release ${{ env.do_release }}"
-          echo "do_release ${{ steps.repo_analyze.outputs.do_release }}"
-          echo "do_release ${{ needs.repo_analyze.outputs.do_release }}"
-          echo "do_release ${{ needs.maven.outputs.do_release }}"
+          echo "do_release [$do_release]"
+          echo "do_release [${{ env.do_release }}]"
+          echo "do_release [${{ steps.repo_analyze.outputs.do_release }}]"
+          echo "do_release [${{ needs.repo_analyze.outputs.do_release }}]"
+          echo "do_release [${{ needs.maven.outputs.do_release }}]"
       - name: "Create release"
         if: needs.maven.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1

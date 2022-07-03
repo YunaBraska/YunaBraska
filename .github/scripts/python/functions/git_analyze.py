@@ -144,7 +144,7 @@ def start(args):
     handle_set_version(changes, result)
 
     if 'tag_new' not in result.keys():
-        result['tag_new'] = tag_increase(result).strip('\"').strip('\'')
+        result['tag_new'] = tag_increase(result).strip().strip('\"').strip('\'')
     result['changes'] = list(changes)
     result['commit_msg'] = "\n".join(result['changes'])
 
@@ -187,7 +187,7 @@ def handle_set_version(changes, result):
         new_version = semver.start(argparse.Namespace(version=result['tag_set'], increase=None, output='result'))
         if new_version:
             changes.add("updated version")
-            result['tag_new'] = new_version
+            result['tag_new'] = new_version.strip().strip('\"').strip('\'')
             result['tag_needed'] = True
             result['has_changes'] = True
             result['has_local_changes'] = True
@@ -279,7 +279,7 @@ def add_changes(changes, changes_log, result):
             version_file = os.path.join(os.getcwd(), ".github/version.txt")
             if os.path.isfile(version_file):
                 with open(version_file) as file:
-                    result['tag_new'] = file.readline().strip()
+                    result['tag_new'] = file.readline().strip().strip('\"').strip('\'')
                     if result['tag_latest'] != result['tag_new']:
                         result['tag_needed'] = True
                         changes.add("updated version")
