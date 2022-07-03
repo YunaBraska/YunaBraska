@@ -191,15 +191,15 @@ jobs:
           echo "::set-output name=tag_new::$tag_new"
           echo "::set-output name=commit_msg::$commit_msg"
           echo "::set-output name=is_branch_default::$is_branch_default
-          echo "::set-output name=do_release::abc
+          echo "::set-output name=do_release::true
           echo $commit_msg > target/release.log
           rm -rf target/git_analyze.py target/semver.py
       - name: "Test Output"
         run: |
-          echo "do_release [$do_release]"
-          echo "do_release [${{env.do_release}}]"
-          echo "do_release [${{steps.analyze.outputs.do_release}}]"
-          echo "do_release [${{needs.analyze.outputs.do_release}}]"
+          echo "do_release $do_release"
+          echo "do_release ${{ env.do_release }}"
+          echo "do_release ${{ steps.analyze.outputs.do_release }}"
+          echo "do_release ${{ needs.analyze.outputs.do_release }}"
       - name: "Create release"
         if: steps.analyze.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1
