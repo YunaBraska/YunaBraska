@@ -193,12 +193,12 @@ jobs:
           echo "::set-output name=is_branch_default::$is_branch_default
           echo "::set-output name=do_release::$do_release
           echo $commit_msg > target/release.log
-          echo "${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco [$(ls -lah ${{github.workspace}}/target/site/jacoco)]" 
-          echo "target/site/jacoco/jacoco.xml:jacoco [$(ls -lah target/site/jacoco)]" 
-          echo "pwd [$(pwd)]" 
-          echo "pwd [$(ls -lah)]" 
-          echo "pwd [$(cat pom.xml)]" 
           rm -rf target/git_analyze.py target/semver.py
+      - name: "Test Output"
+        run: |
+          - echo "do_release [$do_release]"
+          - echo "do_release [${{steps.analyze.outputs.do_release}}]"
+          - echo "do_release [${{needs.analyze.outputs.do_release}}]"
       - name: "Create release"
         if: steps.analyze.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1
