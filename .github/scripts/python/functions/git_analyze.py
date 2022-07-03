@@ -190,6 +190,7 @@ def handle_set_version(changes, result):
             result['tag_new'] = new_version
             result['tag_needed'] = True
             result['has_changes'] = True
+            result['has_local_changes'] = True
             result['do_tag'] = "true"
             result['do_commit'] = "true"
             result['do_pom_update'] = "true"

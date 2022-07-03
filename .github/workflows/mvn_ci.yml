@@ -193,6 +193,7 @@ jobs:
           echo "::set-output name=is_branch_default::$is_branch_default
           echo "::set-output name=do_release::$do_release
           echo $commit_msg > target/release.log
+          echo "${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco [$(ls -lah ${{github.workspace}}/target/site/jacoco)]" 
           rm -rf target/git_analyze.py target/semver.py
       - name: "create release"
         if: steps.analyze.outputs.do_release == 'true'
@@ -205,7 +206,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           repo: ${{ needs.prep.outputs.repository }}
       - name: "Publish code quality"
-        uses: paambaati/codeclimate-action@v2.7.4
+        uses: paambaati/codeclimate-action@v3.0.0
         if: needs.prep.outputs.trigger_cc_test_id  == 'true'
         env:
           CC_TEST_REPORTER_ID: ${{ needs.prep.outputs.codeclimate_id }}
