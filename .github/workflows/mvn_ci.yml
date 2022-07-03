@@ -79,7 +79,7 @@ jobs:
           tag_new="${tag_new_A:-${tag_new_B:-${tag_new_C}}}"
           increase="${increase_A:-${increase_B:-${increase_C:-rc}}}"
           codeclimate_id="${codeclimate_id_A:-${codeclimate_id_B:-${codeclimate_id_C:-${{secrets.CC_TEST_REPORTER_ID}}}}}"
-
+          trigger_cc_test_id=$(if [[ "$codeclimate_id" == "" ]]; then echo "true"; else echo "false"; fi )
           
           echo "branch [$branch]"
           echo "repository [$repository]"
@@ -123,7 +123,7 @@ jobs:
         run: |
           wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/xml_reader.py -P target
           chmod +x target/xml_reader.py
-          java_version = target/xml_reader.py --pjv
+          java_version=$(target/xml_reader.py --pjv)
           echo "java_version [$java_version]"
           echo "::set-output name=java_version::$java_version"
           rm -rf target/git_analyze.py target/semver.py target/xml_reader.py
