@@ -59,18 +59,6 @@ jobs:
     name: "Preparation"
     runs-on: ubuntu-latest
 
-    outputs:
-      #INFO INPUTS
-      branch: ${{ steps.info_input.outputs.branch }}
-      repository: ${{ steps.info_input.outputs.repository }}
-      tag_new: ${{ steps.info_input.outputs.tag_new }}
-      increase: ${{ steps.info_input.outputs.increase }}
-      java_version: ${{ steps.detect_java.outputs.java_version }}
-      codeclimate_id: ${{ steps.info_input.outputs.codeclimate_id }}
-      #TRIGGER
-      trigger_cc_test_id: ${{ steps.info_input.outputs.trigger_cc_test_id }}
-      do_release: ${{ steps.repo_analyze.outputs.do_release }}
-
     steps:
       - name: "Read Inputs"
         id: "info_input"
@@ -117,8 +105,8 @@ jobs:
       - name: "Checkout Repository"
         uses: actions/checkout@v3
         with:
-          ref: ${{ steps.prep.outputs.branch }}
-          repository: ${{ steps.prep.outputs.repository }}
+          ref: ${{ steps.info_input.outputs.branch }}
+          repository: ${{ steps.info_input.outputs.repository }}
           token: ${{ secrets.CI_TOKEN }}
       - name: "Setup Python"
         uses: actions/setup-python@v4
@@ -159,7 +147,7 @@ jobs:
           
           git config --global user.name 'Kira'
           git config --global user.email 'yuna-@web.de'
-          git_analyze=$(target/git_analyze.py --set_tag=${{ steps.prep.outputs.tag_new }} --increase=${{ steps.prep.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
+          git_analyze=$(target/git_analyze.py --set_tag=${{ steps.info_input.outputs.tag_new }} --increase=${{ steps.info_input.outputs.increase }} --do_tag=tag_needed --do_update_pom=tag_needed --do_commit=has_changes)
           echo "git_analyze [$git_analyze]"
           
           has_changes=$(echo $git_analyze | jq '.has_changes')
@@ -193,7 +181,7 @@ jobs:
           echo "needs.repo_analyze.outputs.do_release [${{ needs.repo_analyze.outputs.do_release }}]"
           echo "needs.maven.outputs.do_release [${{ needs.maven.outputs.do_release }}]"
       - name: "Create release"
-        if: needs.maven.outputs.do_release == 'true'
+        if: steps.repo_analyze.outputs.do_release == 'true'
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.maven.outputs.new_version }}
@@ -201,12 +189,12 @@ jobs:
           generateReleaseNotes: true
           bodyFile: target/release.log
           token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ steps.prep.outputs.repository }}
+          repo: ${{ steps.info_input.outputs.repository }}
       - name: "Publish code quality"
         uses: paambaati/codeclimate-action@v3.0.0
-        if: steps.prep.outputs.trigger_cc_test_id  == 'true_skipped'
+        if: steps.info_input.outputs.trigger_cc_test_id  == 'true_skipped'
         env:
-          CC_TEST_REPORTER_ID: ${{ steps.prep.outputs.codeclimate_id }}
+          CC_TEST_REPORTER_ID: ${{ steps.info_input.outputs.codeclimate_id }}
           JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
         with:
           coverageLocations: ${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco
