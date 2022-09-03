@@ -69,6 +69,7 @@ jobs:
           rm -rf coverage* &>/dev/null || true
           rm -rf codeclimate* &>/dev/null || true
           rm -rf ./*reporter* &>/dev/null || true
+          rm -rf public-key.asc &>/dev/null || true
           git checkout src/test/resources/diagram_example.svg &>/dev/null || true
       - name: Tag and Push
         run: |

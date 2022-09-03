@@ -130,10 +130,12 @@ jobs:
           java-version: ${{ steps.detect_java.outputs.java_version }}
       - name: "Preparation"
         run: |
-          ./mvnw -B -N io.takari:maven:wrapper
+          ./mvnw -B -q -N io.takari:maven:wrapper
+          ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
-          ./mvnw dependency:resolve-plugins -q -U
-          ./mvnw dependency:resolve -q -U
+          ./mvnw -B -q clean verify -Dmaven.test.skip=true
+          ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
+          ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: "Run Test"
         run: |
           ./mvnw -B clean package
