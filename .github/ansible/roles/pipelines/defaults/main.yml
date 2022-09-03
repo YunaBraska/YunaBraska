@@ -43,3 +43,6 @@ piplines:
   - name: paginator
     branches: [ master ]
     jdk: "8"
+  - name: csv-streamer
+    branches: [ main ]
+    jdk: "8"
