@@ -16,4 +16,6 @@ jobs:
           echo "GITHUB_RUN_ID [$env.GITHUB_REF_NAME]"
           echo "GITHUB_RUN_ID [env.GITHUB_REF_NAME]"
           echo "GITHUB_RUN_ID $env.GITHUB_REF_NAME"
+          echo "REPOSITORY [$GITHUB.REPOSITORY]"
+          echo "REPOSITORY_OWNER [$GITHUB.REPOSITORY_OWNER]"
           echo "$GITHUB_CONTEXT"
