@@ -1,14 +1,15 @@
-name: ContentOwnerCheck
+name: CheckContentOwnerProcessor
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [ feat/0/reusable_workflow ]
+  workflow_call:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: "Check Permission"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
       - name: "Print Variables"
         run: |
           echo "GITHUB_REPOSITORY_OWNER [$GITHUB_REPOSITORY_OWNER]"
@@ -38,4 +39,3 @@ jobs:
           echo "GITHUB_RETENTION_DAYS [$GITHUB_RETENTION_DAYS]"
           echo "GITHUB_RUN_ATTEMPT [$GITHUB_RUN_ATTEMPT]"
           echo "GITHUB_CONTEXT [$GITHUB_CONTEXT]"
-          if [ "$GITHUB_ACTOR" != "YunaBraska1" ]; then echo "Permission denied with user [$GITHUB_ACTOR]"; exit 1; fi
