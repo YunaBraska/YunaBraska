@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: "Print Variables"
         run: |
-          echo "GITHUB_PATH [$env:GITHUB_PATH]"
+#          echo "GITHUB_PATH [${{ GITHUB_PATH }}]"
 #          echo "RUNNER_OS [${{ RUNNER_OS }}]"
 #          echo "GITHUB_JOB [${{ GITHUB_JOB }}]"
 #          echo "RUNNER_NAME [${{ RUNNER_NAME }}]"
@@ -31,7 +31,7 @@ jobs:
 #          echo "GITHUB_EVENT_NAME [${{ GITHUB_EVENT_NAME }}]"
 #          echo "GITHUB_EVENT_PATH [${{ GITHUB_EVENT_PATH }}]"
 #          echo "GITHUB_ACTION_REPOSITORY [${{ GITHUB_ACTION_REPOSITORY }}]"
-#          echo "GITHUB_REPOSITORY_OWNER [${{ GITHUB_REPOSITORY_OWNER }}]"
+          echo "GITHUB_REPOSITORY_OWNER [${{ GITHUB_REPOSITORY_OWNER }}]"
 #          echo "GITHUB_RETENTION_DAYS [${{ GITHUB_RETENTION_DAYS }}]"
 #          echo "GITHUB_RUN_ATTEMPT [${{ GITHUB_RUN_ATTEMPT }}]"
 #          echo "head owner = ${{ github.event.pull_request.head.repo.owner.login }}"
