@@ -38,4 +38,4 @@ jobs:
           echo "GITHUB_RETENTION_DAYS [$GITHUB_RETENTION_DAYS]"
           echo "GITHUB_RUN_ATTEMPT [$GITHUB_RUN_ATTEMPT]"
           echo "GITHUB_CONTEXT [$GITHUB_CONTEXT]"
-          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied with user [$GITHUB_ACTOR]"; exit 1; fi
+          if [ "$GITHUB_ACTOR" != "YunaBraska1" ]; then echo "Permission denied with user [$GITHUB_ACTOR]"; exit 1; fi
