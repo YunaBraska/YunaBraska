@@ -6,6 +6,6 @@ on:
     branches: [ feat/0/reusable_workflow ]
 
 jobs:
-  build:
+  build_1:
     name: "ContentOwnerCheck"
     uses: YunaBraska/YunaBraska/.github/workflows/CheckContentOwnerProcessor.yml@feat/0/reusable_workflow
