@@ -1,0 +1,14 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: dokumentenverwaltung
+  title: Dokumentenverwaltung
+  description: Dokumentenverwaltung is a storage location, management and REST-API for documents.
+  annotations:
+    github.com/project-slug: hypoport/ep2-core
+    github.com/team-slug: hypoport/core-optimization
+spec:
+  type: service
+  lifecycle: production
+  owner: TODO
+  system: ep2-core

@@ -23,7 +23,7 @@
 
     <properties>
         <!-- PROPERTIES -->
-        <java.version>11</java.version>
+        <java-version>11</java-version>
         <project.encoding>UTF-8</project.encoding>
         <project.build.sourceEncoding>${project.encoding}</project.build.sourceEncoding>
         <project.reporting.outputEncoding>${project.encoding}</project.reporting.outputEncoding>
@@ -93,8 +93,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven-compiler-plugin.version}</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <source>${java-version}</source>
+                    <target>${java-version}</target>
                 </configuration>
             </plugin>
             <plugin>

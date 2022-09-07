@@ -1,0 +1,53 @@
+name: CheckContentOwnerProcessor
+
+on:
+  workflow_call:
+    # 💾Map the workflow outputs to job outputs ←←←
+    outputs:
+      java_version:
+        description: "The first output string"
+        value: ${{ jobs.build_2.outputs.java_version }}
+jobs:
+  build_2:
+    runs-on: ubuntu-latest
+    # 💾 Map the job outputs to step outputs ↑↑↑
+    outputs:
+      java_version: ${{ steps.step1.pjv.java_version }}
+    steps:
+      - name: "Check Permission"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+      - name: "Print Variables"
+        run: env
+      - name: "Read java version"
+        id: "pjv"
+        run: |
+          pjv=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
+          echo "Pom java version [$pjv]"
+          echo "::set-output name=java_version::$pjv"
+      - name: "Checkout"
+        uses: actions/checkout@v3
+      - name: "Update Maven & Dependencies"
+        id: "maven"
+        run: |
+          echo "java version [${{needs.build_2.outputs.java_version}}]"
+          ./mvnw -B -q -N io.takari:maven:wrapper
+          ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
+          ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
+      - name: "Commit files"
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git commit -m "Add changes" -a
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "chore: Updated maven wrapper"
+          commit_user_name: Kira
+          commit_user_email: kira@yuna.berlin
+          commit_author: Kira <kira@yuna.berlin>
+          skip_dirty_check: true
+          skip_fetch: true
+          skip_checkout: true
+          disable_globbing: true
+          create_branch: false
+          
