@@ -19,14 +19,14 @@ jobs:
           if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
       - name: "Print Variables"
         run: env
+      - name: "Checkout"
+        uses: actions/checkout@v3
       - name: "Read java version"
         id: "pjv"
         run: |
           pjv=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
           echo "Pom java version [$pjv]"
           echo "::set-output name=java_version::$pjv"
-      - name: "Checkout"
-        uses: actions/checkout@v3
       - name: "Update Maven & Dependencies"
         id: "maven"
         run: |
