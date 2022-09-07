@@ -8,4 +8,4 @@ on:
 jobs:
   build_1:
     name: "ContentOwnerCheck"
-    uses: YunaBraska/YunaBraska/.github/workflows/CheckContentOwnerProcessor.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/RE_UpdateMaven.yml@feat/0/reusable_workflow

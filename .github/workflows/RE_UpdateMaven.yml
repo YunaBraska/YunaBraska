@@ -1,4 +1,4 @@
-name: CheckContentOwnerProcessor
+name: "[RE] Update Maven"
 
 on:
   workflow_call:
