@@ -2,7 +2,7 @@ name: "[RE] Update Maven"
 
 on:
   workflow_call:
-    # 💾Map the workflow outputs to job outputs ←←←
+    # Map the workflow outputs to job outputs
     outputs:
       java_version:
         description: "The first output string"
@@ -10,7 +10,7 @@ on:
 jobs:
   build_2:
     runs-on: ubuntu-latest
-    # 💾 Map the job outputs to step outputs ↑↑↑
+    # Map the job outputs to step outputs
     outputs:
       java_version: ${{ steps.step1.pjv.java_version }}
     steps:
