@@ -30,7 +30,7 @@ jobs:
       - name: "Update Maven & Dependencies"
         id: "maven"
         run: |
-          echo "java version [${{needs.build_2.outputs.java_version}}]"
+          echo "java version [${{needs.outputs.java_version}}]"
           ./mvnw -B -q -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
