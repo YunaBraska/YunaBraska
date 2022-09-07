@@ -31,8 +31,6 @@ jobs:
         id: "maven"
         run: |
           echo "java version [${{needs.outputs.java_version}}]"
-          echo "java version [${{build_2.outputs.java_version}}]"
-#          echo "java version [${{outputs.java_version}}]"
           echo "java version [$java_version]"
           ./mvnw -B -q -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
