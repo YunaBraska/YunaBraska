@@ -7,6 +7,9 @@ on:
       java_version:
         description: "The first output string"
         value: ${{ jobs.build_2.outputs.java_version }}
+      random-number:
+        description: "Random number"
+        value: ${{ steps.random-number-generator.outputs.random-id }}
 jobs:
   build_2:
     runs-on: ubuntu-latest
@@ -27,11 +30,13 @@ jobs:
           pjv=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
           echo "Pom java version [$pjv]"
           echo "::set-output name=java_version::$pjv"
+          run: echo "::set-output name=random-id::$pjv"
       - name: "Update Maven & Dependencies"
         id: "maven"
         run: |
           echo "java version [${{needs.outputs.java_version}}]"
           echo "java version [$java_version]"
+          echo "java version [${{ steps.random-number-generator.outputs.random-id }}]"
           ./mvnw -B -q -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
