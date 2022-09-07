@@ -36,7 +36,7 @@ jobs:
         run: |
           echo "java version [${{needs.outputs.java_version}}]"
           echo "java version [$java_version]"
-          echo "java version [${{ steps.random-number-generator.outputs.random-id }}]"
+          echo "java version [${{ needs.random-number-generator.outputs.random-id }}]"
           ./mvnw -B -q -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
