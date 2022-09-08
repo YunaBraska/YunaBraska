@@ -5,9 +5,6 @@ on:
 
 
 jobs:
-  run_workflow_call2:
-    name: workflow_call2
-    uses: YunaBraska/YunaBraska/.github/workflows/RE_JobOutputs.yml@main
   run_workflow_call1:
     name: workflow_call1
     uses: YunaBraska/YunaBraska/.github/workflows/test_workflow.yml@mainn
