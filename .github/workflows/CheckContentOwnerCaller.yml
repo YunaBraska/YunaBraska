@@ -14,10 +14,10 @@ jobs:
     uses: YunaBraska/YunaBraska/.github/workflows/RE_UpdateMaven.yml@feat/0/reusable_workflow
   job1:
     runs-on: ubuntu-latest
-    needs: build_2
+    needs: build_1
     steps:
       - name: "Print JDK"
-        run: echo java version [${{needs.build_2.outputs.java_version}}]
+        run: echo java version [${{needs.build_1.outputs.java_version}}]
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
