@@ -6,6 +6,9 @@ on:
     branches: [ feat/0/reusable_workflow ]
 
 jobs:
+  build_2:
+    name: workflow_call2
+    uses: YunaBraska/YunaBraska/.github/workflows/RE_JobOutputs.yml@main
   build_1:
     name: "ContentOwnerCheck"
     uses: YunaBraska/YunaBraska/.github/workflows/RE_UpdateMaven.yml@feat/0/reusable_workflow
