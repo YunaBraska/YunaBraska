@@ -27,7 +27,6 @@ jobs:
           pjv=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
           echo "Pom java version [$pjv]"
           echo "::set-output name=java_version::$pjv"
-          run: echo "::set-output name=random-id::$pjv"
       - name: "Update Maven & Dependencies"
         id: "maven"
         run: |
