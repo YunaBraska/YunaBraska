@@ -32,6 +32,9 @@ jobs:
         run: |
           echo "java version [${{needs.outputs.java_version}}]"
           echo "java version [${{needs.build_2.outputs.java_version}}]"
+          echo "java version [${{needs.build_2.steps.pjv.outputs.java_version}}]"
+          echo "java version [${{needs.build_2.pjv.outputs.java_version}}]"
+          echo "java version [${{needs.jobs.build_2.pjv.outputs.java_version}}]"
           echo "java version [${{needs.jobs.build_2.steps.pjv.outputs.java_version}}]"
           echo "java version [$java_version]"
           ./mvnw -B -q -N io.takari:maven:wrapper
