@@ -6,13 +6,13 @@ on:
 #    outputs:
 #      java_version:
 #        description: "The first output string"
-#        value: ${{ jobs.build_2.outputs.java_version }}
+#        value: ${{ jobs.my_job.outputs.java_version }}
 jobs:
-  build_2:
+  my_job:
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
 #    outputs:
-#      java_version: ${{ steps.pjv.outputs.java_version }}
+#      java_version: ${{ steps.my_step.outputs.java_version }}
     steps:
       - name: "Check Permission"
         run: |
@@ -22,20 +22,21 @@ jobs:
       - name: "Checkout"
         uses: actions/checkout@v3
       - name: "Read java version"
-        id: "pjv"
+        id: "my_step"
         run: |
-          pjv=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
-          echo "Pom java version [$pjv]"
-          echo "::set-output name=java_version::$pjv"
+          my_step=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
+          echo "Pom java version [$my_step]"
+          echo "::set-output name=java_version::$my_step"
       - name: "Update Maven & Dependencies"
         id: "maven"
         run: |
           echo "java version [${{needs.outputs.java_version}}]"
-          echo "java version [${{needs.build_2.outputs.java_version}}]"
-          echo "java version [${{needs.build_2.steps.pjv.outputs.java_version}}]"
-          echo "java version [${{needs.build_2.pjv.outputs.java_version}}]"
-          echo "java version [${{needs.jobs.build_2.pjv.outputs.java_version}}]"
-          echo "java version [${{needs.jobs.build_2.steps.pjv.outputs.java_version}}]"
+          echo "java version [${{needs.my_job.outputs.java_version}}]"
+          echo "java version [${{needs.my_job.outputs.my_step-output}}]"
+          echo "java version [${{needs.my_job.steps.my_step.outputs.java_version}}]"
+          echo "java version [${{needs.my_job.my_step.outputs.java_version}}]"
+          echo "java version [${{needs.jobs.my_job.my_step.outputs.java_version}}]"
+          echo "java version [${{needs.jobs.my_job.steps.my_step.outputs.java_version}}]"
           echo "java version [$java_version]"
           ./mvnw -B -q -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
