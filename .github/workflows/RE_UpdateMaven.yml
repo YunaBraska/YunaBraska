@@ -7,15 +7,12 @@ on:
       java_version:
         description: "The first output string"
         value: ${{ jobs.build_2.outputs.java_version }}
-      random-number:
-        description: "Random number"
-        value: ${{ steps.random-number-generator.outputs.random-id }}
 jobs:
   build_2:
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
     outputs:
-      java_version: ${{ steps.step1.pjv.java_version }}
+      java_version: ${{ steps.pjv.outputs.java_version }}
     steps:
       - name: "Check Permission"
         run: |
@@ -35,8 +32,8 @@ jobs:
         id: "maven"
         run: |
           echo "java version [${{needs.outputs.java_version}}]"
+          echo "java version [${{needs.build_2.outputs.java_version}}]"
           echo "java version [$java_version]"
-          echo "java version [${{ needs.random-number-generator.outputs.random-id }}]"
           ./mvnw -B -q -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
