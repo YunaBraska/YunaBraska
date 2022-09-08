@@ -17,9 +17,9 @@ jobs:
     needs: build_2
     steps:
       - name: "Print JDK"
-        run: echo ${{needs.job1.outputs.output1}} ${{needs.job1.outputs.output2}}
+        run: echo java version [${{needs.build_2.outputs.java_version}}]
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
-          java-version: { { item.jdk } }
+          java-version: 11
           distribution: 'adopt'
