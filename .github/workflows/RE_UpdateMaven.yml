@@ -3,16 +3,16 @@ name: "[RE] Update Maven"
 on:
   workflow_call:
     # Map the workflow outputs to job outputs
-    outputs:
-      java_version:
-        description: "The first output string"
-        value: ${{ jobs.build_2.outputs.java_version }}
+#    outputs:
+#      java_version:
+#        description: "The first output string"
+#        value: ${{ jobs.build_2.outputs.java_version }}
 jobs:
   build_2:
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
-    outputs:
-      java_version: ${{ steps.pjv.outputs.java_version }}
+#    outputs:
+#      java_version: ${{ steps.pjv.outputs.java_version }}
     steps:
       - name: "Check Permission"
         run: |
