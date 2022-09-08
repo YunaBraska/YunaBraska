@@ -20,7 +20,6 @@ jobs:
         run: echo "::set-output name=test::world"
       - id: "step3"
         run: |
-          echo ${{needs.job1.outputs.output1}} ${{needs.job1.outputs.output2}}
           echo ${{steps.step1.outputs.test}} ${{steps.step2.outputs.test}}
   job2:
     runs-on: ubuntu-latest
