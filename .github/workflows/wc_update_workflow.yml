@@ -20,7 +20,7 @@ jobs:
           committer_email: 'kira@yuna.berlin'
           commit_message: "chore: 🔨 updated workflow"
           pull_request_title: "core/update/workflow"
-          token: ${{ secrets.CI_TOKEN }}
+          token: ${{ secrets.CI_TOKEN_WORKFLOW }}
   update_outputs:
     needs: "update"
     runs-on: ubuntu-latest
