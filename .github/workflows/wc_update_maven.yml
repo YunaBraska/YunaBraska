@@ -57,6 +57,7 @@ jobs:
       - name: "Detect changes"
         id: "git"
         run: |
+          git add .; git pull
           has_changes=$(if [[ $(git status --porcelain) ]]; then echo "true"; else echo "false";fi)
           echo "number of changes [$(git status --porcelain | wc -l)]"
           echo "has_changes [$has_changes]"
