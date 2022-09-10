@@ -10,6 +10,7 @@ jobs:
     name: "workflow"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_update_workflow.yml@feat/0/reusable_workflow
   update_maven:
+    needs: update_workflow
     name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_update_maven.yml@feat/0/reusable_workflow
     # has_pom         ${{needs.update_maven.outputs.has_pom}}
