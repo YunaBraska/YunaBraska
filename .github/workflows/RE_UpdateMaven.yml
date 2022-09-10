@@ -7,11 +7,9 @@ on:
       has_pom:
         description: "[Boolean] java version from pom file"
         value: ${{ jobs.update_maven.outputs.has_pom }}
-        default: "false"
       java_version:
         description: "[String] java version from pom file"
         value: ${{ jobs.update_maven.outputs.java_version }}
-        default: "11"
 jobs:
   update_maven:
     runs-on: ubuntu-latest
