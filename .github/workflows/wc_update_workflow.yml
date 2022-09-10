@@ -21,7 +21,15 @@ jobs:
           committer_email: 'kira@yuna.berlin'
           commit_message: "chore: 🔨 updated workflow"
           pull_request_title: "core/update/workflow"
-          token: ${{ secrets.CI_TOKEN_WORKFLOW }}
+          token: ${{ secrets.CI_TOKEN_WORKFLOW || github.token }}
+      - name: "Detect changes"
+        id: "git"
+        run: |
+          git add .; git pull
+          has_changes=$(if [[ $(git status --porcelain) ]]; then echo "true"; else echo "false";fi)
+          echo "number of changes [$(git status --porcelain | wc -l)]"
+          echo "has_changes [$has_changes]"
+          echo ::set-output name=has_changes::"$has_changes"
   update_outputs:
     needs: "update"
     runs-on: ubuntu-latest
