@@ -4,15 +4,22 @@ on:
   workflow_call:
     # Map the workflow outputs to job outputs
     outputs:
+      has_pom:
+        description: "[Boolean] java version from pom file"
+        value: ${{ jobs.update_maven.outputs.has_pom }}
+        default: "false"
       java_version:
-        description: "The first output string"
-        value: ${{ jobs.my_job.outputs.java_version }}
+        description: "[String] java version from pom file"
+        value: ${{ jobs.update_maven.outputs.java_version }}
+        default: "11"
 jobs:
-  my_job:
+  update_maven:
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
     outputs:
-      java_version: ${{ steps.my_step.outputs.java_version }}
+      has_pom: ${{ steps.pom.outputs.has_pom }}
+      has_changes: ${{ steps.git.outputs.has_changes }}
+      java_version: ${{ steps.java.outputs.java_version }}
     steps:
       - name: "Check Permission"
         run: |
@@ -21,16 +28,28 @@ jobs:
         run: env
       - name: "Checkout"
         uses: actions/checkout@v3
+      - name: "Locate POM"
+        id: "pom"
+        run: |
+          has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
+          echo "has_pom [$has_pom]"
+          echo ::set-output name=has_pom::"$has_pom"
       - name: "Read java version"
-        id: "my_step"
+        id: "java"
+        if: steps.pom.outputs.has_pom == 'true'
         run: |
           java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
-          echo "Pom java version [$java_version]"
+          echo "java_version [$java_version]"
           echo ::set-output name=java_version::"$java_version"
+      - name: "Setup java"
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'adopt'
+          java-version: ${{ steps.java.outputs.java_version }}
       - name: "Update Maven & Dependencies"
         id: "maven"
+        if: steps.pom.outputs.has_pom == 'true'
         run: |
-          echo "java version [${{steps.my_step.outputs.java_version}}]"
           ./mvnw -B -q -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
