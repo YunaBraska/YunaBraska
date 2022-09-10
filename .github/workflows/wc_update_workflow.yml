@@ -33,6 +33,8 @@ jobs:
           echo "changes [$current_sha]"
           echo "changes [$checkout_branch]"
           if [ "$changes" != "0" ]; then 
+            echo "command [0]"
+            sudo chown -R "${USER:-$(id -un)}" .
             echo "command [1]"
             git reset ${current_sha}^
             echo "command [2]"
