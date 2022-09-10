@@ -13,6 +13,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           ref: ${{ github.ref_name || github.head_ref }}
+          token: ${{ secrets.CI_TOKEN_WORKFLOW }}
       - name: Run GitHub Actions Version Updater
         uses: saadmk11/github-actions-version-updater@v0.5.6
         with:
