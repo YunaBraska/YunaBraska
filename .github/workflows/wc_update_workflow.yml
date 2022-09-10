@@ -26,18 +26,26 @@ jobs:
         id: "git"
         run: |
           has_changes="false"
-          default_branch=${{ github.ref_name || github.head_ref }}
+          checkout_branch=${{ github.ref_name || github.head_ref }}
           current_sha=$(git rev-parse HEAD)
-          changes=$(git diff --name-only ${default_branch}...${current_sha} | wc -l)
+          changes=$(git diff --name-only ${checkout_branch}...${current_sha} | wc -l)
           echo "changes [$changes]"
-          git status
+          echo "changes [$current_sha]"
+          echo "changes [$checkout_branch]"
           if [ "$changes" != "0" ]; then 
+            echo "command [1]"
             git reset ${current_sha}^
+            echo "command [2]"
             git stash
+            echo "command [3]"
             git add .
+            echo "command [4]"
             git checkout ${{ github.ref_name || github.head_ref }}
+            echo "command [5]"
             git stash pop
+            echo "command [6]"
             has_changes="true"
+            echo "command [7]"
           fi 
           echo "number of changes [$(git status --porcelain | wc -l)]"
           echo "has_changes [$has_changes]"
