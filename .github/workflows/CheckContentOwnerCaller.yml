@@ -8,8 +8,11 @@ on:
 jobs:
   update_maven:
     name: "update_maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/RE_UpdateMaven.yml@feat/0/reusable_workflow
-  job1:
+    uses: YunaBraska/YunaBraska/.github/workflows/reusable/update_maven.yml@feat/0/reusable_workflow
+    # has_pom      ${{needs.update_maven.outputs.has_pom}}
+    # has_changes  ${{needs.update_maven.outputs.has_changes}}
+    # java_version ${{needs.update_maven.outputs.java_version}}
+  start:
     runs-on: ubuntu-latest
     needs: update_maven
     steps:

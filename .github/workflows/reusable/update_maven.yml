@@ -82,8 +82,9 @@ jobs:
     steps:
       - name: "print"
         run: |
+          echo "---------- OUTPUTS ----------"
           echo "has_pom [${{needs.update_maven.outputs.has_pom}}]"
           echo "has_changes [${{needs.update_maven.outputs.has_changes}}]"
           echo "java_version [${{needs.update_maven.outputs.java_version}}]"
-          echo "---------- ENVS ----------"
+          echo "----------- ENVS -----------"
           env
