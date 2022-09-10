@@ -8,7 +8,7 @@ on:
 jobs:
   update_maven:
     name: "update_maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/reusable/update_maven.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_update_maven.yml@feat/0/reusable_workflow
     # has_pom      ${{needs.update_maven.outputs.has_pom}}
     # has_changes  ${{needs.update_maven.outputs.has_changes}}
     # java_version ${{needs.update_maven.outputs.java_version}}
@@ -21,5 +21,5 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
-          java-version: 11
+          java-version: ${{needs.update_maven.outputs.java_version}}
           distribution: 'adopt'
