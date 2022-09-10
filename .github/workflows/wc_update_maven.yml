@@ -40,11 +40,6 @@ jobs:
           java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
           echo "java_version [$java_version]"
           echo ::set-output name=java_version::"$java_version"
-      - name: "Setup java"
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'adopt'
-          java-version: ${{ steps.java.outputs.java_version }}
       - name: "Update Maven & Dependencies"
         id: "maven"
         if: steps.pom.outputs.has_pom == 'true'
@@ -59,6 +54,12 @@ jobs:
           echo "number of changes [$(git status --porcelain | wc -l)]"
           echo "has_changes [$has_changes]"
           echo ::set-output name=has_changes::"$has_changes"
+      - name: "Setup java"
+        uses: actions/setup-java@v3
+        if: steps.git.outputs.has_changes == 'true'
+        with:
+          distribution: 'adopt'
+          java-version: ${{ steps.java.outputs.java_version }}
       - name: "Test changes"
         if: steps.git.outputs.has_changes == 'true'
         run: |

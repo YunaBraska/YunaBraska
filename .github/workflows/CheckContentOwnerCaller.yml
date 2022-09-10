@@ -16,8 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: update_maven
     steps:
-      - name: "Print JDK"
-        run: echo java_version [${{needs.update_maven.outputs.java_version}}]
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
