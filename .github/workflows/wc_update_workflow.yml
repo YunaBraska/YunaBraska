@@ -27,7 +27,6 @@ jobs:
         run: |
           chown -R $(whoami) .
           git config --global push.autoSetupRemote true
-#          git checkout ${{ github.ref_name || github.head_ref }}
           git add .; git pull
           has_changes=$(if [[ $(git status --porcelain) ]]; then echo "true"; else echo "false";fi)
           echo "number of changes [$(git status --porcelain | wc -l)]"
