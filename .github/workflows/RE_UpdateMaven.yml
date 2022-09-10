@@ -34,20 +34,25 @@ jobs:
           ./mvnw -B -q -N io.takari:maven:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
-      - name: "Commit files"
+      - name: "Detect changes"
+        id: "git"
         run: |
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git commit -m "Add changes" -a
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "chore: Updated maven wrapper"
-          commit_user_name: Kira
-          commit_user_email: kira@yuna.berlin
-          commit_author: Kira <kira@yuna.berlin>
-          skip_dirty_check: true
-          skip_fetch: true
-          skip_checkout: true
-          disable_globbing: true
-          create_branch: false
+          has_changes=$(if [[ $(git status --porcelain) ]]; then echo "true"; else echo "false";fi)
+          echo "has_changes [$has_changes]
+          echo ::set-output name=has_git_changes::"$has_changes"
+      - name: "Test changes"
+        if: steps.git.outputs.has_changes == "true"
+        run: |
+          ./mvnw -B -q clean verify
+#      - uses: stefanzweifel/git-auto-commit-action@v4
+#        with:
+#          commit_message: "chore: Updated maven wrapper"
+#          commit_user_name: Kira
+#          commit_user_email: kira@yuna.berlin
+#          commit_author: Kira <kira@yuna.berlin>
+#          skip_dirty_check: true
+#          skip_fetch: true
+#          skip_checkout: true
+#          disable_globbing: true
+#          create_branch: false
           
