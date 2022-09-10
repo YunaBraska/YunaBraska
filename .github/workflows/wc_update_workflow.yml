@@ -27,11 +27,10 @@ jobs:
         run: |
           has_changes="false"
           default_branch=${{ github.ref_name || github.head_ref }}
-          echo "default_branch [$default_branch]"
           current_branch=$(git rev-parse HEAD)
-          echo "current_branch [${current_branch}]"
           changes=$(git diff --name-only ${default_branch}...${current_branch} | wc -l)
           echo "changes [$changes]"
+          git status
           if [ "$changes" != "0" ]; then 
             git reset head^
             git stash
