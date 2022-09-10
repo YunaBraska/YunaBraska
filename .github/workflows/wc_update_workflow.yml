@@ -26,6 +26,8 @@ jobs:
         id: "git"
         run: |
           has_changes="false"
+          default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD)
+          echo "default_branch [$default_branch]"
           default_branch=$(git rev-parse --abbrev-ref origin/HEAD)
           echo "default_branch [$default_branch]"
           current_branch=$(git rev-parse HEAD)
