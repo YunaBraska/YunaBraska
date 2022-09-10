@@ -25,8 +25,6 @@ jobs:
       - name: "Check Permission"
         run: |
           if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
-      - name: "Print Variables"
-        run: env
       - name: "Checkout"
         uses: actions/checkout@v3
       - name: "Locate POM"
@@ -78,12 +76,14 @@ jobs:
           skip_checkout: true
           disable_globbing: true
           create_branch: false
-  outputs:
+  update_maven_outputs:
     needs: "update_maven"
     runs-on: ubuntu-latest
     steps:
       - name: "print"
         run: |
-          echo "has_pom [${{needs.update_maven.has_pom}}]"
-          echo "has_changes [${{needs.update_maven.has_changes}}]"
-          echo "java_version [${{needs.update_maven.java_version}}]"
+          echo "has_pom [${{needs.update_maven.outputs.has_pom}}]"
+          echo "has_changes [${{needs.update_maven.outputs.has_changes}}]"
+          echo "java_version [${{needs.update_maven.outputs.java_version}}]"
+          echo "---------- ENVS ----------"
+          env
