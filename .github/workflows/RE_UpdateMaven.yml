@@ -41,9 +41,6 @@ jobs:
           echo "number of changes [$(git status --porcelain | wc -l)]"
           echo "has_changes [$has_changes]"
           echo ::set-output name=has_changes::"$has_changes"
-      - name: "Print changes"
-        run: |
-          echo "has_changes [${{steps.git.outputs.has_changes}}]"
       - name: "Test changes"
         if: steps.git.outputs.has_changes == 'true'
         run: |
