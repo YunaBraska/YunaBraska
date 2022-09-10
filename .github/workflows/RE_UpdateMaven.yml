@@ -7,6 +7,9 @@ on:
       has_pom:
         description: "[Boolean] java version from pom file"
         value: ${{ jobs.update_maven.outputs.has_pom }}
+      has_changes:
+        description: "[Boolean] java version from pom file"
+        value: ${{ jobs.update_maven.outputs.has_changes }}
       java_version:
         description: "[String] java version from pom file"
         value: ${{ jobs.update_maven.outputs.java_version }}
@@ -75,4 +78,12 @@ jobs:
           skip_checkout: true
           disable_globbing: true
           create_branch: false
-          
+  outputs:
+    needs: "update_maven"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "has_pom [${{needs.update_maven.has_pom}}]"
+          echo "has_changes [${{needs.update_maven.has_changes}}]"
+          echo "java_version [${{needs.update_maven.java_version}}]"
