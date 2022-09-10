@@ -21,13 +21,20 @@ jobs:
           committer_email: 'kira@yuna.berlin'
           commit_message: "chore: 🔨 updated workflow"
           pull_request_title: "core/update/workflow"
-          token: ${{ secrets.CI_TOKEN_WORKFLOW || github.token }}
+          token: "invalid_next_plugin_will_push_changes"
       - name: "Detect changes"
         id: "git"
         run: |
-          git config --global push.autoSetupRemote true
-          git add .; git pull
-          has_changes=$(if [[ $(git status --porcelain) ]]; then echo "true"; else echo "false";fi)
+          has_changes="false"
+          changes=$(git diff --name-only $(git rev-parse --abbrev-ref origin/HEAD)...$(git rev-parse HEAD) | wc -l)
+          if [ "$changes" != "0" ]; then 
+            git reset head^
+            git stash
+            git add .
+            git checkout ${{ github.ref_name || github.head_ref }}
+            git stash pop
+            has_changes="true"
+          fi 
           echo "number of changes [$(git status --porcelain | wc -l)]"
           echo "has_changes [$has_changes]"
           echo ::set-output name=has_changes::"$has_changes"
