@@ -1,0 +1,33 @@
+name: "[WC] Update Workflow"
+
+on:
+  workflow_call:
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check Permission"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+      - name: "Checkout"
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref_name || github.head_ref }}
+      - name: Run GitHub Actions Version Updater
+        uses: saadmk11/github-actions-version-updater@v0.5.6
+        with:
+          committer_username: 'Kira'
+          committer_email: 'kira@yuna.berlin'
+          commit_message: "chore: 🔨 updated workflow"
+          pull_request_title: "core/update/workflow"
+          token: ${{ secrets.CI_TOKEN }}
+  update_outputs:
+    needs: "update"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "---------- OUTPUTS ----------"
+          echo N/A
+          echo "----------- ENVS -----------"
+          env

@@ -6,12 +6,16 @@ on:
     branches: [ feat/0/reusable_workflow ]
 
 jobs:
+  update_workflow:
+    name: "workflow"
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_update_workflow.yml@feat/0/reusable_workflow
   update_maven:
-    name: "update_maven"
+    name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_update_maven.yml@feat/0/reusable_workflow
-    # has_pom      ${{needs.update_maven.outputs.has_pom}}
-    # has_changes  ${{needs.update_maven.outputs.has_changes}}
-    # java_version ${{needs.update_maven.outputs.java_version}}
+    # has_pom         ${{needs.update_maven.outputs.has_pom}}
+    # has_changes     ${{needs.update_maven.outputs.has_changes}}
+    # java_version    ${{needs.update_maven.outputs.java_version}}
+    # project_version ${{needs.update_maven.outputs.project_version}}
   start:
     runs-on: ubuntu-latest
     needs: update_maven
