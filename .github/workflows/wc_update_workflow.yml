@@ -2,16 +2,17 @@ name: "[WC] Update Workflow"
 
 on:
   workflow_call:
-permissions:
-  pages: read|write
-  issues: read|write
-  actions: read|write
-  packages: read|write
-  pull-requests: read|write
-  repository-projects: read|write
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      issues: write
+      actions: write
+      packages: write
+      pull-requests: write
+      repository-projects: write
     steps:
       - name: "Check Permission"
         run: |
