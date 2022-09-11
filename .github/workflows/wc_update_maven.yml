@@ -30,7 +30,7 @@ jobs:
         run: |
           if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
       - name: "Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@main
       - name: "Locate POM"
         id: "pom"
         run: |
@@ -63,7 +63,7 @@ jobs:
           echo "has_changes [$has_changes]"
           echo ::set-output name=has_changes::"$has_changes"
       - name: "Setup java"
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@main
         if: steps.git.outputs.has_changes == 'true'
         with:
           distribution: 'adopt'
@@ -74,7 +74,7 @@ jobs:
           ./mvnw -B -q clean verify
       - name: "Push changes"
         if: steps.git.outputs.has_changes == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@master
         with:
           commit_message: "chore: 🔨 updated dependencies"
           commit_user_name: "Kira"

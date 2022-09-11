@@ -2,6 +2,13 @@ name: "[WC] Update Workflow"
 
 on:
   workflow_call:
+permissions:
+  pages: read|write
+  issues: read|write
+  actions: read|write
+  packages: read|write
+  pull-requests: read|write
+  repository-projects: read|write
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -33,21 +40,13 @@ jobs:
           echo "changes [$current_sha]"
           echo "changes [$checkout_branch]"
           if [ "$changes" != "0" ]; then 
-            echo "command [0]"
             sudo chown -R "${USER:-$(id -un)}" .
-            echo "command [1]"
             git reset ${current_sha}^
-            echo "command [2]"
             git stash
-            echo "command [3]"
             git add .
-            echo "command [4]"
             git checkout ${{ github.ref_name || github.head_ref }}
-            echo "command [5]"
             git stash pop
-            echo "command [6]"
             has_changes="true"
-            echo "command [7]"
           fi 
           echo "number of changes [$(git status --porcelain | wc -l)]"
           echo "has_changes [$has_changes]"
