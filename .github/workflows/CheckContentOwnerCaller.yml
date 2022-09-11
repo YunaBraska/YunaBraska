@@ -6,23 +6,28 @@ on:
     branches: [ feat/0/reusable_workflow ]
 
 jobs:
-  update_workflow:
-    name: "workflow"
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_update_workflow.yml@feat/0/reusable_workflow
   update_maven:
-    needs: update_workflow
     name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_update_maven.yml@feat/0/reusable_workflow
     # has_pom         ${{needs.update_maven.outputs.has_pom}}
     # has_changes     ${{needs.update_maven.outputs.has_changes}}
     # java_version    ${{needs.update_maven.outputs.java_version}}
     # project_version ${{needs.update_maven.outputs.project_version}}
-  start:
-    runs-on: ubuntu-latest
+  test_maven:
     needs: update_maven
+    name: "test"
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_test_maven.yml@feat/0/reusable_workflow
+    # has_pom                     ${{needs.test_maven.outputs.has_pom}}
+    # has_changes                 ${{needs.test_maven.outputs.has_changes}}
+    # java_version                ${{needs.test_maven.outputs.java_version}}
+    # project_version             ${{needs.test_maven.outputs.project_version}}
+    # has_publish_to_code_climate ${{needs.test_maven.outputs.has_publish_to_code_climate}}
+  start:
+    needs: test_maven
+    runs-on: ubuntu-latest
     steps:
-      - name: Set up JDK
-        uses: actions/setup-java@v3
+      - name: "Set up JDK"
+        uses: actions/setup-java@main
         with:
-          java-version: ${{needs.update_maven.outputs.java_version}}
+          java-version: ${{needs.test_maven.outputs.java_version}}
           distribution: 'adopt'

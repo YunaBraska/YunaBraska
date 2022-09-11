@@ -1,4 +1,4 @@
-name: "[WC] Update Maven"
+name: "[WC] Test Maven"
 
 on:
   workflow_call:
@@ -6,18 +6,21 @@ on:
     outputs:
       has_pom:
         description: "[Boolean] java version from pom file"
-        value: ${{ jobs.update.outputs.has_pom }}
+        value: ${{ jobs.test.outputs.has_pom }}
       has_changes:
         description: "[Boolean] java version from pom file"
-        value: ${{ jobs.update.outputs.has_changes }}
+        value: ${{ jobs.test.outputs.has_changes }}
       java_version:
         description: "[String] java version from pom file"
-        value: ${{ jobs.update.outputs.java_version }}
+        value: ${{ jobs.test.outputs.java_version }}
       project_version:
         description: "[String] project version from pom file"
-        value: ${{ jobs.update.outputs.project_version }}
+        value: ${{ jobs.test.outputs.project_version }}
+      has_publish_to_code_climate:
+        description: "[String] if code quality is pushed to code climate"
+        value: ${{ jobs.test.outputs.has_publish_to_code_climate }}
 jobs:
-  update:
+  test:
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
     outputs:
@@ -25,6 +28,7 @@ jobs:
       has_changes: ${{ steps.git.outputs.has_changes }}
       java_version: ${{ steps.java.outputs.java_version }}
       project_version: ${{ steps.java.outputs.project_version }}
+      has_publish_to_code_climate: ${{ steps.java.outputs.has_publish_to_code_climate }}
     steps:
       - name: "Check Permission"
         run: |
@@ -43,40 +47,42 @@ jobs:
         run: |
           java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
           project_version=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          has_publish_to_code_climate=$(if [[ "$codeclimate_id" == "" ]]; then echo "true"; else echo "false"; fi)
           echo "java_version [$java_version]"
           echo "project_version [$project_version]"
           echo ::set-output name=java_version::"$java_version"
           echo ::set-output name=project_version::"$project_version"
-      - name: "Update Maven & Dependencies"
+          echo ::set-output name=has_publish_to_code_climate::"$has_publish_to_code_climate"
+      - name: "Resolve Maven Dependencies"
         id: "maven"
         if: steps.pom.outputs.has_pom == 'true'
         run: |
-          ./mvnw -B -q -N io.takari:maven:wrapper
-          ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
-          ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
-      - name: "Detect changes"
-        id: "git"
-        run: |
-          git add .; git pull
-          has_changes=$(if [[ $(git status --porcelain) ]]; then echo "true"; else echo "false";fi)
-          echo "changes [$(git status --porcelain | wc -l)]"
-          echo "has_changes [$has_changes]"
-          echo ::set-output name=has_changes::"$has_changes"
+          ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
+          ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: "Setup java"
         uses: actions/setup-java@main
-        if: steps.git.outputs.has_changes == 'true'
+        if: steps.pom.outputs.has_pom == 'true'
         with:
           distribution: 'adopt'
           java-version: ${{ steps.java.outputs.java_version }}
-#      - name: "Test changes"
-#        if: steps.git.outputs.has_changes == 'true'
-#        run: |
-#          ./mvnw -B -q clean verify
+      - name: "Run Tests"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          ./mvnw -B -q clean verify
+      - name: "Detect version change"
+        id: "git"
+        run: |
+          git checkout src/test/resources/diagram_example.svg &>/dev/null || true
+          changes=$(git status --porcelain | grep version.txt | wc -l)
+          has_changes=$(if [ "$changes" != "0" ]; then echo "true"; else echo "false"; fi)
+          echo "changes [$(changes)]"
+          echo "has_changes [$has_changes]"
+          echo ::set-output name=has_changes::"$has_changes"
       - name: "Push changes"
         if: steps.git.outputs.has_changes == 'true'
         uses: stefanzweifel/git-auto-commit-action@master
         with:
-          commit_message: "chore: 🔨 updated dependencies"
+          commit_message: "chore: 🔨 testd version"
           commit_user_name: "Kira"
           commit_user_email: "kira@yuna.berlin"
           commit_author: "Kira <kira@yuna.berlin>"
@@ -85,16 +91,25 @@ jobs:
           skip_checkout: true
           disable_globbing: true
           create_branch: false
-  update_outputs:
-    needs: "update"
+      - name: "Publish code quality"
+        if: steps.java.outputs.has_publish_to_code_climate == 'true'
+        uses: paambaati/codeclimate-action@v3.0.0
+        env:
+          CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
+          JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
+        with:
+          coverageLocations: ${{github.workspace}}/target/site/jacoco/jacoco.xml:jacoco
+  test_outputs:
+    needs: "test"
     runs-on: ubuntu-latest
     steps:
       - name: "print"
         run: |
           echo "---------- OUTPUTS ----------"
-          echo "has_pom [${{needs.update.outputs.has_pom}}]"
-          echo "has_changes [${{needs.update.outputs.has_changes}}]"
-          echo "java_version [${{needs.update.outputs.java_version}}]"
-          echo "project_version [${{needs.update.outputs.project_version}}]"
+          echo "has_pom [${{needs.test.outputs.has_pom}}]"
+          echo "has_changes [${{needs.test.outputs.has_changes}}]"
+          echo "java_version [${{needs.test.outputs.java_version}}]"
+          echo "project_version [${{needs.test.outputs.project_version}}]"
+          echo "has_publish_to_code_climate [${{needs.test.outputs.has_publish_to_code_climate}}]"
           echo "----------- ENVS -----------"
           env
