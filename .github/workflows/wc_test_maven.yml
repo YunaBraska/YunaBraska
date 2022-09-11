@@ -35,6 +35,8 @@ jobs:
           if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
       - name: "Checkout"
         uses: actions/checkout@main
+        with:
+          ref: ${{ github.ref_name || github.head_ref }}
       - name: "Locate POM"
         id: "pom"
         run: |
@@ -72,6 +74,7 @@ jobs:
       - name: "Detect version change"
         id: "git"
         run: |
+          git status;
           git checkout src/test/resources/diagram_example.svg &>/dev/null || true
           changes=$(git status --porcelain | grep version.txt | wc -l)
           has_changes=$(if [ "$changes" != "0" ]; then echo "true"; else echo "false"; fi)
