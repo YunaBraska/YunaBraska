@@ -124,7 +124,7 @@ jobs:
         if: steps.git.outputs.do_tag != ''
         uses: stefanzweifel/git-auto-commit-action@master
         with:
-          commit_message: "chore: 🎉 new version"
+          commit_message: "chore: 🏷️ new version"
           commit_user_name: "Kira"
           commit_user_email: "kira@yuna.berlin"
           commit_author: "Kira <kira@yuna.berlin>"
