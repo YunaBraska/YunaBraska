@@ -5,10 +5,10 @@ on:
     # Map the workflow outputs to job outputs
     outputs:
       has_pom:
-        description: "[Boolean] java version from pom file"
+        description: "[Boolean] if pom file exists"
         value: ${{ jobs.test.outputs.has_pom }}
       has_changes:
-        description: "[Boolean] java version from pom file"
+        description: "[Boolean] if git status has changes"
         value: ${{ jobs.test.outputs.has_changes }}
       java_version:
         description: "[String] java version from pom file"
@@ -49,7 +49,7 @@ jobs:
         run: |
           java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
           project_version=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
-          has_publish_to_code_climate=$(if [[ "$codeclimate_id" == "" ]]; then echo "false"; else echo "true"; fi)
+          has_publish_to_code_climate=$(if [[ "${{secrets.CC_TEST_REPORTER_ID}}" == "" ]]; then echo "false"; else echo "true"; fi)
           
           echo "java_version [$java_version]"
           echo "project_version [$project_version]"
@@ -81,7 +81,7 @@ jobs:
           git checkout src/test/resources/diagram_example.svg &>/dev/null || true
           changes=$(git status --porcelain | grep version.txt | wc -l)
           has_changes=$(if [ "$changes" != "0" ]; then echo "true"; else echo "false"; fi)
-          echo "changes [$(changes)]"
+          echo "changes [$changes]"
           echo "has_changes [$has_changes]"
           echo ::set-output name=has_changes::"$has_changes"
       - name: "Push changes"

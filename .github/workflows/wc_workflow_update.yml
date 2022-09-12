@@ -1,4 +1,4 @@
-name: "[WC] Update Workflow - not working in pr"
+name: "[WC] Update Workflow - scheduled only"
 
 on:
   workflow_call:
@@ -6,13 +6,6 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
-#    permissions:
-#      pages: write
-#      issues: write
-#      actions: write
-#      packages: write
-#      pull-requests: write
-#      repository-projects: write
     steps:
       - name: "Check Permission"
         run: |

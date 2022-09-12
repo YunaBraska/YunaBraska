@@ -1,0 +1,131 @@
+name: "[WC] Publish Maven"
+
+on:
+  workflow_call:
+    # Map the workflow outputs to job outputs
+    outputs:
+      has_pom:
+        description: "[Boolean] if pom file exists"
+        value: ${{ jobs.tag.outputs.has_pom }}
+      has_changes:
+        description: "[Boolean] if git status has changes"
+        value: ${{ jobs.tag.outputs.has_changes }}
+      java_version:
+        description: "[String] java version from pom file"
+        value: ${{ jobs.tag.outputs.java_version }}
+      project_version:
+        description: "[String] project version from pom file"
+        value: ${{ jobs.tag.outputs.project_version }}
+      has_maven_central_release:
+        description: "[String] if code can be released on maven central"
+        value: ${{ jobs.tag.outputs.has_maven_central_release }}
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      has_pom: ${{ steps.pom.outputs.has_pom }}
+      has_changes: ${{ steps.git.outputs.has_changes }}
+      java_version: ${{ steps.java.outputs.java_version }}
+      project_version: ${{ steps.java.outputs.project_version }}
+      has_maven_central_release: ${{ steps.java.outputs.has_maven_central_release }}
+    steps:
+      - name: "Check Permission"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+      - name: "Checkout"
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 500
+          ref: ${{ github.ref_name || github.head_ref }}
+      - name: "Locate POM"
+        id: "pom"
+        run: |
+          has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
+          echo "has_pom [$has_pom]"
+          echo ::set-output name=has_pom::"$has_pom"
+      - name: "Read java version"
+        id: "java"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
+          project_version=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          has_maven_central_release=$(if [[ "${{secrets.OSSH_USER}}" == "" ]]; then echo "false"; else echo "true"; fi)
+          
+          echo "java_version [$java_version]"
+          echo "project_version [$project_version]"
+          echo "has_maven_central_release [$has_maven_central_release]"
+          
+          echo ::set-output name=java_version::"$java_version"
+          echo ::set-output name=project_version::"$project_version"
+          echo ::set-output name=has_maven_central_release::"$has_maven_central_release"
+      - name: "Resolve Maven Dependencies"
+        id: "maven"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
+          ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
+      - name: "Setup java"
+        uses: actions/setup-java@main
+        if: steps.pom.outputs.has_pom == 'true'
+        with:
+          distribution: 'adopt'
+          java-version: ${{ steps.java.outputs.java_version }}
+      - name: "Detect version change"
+        id: "git"
+        run: |
+          git add .
+          git fetch --all --tags
+          
+          sha_latest=$(git rev-parse HEAD)
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.1")
+          sha_latest_tag=$(git rev-list -n 1 $latest_tag 2>/dev/null || echo "")
+               
+          version=$(find . -name "version.txt" -type f -exec cat {} + ||  ${{ steps.java.outputs.project_version }})
+          
+          echo "sha_latest [$sha_latest]"
+          echo "sha_latest_tag [$sha_latest_tag]"
+          echo "latest_tag [$latest_tag]"
+          echo "version [$version]"
+          echo "project.version [${{ steps.java.outputs.project_version }}]"
+
+# TODO:
+# Version.txt != Project Version == SET PROJECT VERSION
+# sha_latest != latest_tag == UPDATE RC, UPDATE POM, SET PROJECT VERSION
+# [PROJECT MAVEN MERGER] OWN MAVEN CENTRAL POM FILE
+
+          
+          git status;
+          git checkout src/test/resources/diagram_example.svg &>/dev/null || true
+          changes=$(git status --porcelain | grep version.txt | wc -l)
+          has_changes=$(if [ "$changes" != "0" ]; then echo "true"; else echo "false"; fi)
+          echo "changes [$changes]"
+          echo "has_changes [$has_changes]"
+          echo ::set-output name=has_changes::"$has_changes"
+#      - name: "Push changes"
+#        if: steps.git.outputs.has_changes == 'true'
+#        uses: stefanzweifel/git-auto-commit-action@master
+#        with:
+#          commit_message: "chore: 🔨 test version"
+#          commit_user_name: "Kira"
+#          commit_user_email: "kira@yuna.berlin"
+#          commit_author: "Kira <kira@yuna.berlin>"
+#          skip_dirty_check: true
+#          skip_fetch: true
+#          skip_checkout: true
+#          disable_globbing: true
+#          create_branch: false
+  tag_outputs:
+    needs: "tag"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "---------- OUTPUTS ----------"
+          echo "has_pom [${{needs.tag.outputs.has_pom}}]"
+          echo "has_changes [${{needs.tag.outputs.has_changes}}]"
+          echo "java_version [${{needs.tag.outputs.java_version}}]"
+          echo "project_version [${{needs.tag.outputs.project_version}}]"
+          echo "has_maven_central_release [${{needs.tag.outputs.has_maven_central_release}}]"
+          echo "----------- ENVS -----------"
+          env

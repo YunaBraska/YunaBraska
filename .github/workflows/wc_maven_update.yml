@@ -5,10 +5,10 @@ on:
     # Map the workflow outputs to job outputs
     outputs:
       has_pom:
-        description: "[Boolean] java version from pom file"
+        description: "[Boolean] if pom file exists"
         value: ${{ jobs.update.outputs.has_pom }}
       has_changes:
-        description: "[Boolean] java version from pom file"
+        description: "[Boolean] if git status has changes"
         value: ${{ jobs.update.outputs.has_changes }}
       java_version:
         description: "[String] java version from pom file"
