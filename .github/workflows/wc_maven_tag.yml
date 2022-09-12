@@ -112,7 +112,7 @@ jobs:
           wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
           chmod +x target/semver.py
           
-          new_version=$(target/semver.py --version=${{ steps.git.outputs.version }} --increase=${{ steps.git.outputs.do_tag }})
+          new_version=$(target/semver.py --version=${{ steps.git.outputs.version }} --increase=${{ steps.git.outputs.do_tag }}) --output=result
           echo "new_version [$new_version]"
           ./mvnw -B -q versions:set -DnewVersion=$new_version -DgenerateBackupPoms=false
           version_file=$(find . -name "version.txt" -type f -exec cat {} +)
