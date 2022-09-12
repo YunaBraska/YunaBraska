@@ -37,6 +37,11 @@ jobs:
     needs: maven_tag
     runs-on: ubuntu-latest
     steps:
+      - name: "Print java version"
+        run: |
+          echo "[java_version ${{needs.maven_update.outputs.java_version}}]" 
+          echo "[java_version ${{needs.maven_test.outputs.java_version}}]" 
+          echo "[java_version ${{needs.maven_tag.outputs.java_version}}]"
       - name: "Set up JDK"
         uses: actions/setup-java@main
         with:

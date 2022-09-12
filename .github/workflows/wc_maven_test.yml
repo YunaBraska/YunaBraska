@@ -1,4 +1,5 @@
 name: "[WC] Test Maven"
+#description: "Runs maven tests"
 
 on:
   workflow_call:

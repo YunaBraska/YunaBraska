@@ -1,4 +1,5 @@
 name: "[WC] Update Maven"
+#description: "Updates maven wrapper and maven dependencies"
 
 on:
   workflow_call:
