@@ -4,6 +4,9 @@ on:
   workflow_call:
     # Map the workflow outputs to job outputs
     outputs:
+      do_tag:
+        description: "[Boolean] if tagging was triggered"
+        value: ${{ jobs.tag.outputs.has_pom }}
       has_pom:
         description: "[Boolean] if pom file exists"
         value: ${{ jobs.tag.outputs.has_pom }}
@@ -13,9 +16,12 @@ on:
       java_version:
         description: "[String] java version from pom file"
         value: ${{ jobs.tag.outputs.java_version }}
+      new_version:
+        description: "[String] new version"
+        value: ${{ jobs.tag.outputs.new_version }}
       project_version:
-        description: "[String] project version from pom file"
-        value: ${{ jobs.tag.outputs.project_version }}
+        description: "[String] project version from pom or version file"
+        value: ${{ jobs.tag.outputs.version }}
       has_maven_central_release:
         description: "[String] if code can be released on maven central"
         value: ${{ jobs.tag.outputs.has_maven_central_release }}
@@ -25,9 +31,11 @@ jobs:
     # Map the job outputs to step outputs
     outputs:
       has_pom: ${{ steps.pom.outputs.has_pom }}
+      do_tag: ${{ steps.git.outputs.do_tag }}
       has_changes: ${{ steps.git.outputs.has_changes }}
+      new_version: ${{ steps.semver.outputs.new_version }}
       java_version: ${{ steps.java.outputs.java_version }}
-      project_version: ${{ steps.java.outputs.project_version }}
+      project_version: ${{ steps.git.outputs.version }}
       has_maven_central_release: ${{ steps.java.outputs.has_maven_central_release }}
     steps:
       - name: "Check Permission"
@@ -61,10 +69,6 @@ jobs:
           echo ::set-output name=has_maven_central_release::"$has_maven_central_release"
       - name: "Resolve Maven Dependencies"
         id: "maven"
-        if: steps.pom.outputs.has_pom == 'true'
-        run: |
-          ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
-          ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: "Setup java"
         uses: actions/setup-java@main
         if: steps.pom.outputs.has_pom == 'true'
@@ -80,37 +84,58 @@ jobs:
           sha_latest=$(git rev-parse HEAD)
           latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.1")
           sha_latest_tag=$(git rev-list -n 1 $latest_tag 2>/dev/null || echo "")
-               
-          version=$(find . -name "version.txt" -type f -exec cat {} + ||  ${{ steps.java.outputs.project_version }})
+          version=$(find . -name "version.txt" -type f -exec cat {})
+          version=${version:-${{ steps.java.outputs.project_version }}}
+          project_version=${{ steps.java.outputs.project_version }}
+          do_tag=$(if [ "$version" != "$project_version" ]; then echo "major"; else echo ""; fi)
+          do_tag=${do_tag:-$(if [ "$sha_latest" != "$sha_latest_tag" ]; then echo "rc"; else echo ""; fi)}
           
           echo "sha_latest [$sha_latest]"
           echo "sha_latest_tag [$sha_latest_tag]"
           echo "latest_tag [$latest_tag]"
           echo "version [$version]"
-          echo "project.version [${{ steps.java.outputs.project_version }}]"
-
-
+          echo "project_version [$project_version]"
+          echo "update_major [$update_major]"
+          echo "update_rc [$update_rc]"
+          echo "do_tag [$do_tag]"
           
-          git status;
-          git checkout src/test/resources/diagram_example.svg &>/dev/null || true
-          changes=$(git status --porcelain | grep version.txt | wc -l)
-          has_changes=$(if [ "$changes" != "0" ]; then echo "true"; else echo "false"; fi)
-          echo "changes [$changes]"
-          echo "has_changes [$has_changes]"
-          echo ::set-output name=has_changes::"$has_changes"
-#      - name: "Push changes"
-#        if: steps.git.outputs.has_changes == 'true'
-#        uses: stefanzweifel/git-auto-commit-action@master
-#        with:
-#          commit_message: "chore: 🔨 test version"
-#          commit_user_name: "Kira"
-#          commit_user_email: "kira@yuna.berlin"
-#          commit_author: "Kira <kira@yuna.berlin>"
-#          skip_dirty_check: true
-#          skip_fetch: true
-#          skip_checkout: true
-#          disable_globbing: true
-#          create_branch: false
+          echo ::set-output name=do_tag::"$do_tag"
+          echo ::set-output name=version::"$version"
+      - name: "Setup Python"
+        if: steps.git.outputs.do_tag != ''
+        uses: actions/setup-python@main
+        with:
+          python-version: '3.x'
+      - name: "Set Version"
+        if: steps.git.outputs.do_tag != ''
+        id: "semver"
+        run: |
+          mkdir -p target
+          wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
+          chmod +x target/semver.py
+          
+          new_version=$(target/semver.py --version=${{ steps.git.outputs.version }} --increase=${{ steps.git.outputs.do_tag }})
+          echo "new_version [$new_version]"
+          ./mvnw -B -q versions:set -DnewVersion=$new_version -DgenerateBackupPoms=false
+          version_file=$(find . -name "version.txt" -type f -exec cat {})
+          version_file=${version_file:-version.txt}
+          
+          rm -rf target/semver.py
+          echo ::set-output name=new_version::"$new_version"
+      - name: "Push changes"
+        if: steps.git.outputs.do_tag != ''
+        uses: stefanzweifel/git-auto-commit-action@master
+        with:
+          commit_message: "chore: 🎉 new version"
+          commit_user_name: "Kira"
+          commit_user_email: "kira@yuna.berlin"
+          commit_author: "Kira <kira@yuna.berlin>"
+          tagging_message: ${{ steps.semver.outputs.new_version }}
+          skip_dirty_check: true
+          skip_fetch: true
+          skip_checkout: true
+          disable_globbing: true
+          create_branch: false
   tag_outputs:
     needs: "tag"
     runs-on: ubuntu-latest
@@ -118,8 +143,10 @@ jobs:
       - name: "print"
         run: |
           echo "---------- OUTPUTS ----------"
+          echo "do_tag [${{needs.tag.outputs.do_tag}}]"
           echo "has_pom [${{needs.tag.outputs.has_pom}}]"
           echo "has_changes [${{needs.tag.outputs.has_changes}}]"
+          echo "new_version [${{needs.tag.outputs.new_version}}]"
           echo "java_version [${{needs.tag.outputs.java_version}}]"
           echo "project_version [${{needs.tag.outputs.project_version}}]"
           echo "has_maven_central_release [${{needs.tag.outputs.has_maven_central_release}}]"

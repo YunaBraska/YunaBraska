@@ -9,10 +9,10 @@ jobs:
   maven_update:
     name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_update.yml@feat/0/reusable_workflow
-    # has_pom         ${{needs.maven_update.outputs.has_pom}}
-    # has_changes     ${{needs.maven_update.outputs.has_changes}}
-    # java_version    ${{needs.maven_update.outputs.java_version}}
-    # project_version ${{needs.maven_update.outputs.project_version}}
+    # has_pom                     ${{needs.maven_update.outputs.has_pom}}
+    # has_changes                 ${{needs.maven_update.outputs.has_changes}}
+    # java_version                ${{needs.maven_update.outputs.java_version}}
+    # project_version             ${{needs.maven_update.outputs.project_version}}
   maven_test:
     needs: maven_update
     name: "maven"
@@ -25,14 +25,16 @@ jobs:
   maven_publish:
     needs:   maven_test
     name: "maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_publish.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_tag.yml@feat/0/reusable_workflow
+    #do_tag                       ${{needs.maven_test.outputs.do_tag}}
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
     # has_changes                 ${{needs.maven_test.outputs.has_changes}}
+    # new_version                 ${{needs.maven_test.outputs.new_version}}
     # java_version                ${{needs.maven_test.outputs.java_version}}
     # project_version             ${{needs.maven_test.outputs.project_version}}
     # has_publish_to_code_climate ${{needs.maven_test.outputs.has_publish_to_code_climate}}
   start:
-    needs: maven_test
+    needs: maven_publish
     runs-on: ubuntu-latest
     steps:
       - name: "Set up JDK"
