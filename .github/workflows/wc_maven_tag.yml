@@ -67,8 +67,6 @@ jobs:
           echo ::set-output name=java_version::"$java_version"
           echo ::set-output name=project_version::"$project_version"
           echo ::set-output name=has_maven_central_release::"$has_maven_central_release"
-      - name: "Resolve Maven Dependencies"
-        id: "maven"
       - name: "Setup java"
         if: steps.pom.outputs.has_pom == 'true'
         uses: actions/setup-java@main
