@@ -89,10 +89,6 @@ jobs:
           echo "version [$version]"
           echo "project.version [${{ steps.java.outputs.project_version }}]"
 
-# TODO:
-# Version.txt != Project Version == SET PROJECT VERSION
-# sha_latest != latest_tag == UPDATE RC, UPDATE POM, SET PROJECT VERSION
-# [PROJECT MAVEN MERGER] OWN MAVEN CENTRAL POM FILE
 
           
           git status;
