@@ -70,8 +70,8 @@ jobs:
       - name: "Resolve Maven Dependencies"
         id: "maven"
       - name: "Setup java"
-        uses: actions/setup-java@main
         if: steps.pom.outputs.has_pom == 'true'
+        uses: actions/setup-java@main
         with:
           distribution: 'adopt'
           java-version: ${{ steps.java.outputs.java_version }}
@@ -107,8 +107,8 @@ jobs:
         with:
           python-version: '3.x'
       - name: "Set Version"
-        if: steps.git.outputs.do_tag != ''
         id: "semver"
+        if: steps.git.outputs.do_tag != ''
         run: |
           mkdir -p target
           wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
