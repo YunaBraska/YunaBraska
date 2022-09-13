@@ -44,8 +44,15 @@ jobs:
           echo "::set-output name=name::$second_latest_tag"
           
           mkdir -p target
-          git log --pretty=format:'- %s%n' ${{ steps.second_latest_tag.outputs.name }}..${{ steps.latest_tag.outputs.name }} > target/release.log
-          echo "::set-output name=changelog::$(echo $(git log --pretty=format:'- %s\n' ${{ steps.second_latest_tag.outputs.name }}..${{ steps.latest_tag.outputs.name }}))"
+          if [[ "$latest_tag" == "$second_latest_tag" ]]; then 
+            git log --pretty=format:'- %s%n' > target/release.log
+          else 
+           git log --pretty=format:'- %s%n' $latest_tag..$second_latest_tag > target/release.log
+          fi
+          
+          changelog=$(cat target/release.log)
+          echo "changelog [$changelog]"
+          echo "::set-output name=changelog::$changelog))"
       - name: "[Release] create"
         if: env.HAS_RELEASE_BRANCH == 'true'
         id: create_release

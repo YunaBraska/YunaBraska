@@ -11,9 +11,6 @@ on:
       has_pom:
         description: "[Boolean] if pom file exists"
         value: ${{ jobs.tag.outputs.has_pom }}
-      has_changes:
-        description: "[Boolean] if git status has changes"
-        value: ${{ jobs.tag.outputs.has_changes }}
       java_version:
         description: "[String] java version from pom file"
         value: ${{ jobs.tag.outputs.java_version }}
@@ -33,7 +30,6 @@ jobs:
     outputs:
       has_pom: ${{ steps.pom.outputs.has_pom }}
       do_tag: ${{ steps.git.outputs.do_tag }}
-      has_changes: ${{ steps.git.outputs.has_changes }}
       new_version: ${{ steps.semver.outputs.new_version }}
       java_version: ${{ steps.java.outputs.java_version }}
       project_version: ${{ steps.git.outputs.version }}
@@ -145,7 +141,6 @@ jobs:
           echo "---------- OUTPUTS ----------"
           echo "do_tag [${{needs.tag.outputs.do_tag}}]"
           echo "has_pom [${{needs.tag.outputs.has_pom}}]"
-          echo "has_changes [${{needs.tag.outputs.has_changes}}]"
           echo "new_version [${{needs.tag.outputs.new_version}}]"
           echo "java_version [${{needs.tag.outputs.java_version}}]"
           echo "project_version [${{needs.tag.outputs.project_version}}]"
