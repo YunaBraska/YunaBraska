@@ -115,6 +115,7 @@ jobs:
           
           new_version=$(target/semver.py --version=${{ steps.git.outputs.version }} --increase=${{ steps.git.outputs.do_tag }} --output=result)
           echo "new_version [$new_version]"
+          [[ "${new_version}" == \"*\" || "${new_version}" == \'*\' ]] && new_version="${new_version:1:-1}"
           ./mvnw -B -q versions:set -DnewVersion=$new_version -DgenerateBackupPoms=false
           version_file=$(find . -name "version.txt" -type f -exec cat {} +)
           version_file=${version_file:-version.txt}
@@ -130,7 +131,7 @@ jobs:
           commit_user_name: "Kira"
           commit_user_email: "kira@yuna.berlin"
           commit_author: "Kira <kira@yuna.berlin>"
-          tagging_message: 2.0.0
+          tagging_message: ${{ steps.semver.outputs.new_version }}
           skip_dirty_check: true
           skip_fetch: true
           skip_checkout: true
