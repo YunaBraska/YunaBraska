@@ -1,5 +1,9 @@
-name: "[WC] Publish Maven"
-#description: "Designed to work on the default branch"
+name: "[WC] Tag Maven"
+#description: "Creates a tag + updates pom file on new repo changes"
+#designed to work on the default branch
+#TODO: check only for code changes
+#TODO: input: code changes file pattern
+#TODO: Input: Branch/Tag/Commit
 
 on:
   workflow_call:
@@ -138,12 +142,12 @@ jobs:
     steps:
       - name: "print"
         run: |
-          echo "---------- OUTPUTS ----------"
-          echo "do_tag [${{needs.tag.outputs.do_tag}}]"
-          echo "has_pom [${{needs.tag.outputs.has_pom}}]"
-          echo "new_version [${{needs.tag.outputs.new_version}}]"
-          echo "java_version [${{needs.tag.outputs.java_version}}]"
-          echo "project_version [${{needs.tag.outputs.project_version}}]"
+          echo "-------------------- OUTPUTS --------------------"
+          echo "do_tag                    [${{needs.tag.outputs.do_tag}}]"
+          echo "has_pom                   [${{needs.tag.outputs.has_pom}}]"
+          echo "new_version               [${{needs.tag.outputs.new_version}}]"
+          echo "java_version              [${{needs.tag.outputs.java_version}}]"
+          echo "project_version           [${{needs.tag.outputs.project_version}}]"
           echo "has_maven_central_release [${{needs.tag.outputs.has_maven_central_release}}]"
-          echo "----------- ENVS -----------"
+          echo "--------------------- ENVS ---------------------"
           env

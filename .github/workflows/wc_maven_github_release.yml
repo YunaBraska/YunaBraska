@@ -1,0 +1,119 @@
+name: "[WC] Github Release Maven"
+#description: "Creates a new GitHub release"
+#designed: to be triggered after new tag creation
+#TODO: Changelog commit filter
+#TODO: Input: Branch/Tag/Commit
+
+on:
+  workflow_call:
+    # Map the workflow outputs to job outputs
+    outputs:
+      has_pom:
+        description: "[Boolean] if pom file exists"
+        value: ${{ jobs.github_release.outputs.has_pom }}
+      java_version:
+        description: "[String] java version from pom file"
+        value: ${{ jobs.test.outputs.java_version }}
+      changelog:
+        description: "[String] change log from release message"
+        value: ${{ jobs.github_release.outputs.changelog }}
+      latest_tag:
+        description: "[String] latest tag"
+        value: ${{ jobs.github_release.outputs.latest_tag }}
+      second_latest_tag:
+        description: "[String] second latest tag"
+        value: ${{ jobs.github_release.outputs.second_latest_tag }}
+jobs:
+  github_release:
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      has_pom: ${{ steps.pom.outputs.has_pom }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+      java_version: ${{ steps.java.outputs.java_version }}
+      latest_tag: ${{ steps.changelog.outputs.latest_tag }}
+      second_latest_tag: ${{ steps.changelog.outputs.second_latest_tag }}
+    steps:
+      - name: "Check Permission"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+      - name: "Checkout"
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 500
+#          ref: ${{ github.ref_name || github.head_ref }}
+      - name: "Locate POM"
+        id: "pom"
+        run: |
+          has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
+          echo "has_pom [$has_pom]"
+          echo ::set-output name=has_pom::"$has_pom"
+      - name: "Read java version"
+        id: "java"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
+          echo "java_version [$java_version]"
+          echo ::set-output name=java_version::"$java_version"
+      - name: "Setup java"
+        if: steps.pom.outputs.has_pom == 'true'
+        uses: actions/setup-java@main
+        with:
+          distribution: 'adopt'
+          java-version: ${{ steps.java.outputs.java_version }}
+      - name: "Resolve Maven Dependencies"
+        id: "maven"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
+          ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
+      - name: "Build App"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: ./mvnw clean package -Dmaven.test.skip=true
+      - name: "Get changelog"
+        if: steps.pom.outputs.has_pom == 'true'
+        id: "changelog"
+        run: |
+          git fetch --all --tags
+          latest_tag=$(git tag --sort=-creatordate | head -1)
+          echo "latest_tag [$latest_tag]"
+          echo "::set-output name=name::$latest_tag"
+
+          second_latest_tag=$(git tag --sort=-creatordate | head -2 | tail -1)
+          echo "second_latest_tag [$second_latest_tag]"
+          echo "::set-output name=name::$second_latest_tag"
+
+          mkdir -p target
+          if [[ "$latest_tag" == "$second_latest_tag" ]]; then 
+            git log --pretty=format:'- %s%n' > target/release.log
+          else 
+           git log --pretty=format:'- %s%n' $latest_tag..$second_latest_tag > target/release.log
+          fi
+
+          changelog=$(cat target/release.log)
+          echo "changelog [$changelog]"
+          echo "::set-output name=changelog::$changelog))"
+      - name: "Create GitHub Release"
+        if: steps.pom.outputs.has_pom == 'true'
+        id: "create_release"
+        uses: ncipollo/release-action@main
+        with:
+          tag: ${{ steps.changelog.outputs.latest_tag }}
+          artifacts: "target/*.jar,build/*.jar"
+          generateReleaseNotes: true
+          bodyFile: target/release.log
+          token: ${{ secrets.GITHUB_TOKEN }}
+  release_outputs:
+    needs: "github_release"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "-------------------- OUTPUTS --------------------"
+          echo "has_pom           [${{needs.github_release.outputs.has_pom}}]"
+          echo "java_version      [${{needs.test.outputs.java_version}}]"
+          echo "changelog         [${{needs.github_release.outputs.changelog}}]"
+          echo "latest_tag        [${{needs.github_release.outputs.latest_tag}}]"
+          echo "second_latest_tag [${{needs.github_release.outputs.second_latest_tag}}]"
+          echo "--------------------- ENVS ---------------------"
+          env

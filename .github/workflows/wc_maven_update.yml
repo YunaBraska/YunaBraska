@@ -1,5 +1,6 @@
 name: "[WC] Update Maven"
-#description: "Updates maven wrapper and maven dependencies"
+#description: "Updates maven wrapper and maven dependencies of pom file"
+#TODO: Input: Branch/Tag/Commit
 
 on:
   workflow_call:
@@ -95,10 +96,10 @@ jobs:
     steps:
       - name: "print"
         run: |
-          echo "---------- OUTPUTS ----------"
-          echo "has_pom [${{needs.update.outputs.has_pom}}]"
-          echo "has_changes [${{needs.update.outputs.has_changes}}]"
-          echo "java_version [${{needs.update.outputs.java_version}}]"
+          echo "-------------------- OUTPUTS --------------------"
+          echo "has_pom         [${{needs.update.outputs.has_pom}}]"
+          echo "has_changes     [${{needs.update.outputs.has_changes}}]"
+          echo "java_version    [${{needs.update.outputs.java_version}}]"
           echo "project_version [${{needs.update.outputs.project_version}}]"
-          echo "----------- ENVS -----------"
+          echo "--------------------- ENVS ---------------------"
           env

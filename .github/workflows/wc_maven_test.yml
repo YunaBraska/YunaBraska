@@ -1,5 +1,6 @@
 name: "[WC] Test Maven"
-#description: "Runs maven tests"
+#description: "Runs maven tests && publish changes e.g. version.txt"
+#TODO: Input: Branch/Tag/Commit
 
 on:
   workflow_call:
@@ -59,18 +60,18 @@ jobs:
           echo ::set-output name=java_version::"$java_version"
           echo ::set-output name=project_version::"$project_version"
           echo ::set-output name=has_publish_to_code_climate::"$has_publish_to_code_climate"
-      - name: "Resolve Maven Dependencies"
-        id: "maven"
-        if: steps.pom.outputs.has_pom == 'true'
-        run: |
-          ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
-          ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: "Setup java"
         if: steps.pom.outputs.has_pom == 'true'
         uses: actions/setup-java@main
         with:
           distribution: 'adopt'
           java-version: ${{ steps.java.outputs.java_version }}
+      - name: "Resolve Maven Dependencies"
+        id: "maven"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
+          ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: "Run Tests"
         if: steps.pom.outputs.has_pom == 'true'
         run: |
@@ -112,11 +113,11 @@ jobs:
     steps:
       - name: "print"
         run: |
-          echo "---------- OUTPUTS ----------"
-          echo "has_pom [${{needs.test.outputs.has_pom}}]"
-          echo "has_changes [${{needs.test.outputs.has_changes}}]"
-          echo "java_version [${{needs.test.outputs.java_version}}]"
-          echo "project_version [${{needs.test.outputs.project_version}}]"
+          echo "-------------------- OUTPUTS --------------------"
+          echo "has_pom                     [${{needs.test.outputs.has_pom}}]"
+          echo "has_changes                 [${{needs.test.outputs.has_changes}}]"
+          echo "java_version                [${{needs.test.outputs.java_version}}]"
+          echo "project_version             [${{needs.test.outputs.project_version}}]"
           echo "has_publish_to_code_climate [${{needs.test.outputs.has_publish_to_code_climate}}]"
-          echo "----------- ENVS -----------"
+          echo "--------------------- ENVS ---------------------"
           env
