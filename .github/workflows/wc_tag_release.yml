@@ -4,6 +4,7 @@ name: "[WC] Release Tag"
 on:
   workflow_call:
     # Map the workflow outputs to job outputs
+    outputs:
       changelog:
         description: "[String] change log from release message"
         value: ${{ jobs.release.outputs.changelog }}
