@@ -100,7 +100,7 @@ jobs:
         run: |
           echo "tag [${{ steps.changelog.outputs.latest_tag }}]"
           echo "target/release.log [$(cat target/release.log)]"
-          echo "changelog [steps.changelog.outputs.changelog]"
+          echo "changelog [${{ steps.changelog.outputs.changelog}}]"
       - name: "Create GitHub Release"
         if: steps.pom.outputs.has_pom == 'true'
         id: "create_release"
