@@ -119,7 +119,6 @@ jobs:
           ./mvnw -B -q versions:set -DnewVersion=$new_version -DgenerateBackupPoms=false
           version_file=$(find . -name "version.txt" -type f -exec cat {} +)
           version_file=${version_file:-version.txt}
-          git tag $new_version 2>/dev/null
           
           rm -rf target/semver.py
           echo ::set-output name=new_version::"$new_version"
