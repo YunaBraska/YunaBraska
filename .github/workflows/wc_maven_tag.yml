@@ -4,6 +4,8 @@ name: "[WC] Tag Maven"
 #TODO: check only for code changes
 #TODO: input: code changes file pattern
 #TODO: Input: Branch/Tag/Commit
+#TODO: Input: semver fallback strategy major,minor,patch,rc,meta
+#TODO: Input: semver read strategy from version.txt: major,minor,patch,rc,meta (currently version.txt is interpreted as major)
 
 on:
   workflow_call:

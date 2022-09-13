@@ -44,7 +44,7 @@ jobs:
     # has_publish_to_code_climate ${{needs.maven_test.outputs.has_publish_to_code_climate}}
   maven_github_release:
     name: "maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_central_release.yml.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_central_release.yml@feat/0/reusable_workflow
     needs: maven_tag
     # do_tag                       ${{needs.maven_test.outputs.do_tag}}
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
