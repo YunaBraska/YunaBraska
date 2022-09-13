@@ -1,7 +1,8 @@
 name: "[WC] Github Release Maven"
 #description: "Creates a new GitHub release"
 #designed: to be triggered after new tag creation
-#TODO: Changelog commit filter
+#TODO: Input: Changelog commit filter
+#TODO: Filter duplicate commits
 #TODO: Input: Branch/Tag/Commit
 
 on:
