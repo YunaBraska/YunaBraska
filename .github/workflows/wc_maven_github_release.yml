@@ -14,7 +14,7 @@ on:
         value: ${{ jobs.github_release.outputs.has_pom }}
       java_version:
         description: "[String] java version from pom file"
-        value: ${{ jobs.test.outputs.java_version }}
+        value: ${{ jobs.github_release.outputs.java_version }}
       changelog:
         description: "[String] change log from release message"
         value: ${{ jobs.github_release.outputs.changelog }}
@@ -76,6 +76,7 @@ jobs:
         id: "changelog"
         run: |
           git fetch --all --tags
+          
           latest_tag=$(git tag --sort=-creatordate | head -1)
           echo "latest_tag [$latest_tag]"
           echo "::set-output name=name::$latest_tag"
@@ -112,7 +113,7 @@ jobs:
         run: |
           echo "-------------------- OUTPUTS --------------------"
           echo "has_pom           [${{needs.github_release.outputs.has_pom}}]"
-          echo "java_version      [${{needs.test.outputs.java_version}}]"
+          echo "java_version      [${{needs.github_release.outputs.java_version}}]"
           echo "changelog         [${{needs.github_release.outputs.changelog}}]"
           echo "latest_tag        [${{needs.github_release.outputs.latest_tag}}]"
           echo "second_latest_tag [${{needs.github_release.outputs.second_latest_tag}}]"

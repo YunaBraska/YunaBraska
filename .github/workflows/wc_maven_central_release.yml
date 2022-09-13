@@ -1,4 +1,4 @@
-name: "[WC] Release Maven"
+name: "[WC] Central Release Maven"
 #description: "Creates a new maven central release"
 #designed: to be triggered after new tag creation
 #Requirements:
@@ -19,13 +19,13 @@ on:
     outputs:
       has_pom:
         description: "[Boolean] if pom file exists"
-        value: ${{ jobs.release.outputs.has_pom }}
+        value: ${{ jobs.central_release.outputs.has_pom }}
       java_version:
         description: "[String] java version from pom file"
-        value: ${{ jobs.test.outputs.java_version }}
+        value: ${{ jobs.central_release.outputs.java_version }}
 
 jobs:
-  release:
+  central_release:
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
     outputs:
@@ -72,23 +72,23 @@ jobs:
           ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
           ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: Publish package
-        if: env.HAS_RELEASE_BRANCH == 'true'
+        if: steps.pom.outputs.has_pom == 'true'
         run: mvn -B clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
         env:
           OSSRH_USERNAME: ${{ secrets.OSSH_USER }}
           OSSRH_TOKEN: ${{ secrets.OSSH_PASS }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
   release_outputs:
-    needs: "release"
+    needs: "central_release"
     runs-on: ubuntu-latest
     steps:
       - name: "print"
         run: |
           echo "-------------------- OUTPUTS --------------------"
-          echo "has_pom           [${{needs.release.outputs.has_pom}}]"
-          echo "java_version      [${{needs.test.outputs.java_version}}]"
-          echo "changelog         [${{needs.release.outputs.changelog}}]"
-          echo "latest_tag        [${{needs.release.outputs.latest_tag}}]"
-          echo "second_latest_tag [${{needs.release.outputs.second_latest_tag}}]"
+          echo "has_pom           [${{needs.central_release.outputs.has_pom}}]"
+          echo "java_version      [${{needs.central_release.outputs.java_version}}]"
+          echo "changelog         [${{needs.central_release.outputs.changelog}}]"
+          echo "latest_tag        [${{needs.central_release.outputs.latest_tag}}]"
+          echo "second_latest_tag [${{needs.central_release.outputs.second_latest_tag}}]"
           echo "--------------------- ENVS ---------------------"
           env
