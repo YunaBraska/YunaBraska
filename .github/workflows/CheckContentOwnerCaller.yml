@@ -6,6 +6,9 @@ on:
     branches: [ feat/0/reusable_workflow ]
 
 jobs:
+  tag_release:
+    name: "tag"
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_tag_release.yml@feat/0/reusable_workflow
   maven_update:
     name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_update.yml@feat/0/reusable_workflow
