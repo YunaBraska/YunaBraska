@@ -1,0 +1,26 @@
+name: "Trigger: On Merge"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ feat/0/reusable_workflow ]
+
+jobs:
+  merge_validation:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo The PR was merged
+          echo "--------------------- ENVS ---------------------"
+          env
+  maven_tag:
+    needs: merge_validation
+    name: "maven"
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_tag.yml@feat/0/reusable_workflow
+    # has_pom                     ${{needs.maven_test.outputs.has_pom}}
+    # new_version                 ${{needs.maven_test.outputs.new_version}}
+    # java_version                ${{needs.maven_test.outputs.java_version}}
+    # project_version             ${{needs.maven_test.outputs.project_version}}
+    # semver_strategy             ${{needs.maven_test.outputs.semver_strategy}}
+    # has_publish_to_code_climate ${{needs.maven_test.outputs.has_publish_to_code_climate}}
