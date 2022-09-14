@@ -6,6 +6,13 @@ on:
     - '*'
 
 jobs:
+  envs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "--------------------- ENVS ---------------------"
+          env
   maven_github_release:
     name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_github_release.yml@feat/0/reusable_workflow
