@@ -29,5 +29,5 @@ jobs:
       - name: "Set up JDK"
         uses: actions/setup-java@main
         with:
-          java-version: ${{needs.maven_tag.outputs.java_version}}
+          java-version: ${{needs.maven_test.outputs.java_version}}
           distribution: 'adopt'
