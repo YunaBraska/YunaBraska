@@ -17,7 +17,6 @@ jobs:
     if: |
       github.event.pull_request.merged == true &&
       (github.head_ref == 'main' || github.head_ref == 'master' || github.head_ref == 'default')
-    needs: merge_validation
     name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_tag.yml@feat/0/reusable_workflow
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
