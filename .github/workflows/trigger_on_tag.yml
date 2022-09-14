@@ -6,7 +6,6 @@ on:
     # Pattern matched against refs/tags
     tags:
       - '*'  # Push events to every tag not containing /
-      - '**' # Push events to every tag including hierarchical tags like v1.0/beta
 
 jobs:
   maven_github_release:
@@ -20,5 +19,6 @@ jobs:
     # semver_strategy             ${{needs.maven_test.outputs.semver_strategy}}
   maven_central_release:
     name: "maven"
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_central_release.yml@feat/0/reusable_workflow
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
     # java_version                ${{needs.maven_test.outputs.java_version}}
