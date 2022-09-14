@@ -7,7 +7,7 @@ on:
     inputs:
       ref:
         type: string
-        description: "[ref] e.g. branch, tag or commit to checkout [default: github.ref_name || github.head_ref ]"
+        description: "[ref] e.g. branch, tag or commit to checkout [default: github_ref_name || github_head_ref ]"
         required: false
     # Map the workflow outputs to job outputs
     outputs:
@@ -38,7 +38,7 @@ jobs:
         run: |
           if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
 
-          ref_default=""
+          ref_default=${{ github.ref_name || github.head_ref }}
           ref="${ref_A:-${ref_B:-${ref_C:-${ref_default}}}}"
 
           echo "ref [$ref]"
