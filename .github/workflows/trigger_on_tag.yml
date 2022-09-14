@@ -1,16 +1,14 @@
 name: "Trigger: On Tag"
 
 on:
-  workflow_dispatch:
   push:
-    # Pattern matched against refs/tags
     tags:
-      - '*'  # Push events to every tag not containing /
-      - '**' # Push events to every tag including hierarchical tags like v1.0/beta
+      - '*'
+      - '**'
 
 jobs:
   maven_github_release:
-    name: "github"
+    name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_github_release.yml@feat/0/reusable_workflow
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
     # changelog                   ${{needs.maven_test.outputs.changelog}}
