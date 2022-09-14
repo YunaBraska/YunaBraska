@@ -1,9 +1,9 @@
 name: "Trigger: On Merge"
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [ feat/0/reusable_workflow ]
+  pull_request:
+    types:
+      - closed
 
 jobs:
   merge_validation:
