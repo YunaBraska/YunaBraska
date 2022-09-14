@@ -6,17 +6,17 @@ on:
       - closed
 
 jobs:
-  merge_validation:
-    if: |
-      github.event.pull_request.merged == true &&
-      (github.head_ref == 'main' || github.head_ref == 'master' || github.head_ref == 'default')
+  envs:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          Default branch is merged
+      - name: "print"
+        run: |
           echo "--------------------- ENVS ---------------------"
           env
   maven_tag:
+    if: |
+      github.event.pull_request.merged == true &&
+      (github.head_ref == 'main' || github.head_ref == 'master' || github.head_ref == 'default')
     needs: merge_validation
     name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_tag.yml@feat/0/reusable_workflow

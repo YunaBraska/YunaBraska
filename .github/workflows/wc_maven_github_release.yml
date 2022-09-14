@@ -3,10 +3,18 @@ name: "[WC] Github Release Maven"
 #designed: to be triggered after new tag creation
 #TODO: Input: Changelog commit filter
 #TODO: Filter duplicate commits
-#TODO: Input: Branch/Tag/Commit
 
 on:
   workflow_call:
+    inputs:
+      message:
+        type: string
+        description: "[message] release message [default: ${changelog}]"
+        required: false
+      artifacts_filter:
+        type: string
+        description: "[artifacts_filter] artifacts to append on the release [default: target/*.jar,build/*.jar]"
+        required: false
     # Map the workflow outputs to job outputs
     outputs:
       has_pom:
@@ -35,14 +43,30 @@ jobs:
       latest_tag: ${{ steps.changelog.outputs.latest_tag }}
       second_latest_tag: ${{ steps.changelog.outputs.second_latest_tag }}
     steps:
-      - name: "Check Permission"
+      - name: "Validate Input"
+        id: "inputs"
         run: |
           if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+
+          ref="${message_A:-${message_B:-${message_C:-""}}}"
+          artifacts_filter="${artifacts_filter_A:-${artifacts_filter_B:-${artifacts_filter_C:-"target/*.jar,build/*.jar"}}}"
+
+          echo "message [$message]"
+          echo "artifacts_filter [$artifacts_filter]"
+
+          echo "::set-output name=message::$message"
+          echo "::set-output name=artifacts_filter::$artifacts_filter"
+        env:
+          message_A: ${{ inputs.message }}
+          message_B: ${{ github.event.inputs.message }}
+          message_C: ${{ github.event.client_payload.message }
+          artifacts_filter_A: ${{ inputs.artifacts_filter }}
+          artifacts_filter_B: ${{ github.event.inputs.artifacts_filter }}
+          artifacts_filter_C: ${{ github.event.client_payload.artifacts_filter }
       - name: "Checkout"
         uses: actions/checkout@main
         with:
           fetch-depth: 500
-#          ref: ${{ github.ref_name || github.head_ref }}
       - name: "Locate POM"
         id: "pom"
         run: |
@@ -91,6 +115,10 @@ jobs:
           else 
            git log --pretty=format:'- %s%n' $latest_tag..$second_latest_tag > target/release.log
           fi
+          
+          if [[ "${{ steps.inputs.outputs.message }}" != "" ]]; then
+            echo "${{ steps.inputs.outputs.message }}" > target/release.log
+          fi
 
           changelog=$(cat target/release.log)
           echo "target/release.log [$(cat target/release.log)]"
@@ -107,7 +135,7 @@ jobs:
         uses: ncipollo/release-action@main
         with:
           tag: ${{ steps.changelog.outputs.latest_tag }}
-          artifacts: "target/*.jar,build/*.jar"
+          artifacts: ${{ steps.inputs.outputs.artifacts_filter }}
           generateReleaseNotes: true
           bodyFile: target/release.log
           token: ${{ secrets.GITHUB_TOKEN }}

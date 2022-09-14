@@ -8,10 +8,7 @@ name: "[WC] Central Release Maven"
 #   secrets.OSSH_PASS
 #   RepoManagement with server-id: ossrh
 #TODO: Central release without defined pom plugins
-#TODO: Input: Secrets
-#TODO: Input: Commit message overwrites
-#TODO: Input: Source file filter
-#TODO: Input: Branch/Tag/Commit
+#TODO: Input: Secrets?
 
 on:
   workflow_call:
@@ -33,14 +30,14 @@ jobs:
       java_version: ${{ steps.java.outputs.java_version }}
 
     steps:
-      - name: "Check Permission"
+      - name: "Validate Input"
+        id: "inputs"
         run: |
           if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
       - name: "Checkout"
         uses: actions/checkout@main
         with:
           fetch-depth: 500
-      #          ref: ${{ github.ref_name || github.head_ref }}
       - name: "Locate POM"
         id: "pom"
         run: |
