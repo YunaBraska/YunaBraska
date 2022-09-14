@@ -4,6 +4,11 @@ name: "[WC] Update Maven"
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        type: string
+        description: "[ref] e.g. branch, tag or commit to checkout [default:${{ github.ref_name || github.head_ref }}]"
+        required: false
     # Map the workflow outputs to job outputs
     outputs:
       has_pom:
@@ -28,13 +33,25 @@ jobs:
       java_version: ${{ steps.java.outputs.java_version }}
       project_version: ${{ steps.java.outputs.project_version }}
     steps:
-      - name: "Check Permission"
+      - name: "Validate Input"
+        id: "inputs"
         run: |
           if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+
+          ref_default=${{ github.ref_name || github.head_ref }}
+          ref="${ref_A:-${ref_B:-${ref_C:-${ref_default}}}}"
+
+          echo "ref [$ref]"
+
+          echo "::set-output name=ref::$ref"
+        env:
+          ref_A: ${{ inputs.ref }}
+          ref_B: ${{ github.event.inputs.ref }}
+          ref_C: ${{ github.event.client_payload.ref }}
       - name: "Checkout"
         uses: actions/checkout@main
         with:
-          ref: ${{ github.ref_name || github.head_ref }}
+          ref: ${{ steps.inputs.outputs.ref }}
       - name: "Locate POM"
         id: "pom"
         run: |
