@@ -5,7 +5,7 @@ on:
   push:
     # Pattern matched against refs/tags
     tags:
-      - '*'  # Push events to every tag not containing /
+      - '*'  # Push events to every tag not containing / 
 
 jobs:
   maven_github_release:
