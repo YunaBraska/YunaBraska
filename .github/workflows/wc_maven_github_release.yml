@@ -59,10 +59,10 @@ jobs:
         env:
           message_A: ${{ inputs.message }}
           message_B: ${{ github.event.inputs.message }}
-          message_C: ${{ github.event.client_payload.message }
+          message_C: ${{ github.event.client_payload.message }}
           artifacts_filter_A: ${{ inputs.artifacts_filter }}
           artifacts_filter_B: ${{ github.event.inputs.artifacts_filter }}
-          artifacts_filter_C: ${{ github.event.client_payload.artifacts_filter }
+          artifacts_filter_C: ${{ github.event.client_payload.artifacts_filter }}
       - name: "Checkout"
         uses: actions/checkout@main
         with:
