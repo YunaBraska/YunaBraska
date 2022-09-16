@@ -3,7 +3,6 @@ name: "Trigger: On Push"
 on:
   workflow_dispatch:
   push:
-    branches: [ feat/0/reusable_workflow ]
 
 jobs:
   maven_update:
