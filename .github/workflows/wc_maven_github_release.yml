@@ -136,7 +136,8 @@ jobs:
           if [[ "$latest_tag" == "$second_latest_tag" ]]; then 
             git log --pretty=format:'- %s%n' > target/release.log
           else 
-           git log --pretty=format:'- %s%n' $latest_tag..$second_latest_tag > target/release.log
+            git fetch --all --tags
+            git log --pretty=format:'- %s%n' $latest_tag..$second_latest_tag > target/release.log
           fi
 
           if [[ "${{ steps.inputs.outputs.message }}" != "" ]]; then
