@@ -68,7 +68,7 @@ jobs:
           ref_C: ${{ github.event.client_payload.ref }
           semver_strategy_A: ${{ inputs.semver_strategy }}
           semver_strategy_B: ${{ github.event.inputs.semver_strategy }}
-          semver_strategy_C: ${{ github.event.client_payload.semver_strategy }
+          semver_strategy_C: ${{ github.event.client_payload.semver_strategy }}
       - name: "Checkout"
         uses: actions/checkout@main
         with:
