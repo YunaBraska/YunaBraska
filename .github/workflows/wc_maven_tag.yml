@@ -45,7 +45,7 @@ jobs:
       has_pom: ${{ steps.pom.outputs.has_pom }}
       new_version: ${{ steps.semver.outputs.new_version }}
       java_version: ${{ steps.java.outputs.java_version }}
-      project_version: ${{ steps.java.outputs.version }}
+      project_version: ${{ steps.java.outputs.project_version }}
       semver: ${{ steps.git.outputs.semver }}
       has_maven_central_release: ${{ steps.java.outputs.has_maven_central_release }}
     steps:
@@ -117,15 +117,12 @@ jobs:
           echo "latest_tag [$latest_tag]"
           echo "version [$version]"
           echo "project_version [$project_version]"
-          echo "update_major [$update_major]"
-          echo "update_rc [$update_rc]"
           
           semver=$(if [ "$version" != "$project_version" ]; then echo "major"; else echo ""; fi)
           semver=${semver:-$(if [ "$sha_latest" != "$sha_latest_tag" ]; then echo "${{ steps.inputs.outputs.semver_strategy }}"; else echo ""; fi)}
-          
           echo "semver [$semver]"
           
-          echo ::set-output name=semver::"$ssemver"
+          echo ::set-output name=semver::"$semver"
           echo ::set-output name=version::"$version"
       - name: "Setup Python"
         if: steps.git.outputs.semver != ''
