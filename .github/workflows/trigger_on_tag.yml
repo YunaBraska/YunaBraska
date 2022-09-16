@@ -3,8 +3,8 @@ name: "Trigger: On Tag"
 on:
   push:
     tags:
-      - '*'
-      - '**'
+    - '*'
+    - '**'
 
 jobs:
   envs:
