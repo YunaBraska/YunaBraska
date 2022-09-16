@@ -118,7 +118,7 @@ jobs:
           echo "version [$version]"
           echo "project_version [$project_version]"
           
-          semver=$(if [ "$version" != "$project_version" ]; then echo "major"; else echo ""; fi)
+          semver=$(if [ "$version" != "$project_version" ]; then echo "version.txt"; else echo ""; fi)
           semver=${semver:-$(if [ "$sha_latest" != "$sha_latest_tag" ]; then echo "${{ steps.inputs.outputs.semver_strategy }}"; else echo ""; fi)}
           echo "semver [$semver]"
           
@@ -137,7 +137,11 @@ jobs:
           wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
           chmod +x target/semver.py
           
-          new_version=$(target/semver.py --version=${{ steps.git.outputs.version }} --increase=${{ steps.git.outputs.semver }} --output=result)
+          if [ "${{ steps.git.outputs.semver }}" == "version.txt" ]; then 
+            new_version=${{ steps.git.outputs.version }}
+          else 
+            new_version=$(target/semver.py --version=${{ steps.git.outputs.version }} --increase=${{ steps.git.outputs.semver }} --output=result)
+          fi
           echo "new_version [$new_version]"
           [[ "${new_version}" == \"*\" || "${new_version}" == \'*\' ]] && new_version="${new_version:1:-1}"
           ./mvnw -B -q versions:set -DnewVersion=$new_version -DgenerateBackupPoms=false

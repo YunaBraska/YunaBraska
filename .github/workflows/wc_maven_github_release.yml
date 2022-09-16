@@ -102,12 +102,7 @@ jobs:
           git fetch --all --tags
           
           latest_tag=$(git tag --sort=-creatordate | head -1)
-          echo "latest_tag [$latest_tag]"
-          echo "::set-output name=name::$latest_tag"
-
           second_latest_tag=$(git tag --sort=-creatordate | head -2 | tail -1)
-          echo "second_latest_tag [$second_latest_tag]"
-          echo "::set-output name=name::$second_latest_tag"
 
           mkdir -p target
           if [[ "$latest_tag" == "$second_latest_tag" ]]; then 
@@ -121,14 +116,20 @@ jobs:
           fi
 
           changelog=$(cat target/release.log)
+          echo "latest_tag         [$latest_tag]"
+          echo "second_latest_tag  [$second_latest_tag]"
           echo "target/release.log [$(cat target/release.log)]"
-          echo "changelog [$changelog]"
+          echo "changelog          [$changelog]"
+          
+          echo "::set-output name=latest_tag::$latest_tag"
+          echo "::set-output name=second_latest_tag::$second_latest_tag"
           echo "::set-output name=changelog::$changelog))"
       - name: "Print GitHub Release"
         run: |
-          echo "tag [${{ steps.changelog.outputs.latest_tag }}]"
+          echo "latest_tag         [${{steps.changelog.outputs.latest_tag}}]"
+          echo "second_latest_tag  [${{steps.changelog.outputs.second_latest_tag}}]"
           echo "target/release.log [$(cat target/release.log)]"
-          echo "changelog [${{ steps.changelog.outputs.changelog}}]"
+          echo "changelog          [${{steps.changelog.outputs.changelog}}]"
       - name: "Create GitHub Release"
         if: steps.pom.outputs.has_pom == 'true'
         id: "create_release"
