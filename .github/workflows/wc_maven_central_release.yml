@@ -20,6 +20,12 @@ on:
       java_version:
         description: "[String] java version from pom file"
         value: ${{ jobs.central_release.outputs.java_version }}
+      latest_tag:
+        description: "[String] latest tag"
+        value: ${{ jobs.central_release.outputs.latest_tag }}
+      second_latest_tag:
+        description: "[String] second latest tag"
+        value: ${{ jobs.central_release.outputs.second_latest_tag }}
     secrets:
       GPG_SIGNING_KEY:
         description: "GPG key"
@@ -36,13 +42,12 @@ on:
 
 
 jobs:
-  central_release:
+  read_version:
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
     outputs:
-      has_pom: ${{ steps.pom.outputs.has_pom }}
-      java_version: ${{ steps.java.outputs.java_version }}
-
+      latest_tag: ${{ steps.changelog.outputs.latest_tag }}
+      second_latest_tag: ${{ steps.changelog.outputs.second_latest_tag }}
     steps:
       - name: "Validate Input"
         id: "inputs"
@@ -52,12 +57,53 @@ jobs:
         uses: actions/checkout@main
         with:
           fetch-depth: 500
+          ref: ${{ steps.inputs.outputs.ref }}
+      - name: "Read Tags"
+        if: steps.pom.outputs.has_pom == 'true'
+        id: "changelog"
+        run: |
+          git fetch --all --tags
+          latest_tag=$(git tag --sort=-creatordate | head -1)
+          second_latest_tag=$(git tag --sort=-creatordate | head -2 | tail -1)
+          
+          echo "latest_tag [$latest_tag]"
+          echo "second_latest_tag [$second_latest_tag]"
+          
+          echo "::set-output name=latest_tag::$latest_tag"
+          echo "::set-output name=second_latest_tag::$second_latest_tag"
+  central_release:
+    needs: "read_version"
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      has_pom: ${{ steps.pom.outputs.has_pom }}
+      java_version: ${{ steps.java.outputs.java_version }}
+      latest_tag: ${{ steps.pom.outputs.latest_tag }}
+      second_latest_tag: ${{ steps.pom.outputs.second_latest_tag }}
+
+    steps:
+      - name: "Validate Input"
+        id: "inputs"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+      - name: "Checkout"
+        uses: actions/checkout@main
+        with:
+          ref: ${{needs.read_version.outputs.latest_tag}}
       - name: "Locate POM"
         id: "pom"
         run: |
           has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
-          echo "has_pom [$has_pom]"
+          latest_tag=${{needs.read_version.outputs.latest_tag}}
+          second_latest_tag=${{needs.read_version.outputs.second_latest_tag}}
+          
+          echo "has_pom           [$has_pom]"
+          echo "latest_tag        [$latest_tag]"
+          echo "second_latest_tag [$second_latest_tag]"
+          
           echo ::set-output name=has_pom::"$has_pom"
+          echo "::set-output name=latest_tag::$latest_tag"
+          echo "::set-output name=second_latest_tag::$second_latest_tag"
       - name: "Read java version"
         id: "java"
         if: steps.pom.outputs.has_pom == 'true'
@@ -98,7 +144,6 @@ jobs:
           echo "-------------------- OUTPUTS --------------------"
           echo "has_pom           [${{needs.central_release.outputs.has_pom}}]"
           echo "java_version      [${{needs.central_release.outputs.java_version}}]"
-          echo "changelog         [${{needs.central_release.outputs.changelog}}]"
           echo "latest_tag        [${{needs.central_release.outputs.latest_tag}}]"
           echo "second_latest_tag [${{needs.central_release.outputs.second_latest_tag}}]"
           echo "--------------------- ENVS ---------------------"

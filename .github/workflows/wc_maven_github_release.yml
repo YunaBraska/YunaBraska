@@ -33,7 +33,37 @@ on:
         description: "[String] second latest tag"
         value: ${{ jobs.github_release.outputs.second_latest_tag }}
 jobs:
+  read_version:
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      latest_tag: ${{ steps.changelog.outputs.latest_tag }}
+      second_latest_tag: ${{ steps.changelog.outputs.second_latest_tag }}
+    steps:
+      - name: "Validate Input"
+        id: "inputs"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+      - name: "Checkout"
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 500
+          ref: ${{ steps.inputs.outputs.ref }}
+      - name: "Read Tags"
+        if: steps.pom.outputs.has_pom == 'true'
+        id: "changelog"
+        run: |
+          git fetch --all --tags
+          latest_tag=$(git tag --sort=-creatordate | head -1)
+          second_latest_tag=$(git tag --sort=-creatordate | head -2 | tail -1)
+          
+          echo "latest_tag [$latest_tag]"
+          echo "second_latest_tag [$second_latest_tag]"
+          
+          echo "::set-output name=latest_tag::$latest_tag"
+          echo "::set-output name=second_latest_tag::$second_latest_tag"
   github_release:
+    needs: "read_version"
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
     outputs:
@@ -67,6 +97,7 @@ jobs:
         uses: actions/checkout@main
         with:
           fetch-depth: 500
+          ref: ${{needs.read_version.outputs.latest_tag}}
       - name: "Locate POM"
         id: "pom"
         run: |
@@ -99,10 +130,8 @@ jobs:
         if: steps.pom.outputs.has_pom == 'true'
         id: "changelog"
         run: |
-          git fetch --all --tags
-          
-          latest_tag=$(git tag --sort=-creatordate | head -1)
-          second_latest_tag=$(git tag --sort=-creatordate | head -2 | tail -1)
+          latest_tag=${{needs.read_version.outputs.latest_tag}}
+          second_latest_tag=${{needs.read_version.outputs.second_latest_tag}}
 
           mkdir -p target
           if [[ "$latest_tag" == "$second_latest_tag" ]]; then 
@@ -110,7 +139,7 @@ jobs:
           else 
            git log --pretty=format:'- %s%n' $latest_tag..$second_latest_tag > target/release.log
           fi
-          
+
           if [[ "${{ steps.inputs.outputs.message }}" != "" ]]; then
             echo "${{ steps.inputs.outputs.message }}" > target/release.log
           fi
@@ -120,7 +149,7 @@ jobs:
           echo "second_latest_tag  [$second_latest_tag]"
           echo "target/release.log [$(cat target/release.log)]"
           echo "changelog          [$changelog]"
-          
+
           echo "::set-output name=latest_tag::$latest_tag"
           echo "::set-output name=second_latest_tag::$second_latest_tag"
           echo "::set-output name=changelog::$changelog))"
