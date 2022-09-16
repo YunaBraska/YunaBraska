@@ -50,7 +50,6 @@ jobs:
           fetch-depth: 500
           ref: ${{ steps.inputs.outputs.ref }}
       - name: "Read Tags"
-        if: steps.pom.outputs.has_pom == 'true'
         id: "changelog"
         run: |
           git fetch --all --tags
