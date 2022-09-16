@@ -1,0 +1,180 @@
+name: "[WC] Tag Maven"
+#description: "Creates a tag + updates pom file on new repo changes"
+#designed to work on the default branch
+#TODO: check only for code changes
+#TODO: input: code changes file pattern
+#TODO: Input: semver fallback strategy major,minor,patch,rc,meta
+#TODO: Input: semver detect strategy from version.txt: major,minor,patch,rc,meta (currently version.txt is interpreted as major)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        description: "[ref] e.g. branch, tag or commit to checkout [default: github.ref_name || github.head_ref ]"
+        required: false
+      semver_strategy:
+        type: string
+        description: "[semver_strategy] e.g. major,minor,patch,rc,meta [default: rc]"
+        required: false
+    # Map the workflow outputs to job outputs
+    outputs:
+      has_pom:
+        description: "[Boolean] if pom file exists"
+        value: ${{ jobs.tag.outputs.has_pom }}
+      java_version:
+        description: "[String] java version from pom file"
+        value: ${{ jobs.tag.outputs.java_version }}
+      new_version:
+        description: "[String] new version"
+        value: ${{ jobs.tag.outputs.new_version }}
+      project_version:
+        description: "[String] project version from pom or version file"
+        value: ${{ jobs.tag.outputs.version }}
+      semver_strategy:
+        description: "[String] empty if not triggered else RC or Major"
+        value: ${{ jobs.tag.outputs.has_pom }}
+      has_maven_central_release:
+        description: "[String] if code can be released on maven central"
+        value: ${{ jobs.tag.outputs.has_maven_central_release }}
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      has_pom: ${{ steps.pom.outputs.has_pom }}
+      new_version: ${{ steps.semver.outputs.new_version }}
+      java_version: ${{ steps.java.outputs.java_version }}
+      project_version: ${{ steps.git.outputs.version }}
+      semver_strategy: ${{ steps.git.outputs.semver_strategy }}
+      has_maven_central_release: ${{ steps.java.outputs.has_maven_central_release }}
+    steps:
+      - name: "Validate Input"
+        id: "inputs"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+
+          ref_default=${{ github.ref_name || github.head_ref }}
+          ref="${ref_A:-${ref_B:-${ref_C:-${ref_default}}}}"
+          semver_strategy="${semver_strategy_A:-${semver_strategy_B:-${semver_strategy_C:-rc}}}"
+
+          echo "semver_strategy [$semver_strategy]"
+
+          echo "::set-output name=ref::$ref"
+          echo "::set-output name=semver_strategy::$semver_strategy"
+        env:
+          ref_A: ${{ inputs.ref }}
+          ref_B: ${{ github.event.inputs.ref }}
+          ref_C: ${{ github.event.client_payload.ref }
+          semver_strategy_A: ${{ inputs.semver_strategy }}
+          semver_strategy_B: ${{ github.event.inputs.semver_strategy }}
+          semver_strategy_C: ${{ github.event.client_payload.semver_strategy }
+      - name: "Checkout"
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 500
+          ref: ${{ steps.inputs.outputs.ref }}
+      - name: "Locate POM"
+        id: "pom"
+        run: |
+          has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
+          echo "has_pom [$has_pom]"
+          echo ::set-output name=has_pom::"$has_pom"
+      - name: "Read java version"
+        id: "java"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
+          project_version=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          has_maven_central_release=$(if [[ "${{secrets.OSSH_USER}}" == "" ]]; then echo "false"; else echo "true"; fi)
+          
+          echo "java_version [$java_version]"
+          echo "project_version [$project_version]"
+          echo "has_maven_central_release [$has_maven_central_release]"
+          
+          echo ::set-output name=java_version::"$java_version"
+          echo ::set-output name=project_version::"$project_version"
+          echo ::set-output name=has_maven_central_release::"$has_maven_central_release"
+      - name: "Setup java"
+        if: steps.pom.outputs.has_pom == 'true'
+        uses: actions/setup-java@main
+        with:
+          distribution: 'adopt'
+          java-version: ${{ steps.java.outputs.java_version }}
+      - name: "Detect version change"
+        id: "git"
+        run: |
+          git fetch --all --tags
+          sha_latest=$(git rev-parse HEAD)
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.1")
+          sha_latest_tag=$(git rev-list -n 1 $latest_tag 2>/dev/null || echo "")
+          version=$(find . -name "version.txt" -type f -exec cat {} + )
+          version=${version:-${{ steps.java.outputs.project_version }}}
+          project_version=${{ steps.java.outputs.project_version }}
+          
+          echo "sha_latest [$sha_latest]"
+          echo "sha_latest_tag [$sha_latest_tag]"
+          echo "latest_tag [$latest_tag]"
+          echo "version [$version]"
+          echo "project_version [$project_version]"
+          echo "update_major [$update_major]"
+          echo "update_rc [$update_rc]"
+          
+          semver_strategy=$(if [ "$version" != "$project_version" ]; then echo "major"; else echo ""; fi)
+          semver_strategy=${semver_strategy:-$(if [ "$sha_latest" != "$sha_latest_tag" ]; then echo "${{ steps.inputs.outputs.semver_strategy }}"; else echo ""; fi)}
+          
+          echo "semver_strategy [$semver_strategy]"
+          
+          echo ::set-output name=semver_strategy::"$semver_strategy"
+          echo ::set-output name=version::"$version"
+      - name: "Setup Python"
+        if: steps.git.outputs.semver_strategy != ''
+        uses: actions/setup-python@main
+        with:
+          python-version: '3.x'
+      - name: "Set Version"
+        id: "semver"
+        if: steps.git.outputs.semver_strategy != ''
+        run: |
+          mkdir -p target
+          wget -nc -nv https://raw.githubusercontent.com/YunaBraska/YunaBraska/main/.github/scripts/python/functions/semver.py -P target
+          chmod +x target/semver.py
+          
+          new_version=$(target/semver.py --version=${{ steps.git.outputs.version }} --increase=${{ steps.git.outputs.semver_strategy }} --output=result)
+          echo "new_version [$new_version]"
+          [[ "${new_version}" == \"*\" || "${new_version}" == \'*\' ]] && new_version="${new_version:1:-1}"
+          ./mvnw -B -q versions:set -DnewVersion=$new_version -DgenerateBackupPoms=false
+          version_file=$(find . -name "version.txt" -type f -exec cat {} +)
+          version_file=${version_file:-version.txt}
+          
+          rm -rf target/semver.py
+          echo ::set-output name=new_version::"$new_version"
+      - name: "Push changes"
+        if: steps.git.outputs.semver_strategy != ''
+        uses: stefanzweifel/git-auto-commit-action@master
+        with:
+          commit_message: "chore: 🏷️ new version [${{ steps.semver.outputs.new_version }}]"
+          commit_user_name: "Kira"
+          commit_user_email: "kira@yuna.berlin"
+          commit_author: "Kira <kira@yuna.berlin>"
+          tagging_message: ${{ steps.semver.outputs.new_version }}
+          skip_dirty_check: true
+          skip_fetch: true
+          skip_checkout: true
+          disable_globbing: true
+          create_branch: false
+  tag_outputs:
+    needs: "tag"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "-------------------- OUTPUTS --------------------"
+          echo "has_pom                   [${{needs.tag.outputs.has_pom}}]"
+          echo "new_version               [${{needs.tag.outputs.new_version}}]"
+          echo "java_version              [${{needs.tag.outputs.java_version}}]"
+          echo "project_version           [${{needs.tag.outputs.project_version}}]"
+          echo "semver_strategy           [${{needs.tag.outputs.semver_strategy}}]"
+          echo "has_maven_central_release [${{needs.tag.outputs.has_maven_central_release}}]"
+          echo "--------------------- ENVS ---------------------"
+          env

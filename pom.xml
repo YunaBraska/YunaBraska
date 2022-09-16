@@ -23,27 +23,27 @@
 
     <properties>
         <!-- PROPERTIES -->
-        <java.version>11</java.version>
+        <java-version>11</java-version>
         <project.encoding>UTF-8</project.encoding>
         <project.build.sourceEncoding>${project.encoding}</project.build.sourceEncoding>
         <project.reporting.outputEncoding>${project.encoding}</project.reporting.outputEncoding>
         <!-- VERSIONS -->
         <javax.json-api.version>1.1.4</javax.json-api.version>
         <!-- VERSIONS TEST -->
-        <wiser-unit.version>0.0.13</wiser-unit.version>
+        <wiser-unit.version>0.0.33</wiser-unit.version>
         <hamcrest-core.version>2.2</hamcrest-core.version>
-        <and-wait-matcher.version>1.3.6</and-wait-matcher.version>
-        <junit-jupiter-api.version>5.8.1</junit-jupiter-api.version>
+        <and-wait-matcher.version>1.3.20</and-wait-matcher.version>
+        <junit-jupiter-api.version>5.9.0</junit-jupiter-api.version>
         <!-- VERSIONS BUILD -->
         <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
         <maven-scm-plugin.version>1.11.2</maven-scm-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
-        <jacoco-maven-plugin.version>0.8.7</jacoco-maven-plugin.version>
+        <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
         <maven-javadoc-plugin.version>3.1.0</maven-javadoc-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
-        <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
-        <maven-failsafe-plugin.version>3.0.0-M5</maven-failsafe-plugin.version>
-        <maven-surefire-plugin.version>3.0.0-M5</maven-surefire-plugin.version>
+        <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+        <maven-failsafe-plugin.version>3.0.0-M7</maven-failsafe-plugin.version>
+        <maven-surefire-plugin.version>3.0.0-M7</maven-surefire-plugin.version>
         <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
     </properties>
 
@@ -93,8 +93,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven-compiler-plugin.version}</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <source>${java-version}</source>
+                    <target>${java-version}</target>
                 </configuration>
             </plugin>
             <plugin>

@@ -1,0 +1,36 @@
+name: "Trigger: On Merge"
+
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  envs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "--------------------- ENVS ---------------------"
+          env
+  maven_tag:
+    if: |
+      github.event.pull_request.merged == true &&
+      (github.head_ref == 'main' || github.head_ref == 'master' || github.head_ref == 'default')
+    name: "maven"
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_tag.yml@main
+    # has_pom                     ${{needs.maven_test.outputs.has_pom}}
+    # new_version                 ${{needs.maven_test.outputs.new_version}}
+    # java_version                ${{needs.maven_test.outputs.java_version}}
+    # project_version             ${{needs.maven_test.outputs.project_version}}
+    # semver_strategy             ${{needs.maven_test.outputs.semver_strategy}}
+    # has_publish_to_code_climate ${{needs.maven_test.outputs.has_publish_to_code_climate}}
+  do_something:
+    needs: maven_tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Set up JDK"
+        uses: actions/setup-java@main
+        with:
+          java-version: ${{needs.maven_tag.outputs.java_version}}
+          distribution: 'adopt'

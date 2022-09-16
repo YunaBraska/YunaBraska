@@ -1,0 +1,91 @@
+name: "[WC] Central Release Maven"
+#description: "Creates a new maven central release"
+#designed: to be triggered after new tag creation
+#Requirements:
+#   secrets.GPG_PASSPHRASE
+#   secrets.GPG_SIGNING_KEY
+#   secrets.OSSH_USER
+#   secrets.OSSH_PASS
+#   RepoManagement with server-id: ossrh
+#TODO: Central release without defined pom plugins
+#TODO: Input: Secrets?
+
+on:
+  workflow_call:
+    # Map the workflow outputs to job outputs
+    outputs:
+      has_pom:
+        description: "[Boolean] if pom file exists"
+        value: ${{ jobs.central_release.outputs.has_pom }}
+      java_version:
+        description: "[String] java version from pom file"
+        value: ${{ jobs.central_release.outputs.java_version }}
+
+jobs:
+  central_release:
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      has_pom: ${{ steps.pom.outputs.has_pom }}
+      java_version: ${{ steps.java.outputs.java_version }}
+
+    steps:
+      - name: "Validate Input"
+        id: "inputs"
+        run: |
+          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
+      - name: "Checkout"
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 500
+      - name: "Locate POM"
+        id: "pom"
+        run: |
+          has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
+          echo "has_pom [$has_pom]"
+          echo ::set-output name=has_pom::"$has_pom"
+      - name: "Read java version"
+        id: "java"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
+          echo "java_version [$java_version]"
+          echo ::set-output name=java_version::"$java_version"
+      - name: "Setup java"
+        if: steps.pom.outputs.has_pom == 'true'
+        uses: actions/setup-java@main
+        with:
+          distribution: 'adopt'
+          java-version: ${{ steps.java.outputs.java_version }}
+          server-id: ossrh
+          server-username: OSSRH_USERNAME
+          server-password: OSSRH_TOKEN
+          gpg-private-key: ${{ secrets.GPG_SIGNING_KEY }} # Value of the GPG private key to import
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - name: "Resolve Maven Dependencies"
+        id: "maven"
+        if: steps.pom.outputs.has_pom == 'true'
+        run: |
+          ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
+          ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
+      - name: Publish package
+        if: steps.pom.outputs.has_pom == 'true'
+        run: mvn -B clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSH_USER }}
+          OSSRH_TOKEN: ${{ secrets.OSSH_PASS }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+  release_outputs:
+    needs: "central_release"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "-------------------- OUTPUTS --------------------"
+          echo "has_pom           [${{needs.central_release.outputs.has_pom}}]"
+          echo "java_version      [${{needs.central_release.outputs.java_version}}]"
+          echo "changelog         [${{needs.central_release.outputs.changelog}}]"
+          echo "latest_tag        [${{needs.central_release.outputs.latest_tag}}]"
+          echo "second_latest_tag [${{needs.central_release.outputs.second_latest_tag}}]"
+          echo "--------------------- ENVS ---------------------"
+          env
