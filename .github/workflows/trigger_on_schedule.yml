@@ -1,0 +1,34 @@
+name: "Trigger: On Merge"
+
+on:
+  workflow_dispatch:
+    branches: [ main, master ]
+  schedule:
+    - cron: "0 5 * * *"
+
+jobs:
+  envs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "--------------------- ENVS ---------------------"
+          env
+  maven_tag:
+    name: "maven"
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_tag.yml@main
+    # has_pom                     ${{needs.maven_test.outputs.has_pom}}
+    # new_version                 ${{needs.maven_test.outputs.new_version}}
+    # java_version                ${{needs.maven_test.outputs.java_version}}
+    # project_version             ${{needs.maven_test.outputs.project_version}}
+    # semver_strategy             ${{needs.maven_test.outputs.semver_strategy}}
+    # has_publish_to_code_climate ${{needs.maven_test.outputs.has_publish_to_code_climate}}
+  do_something:
+    needs: maven_tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Set up JDK"
+        uses: actions/setup-java@main
+        with:
+          java-version: ${{needs.maven_tag.outputs.java_version}}
+          distribution: 'adopt'
