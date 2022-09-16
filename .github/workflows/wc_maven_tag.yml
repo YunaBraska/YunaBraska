@@ -30,10 +30,10 @@ on:
         value: ${{ jobs.tag.outputs.new_version }}
       project_version:
         description: "[String] project version from pom or version file"
-        value: ${{ jobs.tag.outputs.version }}
+        value: ${{ jobs.tag.outputs.project_version }}
       semver:
         description: "[String] empty if not triggered else RC or Major"
-        value: ${{ jobs.git.outputs.semver }}
+        value: ${{ jobs.tag.outputs.semver }}
       has_maven_central_release:
         description: "[String] if code can be released on maven central"
         value: ${{ jobs.tag.outputs.has_maven_central_release }}
@@ -42,11 +42,11 @@ jobs:
     runs-on: ubuntu-latest
     # Map the job outputs to step outputs
     outputs:
+      semver: ${{ steps.git.outputs.semver }}
       has_pom: ${{ steps.pom.outputs.has_pom }}
       new_version: ${{ steps.semver.outputs.new_version }}
       java_version: ${{ steps.java.outputs.java_version }}
       project_version: ${{ steps.java.outputs.project_version }}
-      semver: ${{ steps.git.outputs.semver }}
       has_maven_central_release: ${{ steps.java.outputs.has_maven_central_release }}
     steps:
       - name: "Validate Input"
