@@ -1,6 +1,7 @@
 name: "Trigger: On Tag"
 
 on:
+  workflow_call:
   push:
     tags:
     - '*'
