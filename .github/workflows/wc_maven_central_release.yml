@@ -20,6 +20,20 @@ on:
       java_version:
         description: "[String] java version from pom file"
         value: ${{ jobs.central_release.outputs.java_version }}
+    secrets:
+      GPG_SIGNING_KEY:
+        description: "GPG key"
+        required: true
+      GPG_PASSPHRASE:
+        description: "GPG Passphrase of the GPG Key"
+        required: false
+      OSSH_USER:
+        description: "Maven Central user"
+        required: true
+      OSSH_PASS:
+        description: "Maven Central password"
+        required: false
+
 
 jobs:
   central_release:

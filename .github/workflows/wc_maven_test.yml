@@ -8,6 +8,10 @@ on:
         type: string
         description: "[ref] e.g. branch, tag or commit to checkout [default: github_ref_name || github_head_ref ]"
         required: false
+    secrets:
+      CC_TEST_REPORTER_ID:
+        description: "Code Climate Id for test coverage and quality checks"
+        required: false
     # Map the workflow outputs to job outputs
     outputs:
       has_pom:

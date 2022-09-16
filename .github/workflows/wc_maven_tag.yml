@@ -33,7 +33,7 @@ on:
         value: ${{ jobs.tag.outputs.version }}
       semver_strategy:
         description: "[String] empty if not triggered else RC or Major"
-        value: ${{ jobs.tag.outputs.has_pom }}
+        value: ${{ jobs.git.outputs.semver_strategy }}
       has_maven_central_release:
         description: "[String] if code can be released on maven central"
         value: ${{ jobs.tag.outputs.has_maven_central_release }}
