@@ -7,6 +7,13 @@ on:
       - '**'
 
 jobs:
+  envs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "print"
+        run: |
+          echo "--------------------- ENVS ---------------------"
+          env
   maven_github_release:
     name: "maven"
     uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_github_release.yml@feat/0/reusable_workflow
@@ -21,12 +28,3 @@ jobs:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_central_release.yml@feat/0/reusable_workflow
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
     # java_version                ${{needs.maven_test.outputs.java_version}}
-  do_something:
-    needs: maven_central_release
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Set up JDK"
-        uses: actions/setup-java@main
-        with:
-          java-version: ${{needs.maven_central_release.outputs.java_version}}
-          distribution: 'adopt'
