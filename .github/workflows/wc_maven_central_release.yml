@@ -129,7 +129,7 @@ jobs:
           ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: Publish package
         if: steps.pom.outputs.has_pom == 'true'
-        run: mvn -B clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
+        run: mvn -B -q clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
         env:
           OSSRH_USERNAME: ${{ secrets.OSSH_USER }}
           OSSRH_TOKEN: ${{ secrets.OSSH_PASS }}

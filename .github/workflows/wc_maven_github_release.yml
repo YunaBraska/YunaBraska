@@ -124,7 +124,7 @@ jobs:
           ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: "Build App"
         if: steps.pom.outputs.has_pom == 'true'
-        run: ./mvnw clean package -Dmaven.test.skip=true
+        run: ./mvnw -B -q clean package -Dmaven.test.skip=true
       - name: "Get changelog"
         if: steps.pom.outputs.has_pom == 'true'
         id: "changelog"
