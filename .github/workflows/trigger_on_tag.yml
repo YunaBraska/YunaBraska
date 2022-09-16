@@ -16,7 +16,7 @@ jobs:
           env
   maven_github_release:
     name: "maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_github_release.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_github_release.yml@main
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
     # changelog                   ${{needs.maven_test.outputs.changelog}}
     # java_version                ${{needs.maven_test.outputs.java_version}}
@@ -25,6 +25,6 @@ jobs:
     # semver_strategy             ${{needs.maven_test.outputs.semver_strategy}}
   maven_central_release:
     name: "maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_central_release.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_central_release.yml@main
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
     # java_version                ${{needs.maven_test.outputs.java_version}}

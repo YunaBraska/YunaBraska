@@ -18,7 +18,7 @@ jobs:
       github.event.pull_request.merged == true &&
       (github.head_ref == 'main' || github.head_ref == 'master' || github.head_ref == 'default')
     name: "maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_tag.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_tag.yml@main
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
     # new_version                 ${{needs.maven_test.outputs.new_version}}
     # java_version                ${{needs.maven_test.outputs.java_version}}

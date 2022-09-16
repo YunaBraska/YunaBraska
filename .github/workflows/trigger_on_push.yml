@@ -8,7 +8,7 @@ on:
 jobs:
   maven_update:
     name: "maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_update.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_update.yml@main
     # has_pom                     ${{needs.maven_update.outputs.has_pom}}
     # has_changes                 ${{needs.maven_update.outputs.has_changes}}
     # java_version                ${{needs.maven_update.outputs.java_version}}
@@ -16,7 +16,7 @@ jobs:
   maven_test:
     needs: maven_update
     name: "maven"
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_test.yml@feat/0/reusable_workflow
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_maven_test.yml@main
     # has_pom                     ${{needs.maven_test.outputs.has_pom}}
     # has_changes                 ${{needs.maven_test.outputs.has_changes}}
     # java_version                ${{needs.maven_test.outputs.java_version}}
