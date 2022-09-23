@@ -33,9 +33,19 @@ class MyTestCase(unittest.TestCase):
         with self.assertRaises(SystemExit) as cli:
             semver.run(argparse.Namespace(increase=None, output='all', version='1.2.3-alpha1'))
         self.assertEqual(cli.exception.code, 0)
-        mock_print.assert_called_with("{'original': '1.2.3-alpha1', 'major': 1, 'minor': 2, 'patch': 3, 'rc_str': "
-                                      "'alpha', 'rc_int': 1, 'meta_str': '', 'meta_int': None, 'rc': 'alpha1', "
-                                      "'meta': None, 'output': 'all', 'result': '1.2.3-alpha1'}")
+        mock_print.assert_called_with('{'
+                                      '"original": "1.2.3-alpha1", '
+                                      '"major": 1, '
+                                      '"minor": 2, '
+                                      '"patch": 3, "rc_str": '
+                                      '"alpha", "rc_int": 1, '
+                                      '"meta_str": "", '
+                                      '"meta_int": null, '
+                                      '"rc": "alpha1", '
+                                      '"meta": null, '
+                                      '"output": "all", '
+                                      '"result": "1.2.3-alpha1"'
+                                      '}')
 
         # TestMap:
 
@@ -72,17 +82,17 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(cli.exception.code, 0)
 
     # TestMap: tests
-    #  1.2.3+m1      -> increase meta  = 1.2.3+m2
+    #  1.2.3+m1      -> increase meta  = "1.2.4-rc.1+m2
     #  1.2.3-rc.4    -> increase meta  = 1.2.3-rc.4+meta.1
     #  1.2.3         -> increase meta  = 1.2.3+meta.1
-    #  1.2.3+meta.1  -> increase rc    = 1.2.3-rc.1+meta.1
-    #  1.2.3         -> increase rc    = 1.2.3-rc.1
+    #  1.2.3+meta.1  -> increase rc    = 1.2.4-rc.1+meta.1
+    #  1.2.3         -> increase rc    = 1.2.4-rc.1
     #  1.2.3-rc.4    -> increase rc    = 1.2.3-rc.5
     @patch('builtins.print')
     def test_increase_special_cases(self, mock_print):
         with self.assertRaises(SystemExit) as cli:
             semver.run(argparse.Namespace(increase='meta', output='result', version='1.2.3+m1'))
-        mock_print.assert_called_with("1.2.3+m2")
+        mock_print.assert_called_with("1.2.4-rc.1+m2")
         self.assertEqual(cli.exception.code, 0)
 
         with self.assertRaises(SystemExit) as cli:
@@ -92,17 +102,17 @@ class MyTestCase(unittest.TestCase):
 
         with self.assertRaises(SystemExit) as cli:
             semver.run(argparse.Namespace(increase='meta', output='result', version='1.2.3'))
-        mock_print.assert_called_with("1.2.3+meta.1")
+        mock_print.assert_called_with("1.2.4-rc.1+meta.1")
         self.assertEqual(cli.exception.code, 0)
 
         with self.assertRaises(SystemExit) as cli:
             semver.run(argparse.Namespace(increase='rc', output='result', version='1.2.3+meta.1'))
-        mock_print.assert_called_with("1.2.3-rc.1")
+        mock_print.assert_called_with("1.2.4-rc.1")
         self.assertEqual(cli.exception.code, 0)
 
         with self.assertRaises(SystemExit) as cli:
             semver.run(argparse.Namespace(increase='rc', output='result', version='1.2.3'))
-        mock_print.assert_called_with("1.2.3-rc.1")
+        mock_print.assert_called_with("1.2.4-rc.1")
         self.assertEqual(cli.exception.code, 0)
 
         with self.assertRaises(SystemExit) as cli:

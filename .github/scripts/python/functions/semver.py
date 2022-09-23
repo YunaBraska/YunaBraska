@@ -94,6 +94,13 @@ def count_up(sem_ver, name):
     index = order.index(name)
 
     if name in ('rc', 'meta'):
+        if name == 'rc' and sem_ver['rc_int'] is None:
+            sem_ver['patch'] = to_int(sem_ver['patch'], 0) + 1
+        if name == 'meta' and sem_ver['rc_int'] is None:
+            sem_ver['rc_int'] = to_int(sem_ver['rc_int'], 0) + 1
+            sem_ver['rc_str'] = to_string(sem_ver['rc_str'], 'rc.')
+            sem_ver['patch'] = to_int(sem_ver['patch'], 0) + 1
+
         if sem_ver[name] is None:
             sem_ver[name + '_str'] = to_string(sem_ver[name + '_str'], name + '.')
         sem_ver[name + '_int'] = to_int(sem_ver[name + '_int'], 0) + 1
@@ -121,7 +128,7 @@ def start(args):
         if args.output == 'ALL' or args.output == 'all':
             return json.dumps(sem_ver)
         elif args.output in sem_ver.keys():
-            return json.dumps(sem_ver[args.output])
+            return sem_ver[args.output]
         else:
             return sem_ver['result']
 
