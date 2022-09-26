@@ -128,10 +128,9 @@ jobs:
           ./mvnw -B -q dependency:resolve -Dmaven.test.skip=true
           ./mvnw -B -q dependency:resolve-plugins -Dmaven.test.skip=true
       - name: "Publish package"
-        with:
-          max_attempts: 6
         if: steps.pom.outputs.has_pom == 'true'
-        run: ./mvnw -B -q clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
+        run: |
+          ./mvnw -B -q clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
         env:
           OSSRH_USERNAME: ${{ secrets.OSSH_USER }}
           OSSRH_TOKEN: ${{ secrets.OSSH_PASS }}
