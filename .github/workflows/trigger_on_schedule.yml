@@ -3,8 +3,8 @@ name: "Tag: on Schedule"
 on:
   workflow_dispatch:
     branches: [ main, master ]
-  schedule:
-    - cron: "0 5 * * *"
+#  schedule:
+#    - cron: "0 5 * * *"
 
 jobs:
   envs:

@@ -2,10 +2,10 @@ name: "Trigger: On Tag"
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-    - '*'
-    - '**'
+#  push:
+#    tags:
+#    - '*'
+#    - '**'
 
 jobs:
   envs:
