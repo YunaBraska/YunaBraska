@@ -68,7 +68,6 @@ jobs:
       - name: "Read envs"
         run: |
           echo "has_pom [{{env.has_pom}}]"
-#          echo "has_pom [${{env.has_pom }]"
           echo "has_pom [${{needs.test.env.has_pom}}]"
           echo "has_pom [${{steps.pom.env.has_pom}}]"
           echo "has_pom [${{steps.pom.outputs.has_pom}}]"
