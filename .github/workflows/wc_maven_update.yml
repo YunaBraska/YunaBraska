@@ -43,7 +43,7 @@ jobs:
 
           echo "ref [$ref]"
 
-          echo "::set-output name=ref::$ref"
+          echo "ref=$ref" >> $GITHUB_OUTPUT
         env:
           ref_A: ${{ inputs.ref }}
           ref_B: ${{ github.event.inputs.ref }}
@@ -57,7 +57,7 @@ jobs:
         run: |
           has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
           echo "has_pom [$has_pom]"
-          echo ::set-output name=has_pom::"$has_pom"
+          echo "has_pom=$has_pom" >> $GITHUB_OUTPUT
       - name: "Read java version"
         id: "java"
         if: steps.pom.outputs.has_pom == 'true'
@@ -66,8 +66,8 @@ jobs:
           project_version=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "java_version [$java_version]"
           echo "project_version [$project_version]"
-          echo ::set-output name=java_version::"$java_version"
-          echo ::set-output name=project_version::"$project_version"
+          echo "java_version=$java_version" >> $GITHUB_OUTPUT
+          echo "project_version=$project_version" >> $GITHUB_OUTPUT
       - name: "Update Maven & Dependencies"
         id: "maven"
         if: steps.pom.outputs.has_pom == 'true'
@@ -83,7 +83,7 @@ jobs:
           has_changes=$(if [[ $(git status --porcelain) ]]; then echo "true"; else echo "false";fi)
           echo "changes [$(git status --porcelain | wc -l)]"
           echo "has_changes [$has_changes]"
-          echo ::set-output name=has_changes::"$has_changes"
+          echo "has_changes=$has_changes" >> $GITHUB_OUTPUT
       - name: "Setup java"
         uses: actions/setup-java@main
         if: steps.git.outputs.has_changes == 'true'

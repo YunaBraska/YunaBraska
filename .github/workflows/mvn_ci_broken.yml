@@ -88,12 +88,12 @@ jobs:
           echo "increase [$increase]"
           echo "trigger_cc_test_id [$trigger_cc_test_id]"
           
-          echo "::set-output name=branch::$branch"
-          echo "::set-output name=repository::$repository"
-          echo "::set-output name=tag_new::$tag_new"
-          echo "::set-output name=increase::$increase"
-          echo "::set-output name=codeclimate_id::$tcodeclimate_id"
-          echo "::set-output name=trigger_cc_test_id::$trigger_cc_test_id"
+          echo "branch=$branch" >> $GITHUB_OUTPUT
+          echo "repository=$repository" >> $GITHUB_OUTPUT
+          echo "tag_new=$tag_new" >> $GITHUB_OUTPUT
+          echo "increase=$increase" >> $GITHUB_OUTPUT
+          echo "codeclimate_id=$tcodeclimate_id" >> $GITHUB_OUTPUT
+          echo "trigger_cc_test_id=$trigger_cc_test_id" >> $GITHUB_OUTPUT
         env:
           branch_A: ${{ inputs.branch }}
           branch_B: ${{ github.event.inputs.branch }}
@@ -134,7 +134,7 @@ jobs:
           chmod +x target/xml_reader.py
           java_version=$(target/xml_reader.py --pjv)
           echo "java_version [$java_version]"
-          echo "::set-output name=java_version::$java_version"
+          echo "java_version=$java_version" >> $GITHUB_OUTPUT
           rm -rf target/git_analyze.py target/semver.py target/xml_reader.py
   maven:
     needs: prep
@@ -193,12 +193,12 @@ jobs:
           echo "is_branch_default [$is_branch_default]"
           echo "do_release [$do_release]"
 
-          echo "::set-output name=has_changes::$has_changes"
-          echo "::set-output name=tag_needed::$tag_needed"
-          echo "::set-output name=tag_new::$tag_new"
-          echo "::set-output name=commit_msg::$commit_msg"
-          echo "::set-output name=is_branch_default::$is_branch_default
-          echo "::set-output name=do_release::$do_release
+          echo "has_changes=$has_changes" >> $GITHUB_OUTPUT
+          echo "tag_needed=$tag_needed" >> $GITHUB_OUTPUT
+          echo "tag_new=$tag_new" >> $GITHUB_OUTPUT
+          echo "commit_msg=$commit_msg" >> $GITHUB_OUTPUT
+          echo "is_branch_default=$is_branch_default" >> $GITHUB_OUTPUT
+          echo "do_release=$do_release" >> $GITHUB_OUTPUT
           
           echo $commit_msg > target/release.log
           rm -rf target/git_analyze.py target/semver.py

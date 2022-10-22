@@ -60,8 +60,8 @@ jobs:
 
           echo "semver_strategy [$semver_strategy]"
 
-          echo "::set-output name=ref::$ref"
-          echo "::set-output name=semver_strategy::$semver_strategy"
+          echo "ref=$ref" >> $GITHUB_OUTPUT
+          echo "semver_strategy=$semver_strategy" >> $GITHUB_OUTPUT
         env:
           ref_A: ${{ inputs.ref }}
           ref_B: ${{ github.event.inputs.ref }}
@@ -79,7 +79,7 @@ jobs:
         run: |
           has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
           echo "has_pom [$has_pom]"
-          echo ::set-output name=has_pom::"$has_pom"
+          echo "has_pom=$has_pom" >> $GITHUB_OUTPUT
       - name: "Read java version"
         id: "java"
         if: steps.pom.outputs.has_pom == 'true'
@@ -92,9 +92,9 @@ jobs:
           echo "project_version [$project_version]"
           echo "has_maven_central_release [$has_maven_central_release]"
           
-          echo ::set-output name=java_version::"$java_version"
-          echo ::set-output name=project_version::"$project_version"
-          echo ::set-output name=has_maven_central_release::"$has_maven_central_release"
+          echo "java_version=$java_version" >> $GITHUB_OUTPUT
+          echo "project_version=$project_version" >> $GITHUB_OUTPUT
+          echo "has_maven_central_release=$has_maven_central_release" >> $GITHUB_OUTPUT
       - name: "Setup java"
         if: steps.pom.outputs.has_pom == 'true'
         uses: actions/setup-java@main
@@ -122,8 +122,8 @@ jobs:
           semver=${semver:-$(if [ "$sha_latest" != "$sha_latest_tag" ]; then echo "${{ steps.inputs.outputs.semver_strategy }}"; else echo ""; fi)}
           echo "semver [$semver]"
           
-          echo ::set-output name=semver::"$semver"
-          echo ::set-output name=version::"$version"
+          echo "semver=$semver" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
       - name: "Setup Python"
         if: steps.git.outputs.semver != ''
         uses: actions/setup-python@main
@@ -150,7 +150,7 @@ jobs:
           echo "$new_version" > $version_file
           
           rm -rf target/semver.py
-          echo ::set-output name=new_version::"$new_version"
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
       - name: "Push changes"
         if: steps.git.outputs.semver != ''
         uses: stefanzweifel/git-auto-commit-action@master

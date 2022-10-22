@@ -65,13 +65,6 @@ jobs:
           has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
           echo "has_pom [$has_pom]"
           echo "has_pom=$has_pom" >> $GITHUB_OUTPUT
-      - name: "Read envs"
-        run: |
-          echo "has_pom [{{env.has_pom}}]"
-          echo "has_pom [${{needs.test.env.has_pom}}]"
-          echo "has_pom [${{steps.pom.env.has_pom}}]"
-          echo "has_pom [${{steps.pom.outputs.has_pom}}]"
-          echo "has_pom [${{join(steps.pom.outputs.*, '\n')}}]"
       - name: "Read java version"
         id: "java"
         if: steps.pom.outputs.has_pom == 'true'

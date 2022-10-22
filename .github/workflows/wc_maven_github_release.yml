@@ -59,8 +59,8 @@ jobs:
           echo "latest_tag [$latest_tag]"
           echo "second_latest_tag [$second_latest_tag]"
           
-          echo "::set-output name=latest_tag::$latest_tag"
-          echo "::set-output name=second_latest_tag::$second_latest_tag"
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+          echo "second_latest_tag=$second_latest_tag" >> $GITHUB_OUTPUT
   github_release:
     needs: "read_version"
     runs-on: ubuntu-latest
@@ -84,8 +84,8 @@ jobs:
           echo "message [$message]"
           echo "artifacts_filter [$artifacts_filter]"
 
-          echo "::set-output name=message::$message"
-          echo "::set-output name=artifacts_filter::$artifacts_filter"
+          echo "message=$message" >> $GITHUB_OUTPUT
+          echo "artifacts_filter=$artifacts_filter" >> $GITHUB_OUTPUT
         env:
           message_A: ${{ inputs.message }}
           message_B: ${{ github.event.inputs.message }}
@@ -103,14 +103,14 @@ jobs:
         run: |
           has_pom=$([ -e "pom.xml" ] && echo "true" || echo "false") 
           echo "has_pom [$has_pom]"
-          echo ::set-output name=has_pom::"$has_pom"
+          echo "has_pom=$has_pom" >> $GITHUB_OUTPUT
       - name: "Read java version"
         id: "java"
         if: steps.pom.outputs.has_pom == 'true'
         run: |
           java_version=$(./mvnw help:evaluate -Dexpression=java-version -q -DforceStdout)
           echo "java_version [$java_version]"
-          echo ::set-output name=java_version::"$java_version"
+          echo "java_version=$java_version" >> $GITHUB_OUTPUT
       - name: "Setup java"
         if: steps.pom.outputs.has_pom == 'true'
         uses: actions/setup-java@main
@@ -151,9 +151,9 @@ jobs:
           echo "target/release.log [$(cat target/release.log)]"
           echo "changelog          [$changelog]"
 
-          echo "::set-output name=latest_tag::$latest_tag"
-          echo "::set-output name=second_latest_tag::$second_latest_tag"
-          echo "::set-output name=changelog::$changelog))"
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+          echo "second_latest_tag=$second_latest_tag" >> $GITHUB_OUTPUT
+          echo "changelog=$changelog" >> $GITHUB_OUTPUT))"
       - name: "Print GitHub Release"
         run: |
           echo "latest_tag         [${{steps.changelog.outputs.latest_tag}}]"
