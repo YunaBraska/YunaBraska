@@ -1,0 +1,24 @@
+name: "TWEET"
+
+on:
+  workflow_dispatch:
+#    branches: [ main, master ]
+
+jobs:
+  tweet:
+#    needs: maven_central_release
+#    if: ! contains(needs.maven_central_release.outputs.latest_tag, '-')
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Tweet"
+        uses: snow-actions/tweet@main
+        with:
+          status: |
+            Released new Version ${{ github.repository }}/${{needs.maven_central_release.outputs.latest_tag}}
+        env:
+          CONSUMER_API_KEY: ${{ secrets.TWITTER_CONSUMER_API_KEY }}
+          CONSUMER_API_SECRET_KEY: ${{ secrets.TWITTER_CONSUMER_API_SECRET_KEY }}
+          ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+          media_paths: |
+            https://github.com/YunaBraska/YunaBraska/blob/main/.github/images/NatsJava.jpg
