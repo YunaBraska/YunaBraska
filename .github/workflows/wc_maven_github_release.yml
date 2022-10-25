@@ -153,7 +153,7 @@ jobs:
 
           echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
           echo "second_latest_tag=$second_latest_tag" >> $GITHUB_OUTPUT
-          echo "changelog=$changelog" >> $GITHUB_OUTPUT))"
+          echo "changelog=$changelog" >> $GITHUB_OUTPUT"
       - name: "Print GitHub Release"
         run: |
           echo "latest_tag         [${{steps.changelog.outputs.latest_tag}}]"
