@@ -35,7 +35,7 @@ public class Main {
             final var name = repo.getString("name");
             final var html_url = repo.getString("html_url");
             final var repoId = repo.getString("full_name");
-            if (!tags.isEmpty() && !repo.getBoolean("archived") && !repo.getBoolean("disabled")) {
+            if (!tags.isEmpty() && !repo.getBoolean("archived") && !repo.getBoolean("disabled") && !"YunaBraska".equalsIgnoreCase(repo.getString("name", ""))) {
                 System.out.println("Updating [" + name + "]");
                 addRow(name, "Name", name, html_url);
                 addRow(name, "Tag", tags.iterator().next().asJsonObject().getString("name"), html_url + "/tags");
@@ -45,7 +45,7 @@ public class Main {
                 addRow(name, "Size", repo.getJsonNumber("size").intValue());
                 addRow(name, "Maintainability", "![maintainability](https://img.shields.io/codeclimate/maintainability/" + repoId + "?style=flat-square)");
                 addRow(name, "Coverage", "![coverage](https://img.shields.io/codeclimate/coverage/" + repoId + "?style=flat-square)");
-                addRow(name, "Description", repo.getString("description"));
+                addRow(name, "Description", repo.getString("description", ""));
             } else {
                 System.out.println("Skipped [" + name + "]");
             }
