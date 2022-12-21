@@ -1,4 +1,4 @@
-name: "[WC] Update Java Repo"
+name: "[WC] Repo Update Java"
 #TODO: Input: Branch/Tag/Commit
 
 on:
@@ -50,7 +50,7 @@ jobs:
           ref: ${{ steps.inputs.outputs.ref }}
       - name: "Get Java Version"
         id: "java_version_reader"
-        uses: actions/java-version@main
+        uses: YunaBraska/java-version@main
       - name: "Setup java"
         uses: actions/setup-java@main
         if: steps.git.outputs.has_changes == 'true'
