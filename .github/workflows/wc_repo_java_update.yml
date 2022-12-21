@@ -3,6 +3,11 @@ name: "[WC] Repo Update Java"
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        description: "[ref] e.g. branch, tag or commit to checkout [default: github_ref_name || github_head_ref ]"
+        required: false
   workflow_call:
     inputs:
       ref:
