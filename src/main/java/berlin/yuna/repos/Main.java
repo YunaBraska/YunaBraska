@@ -3,6 +3,8 @@ package berlin.yuna.repos;
 
 import javax.json.JsonValue;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZoneOffset;
@@ -10,6 +12,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 import static berlin.yuna.repos.Helper.PROJECT_DIR;
 import static berlin.yuna.repos.Helper.REPO_MAP;
@@ -24,9 +28,55 @@ public class Main {
 
     private static final String LINE_SEPARATOR = lineSeparator();
 
+//    private static Optional<HttpURLConnection> httpRequest(final String requestUrl, final String method) {
+//        try {
+//            final URL url = new URL(requestUrl);
+//            final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+//            conn.setRequestMethod(method);
+//            conn.setRequestProperty("Range", "bytes=0-0");
+//            conn.setRequestProperty("user-agent", "Europace/unterlagenakte");
+//
+//            final var response = Optional.of(conn);
+//            conn.disconnect();
+//
+//            return response;
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//
+//        return Optional.empty();
+//    }
+
     //TODO:
     // gitignore
     public static void main(final String[] args) throws IOException {
+
+//        for (final String url : new String[]{
+//                "https://webhook.site/132599b9-c80c-4fcf-999b-f42b090ffa7a",
+//                "https://picsum.photos/536/354",
+//                "https://picsum.photos/id/237/200/300",
+//                "https://picsum.photos/seed/picsum/200/300",
+//                "https://play-lh.googleusercontent.com/ahJtMe0vfOlAu1XJVQ6rcaGrQBgtrEZQefHy7SXB7jpijKhu1Kkox90XDuH8RmcBOXNn",
+//                "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/ZDF_logo%21_Logo_2021.svg/640px-ZDF_logo%21_Logo_2021.svg.png"
+//        }) {
+//            final HttpURLConnection connection = httpRequest(url, "GET").get();
+//            final Integer fileSize = Optional.ofNullable(connection.getHeaderField("Content-Range"))
+//                    .filter(Objects::nonNull)
+//                    .map(s -> s.replace("bytes 0-0/", ""))
+//                    .filter(s -> !s.equals("1"))
+//                    .map(Integer::parseInt).orElseGet(connection::getContentLength);
+//
+//            System.out.println("__________________________________________________________________");
+//            System.out.println("URL            : " + connection.getURL());
+//            System.out.println("Content-Type   : " + connection.getContentType());
+//            System.out.println("Content-Length : " + connection.getContentLength());
+//            System.out.println("Content-Range  : " + connection.getHeaderField("Content-Range"));
+//            System.out.println("Size           : " + fileSize);
+//            System.out.println("------------------------------------------------------------------");
+//        }
+//
+
+        System.exit(0);
         REPO_MAP.clear();
         final var repos = getArray("https://api.github.com/users/YunaBraska/repos");
         for (JsonValue repoRaw : repos) {
