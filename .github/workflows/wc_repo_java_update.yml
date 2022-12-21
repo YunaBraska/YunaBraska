@@ -1,8 +1,8 @@
 name: "[WC] Update Java Repo"
-#description: "Updates maven wrapper and maven dependencies of pom file"
 #TODO: Input: Branch/Tag/Commit
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       ref:
