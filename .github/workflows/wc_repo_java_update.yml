@@ -31,8 +31,8 @@ jobs:
     # Map the job outputs to step outputs
     outputs:
       has_changes: ${{ steps.git.outputs.has_changes }}
-      java_version: ${{ steps.java_version_reader.outputs.java_version }}
-      project_version: ${{ steps.java_version_reader.outputs.project_version }}
+      java_version: ${{ steps.java_info.outputs.java_version }}
+      project_version: ${{ steps.java_info.outputs.project_version }}
     steps:
       - name: "Validate Input"
         id: "inputs"
@@ -54,19 +54,19 @@ jobs:
         with:
           ref: ${{ steps.inputs.outputs.ref }}
       - name: "Get Java Version"
-        id: "java_version_reader"
-        uses: YunaBraska/java-version@main
+        id: "java_info"
+        uses: YunaBraska/java-info-action@main
       - name: "Setup java"
         uses: actions/setup-java@main
         if: steps.git.outputs.has_changes == 'true'
         with:
           distribution: 'adopt'
-          java-version: ${{ steps.java_version_reader.outputs.java_version }}
+          java-version: ${{ steps.java_info.outputs.java_version }}
       - name: "Update Wrapper & Dependencies"
         run: |
-          sh ${{ steps.java_version_reader.outputs.cmd_update_wrapper }}
-          sh ${{ steps.java_version_reader.outputs.cmd_update_parent }}
-          sh ${{ steps.java_version_reader.outputs.cmd_update_props }}
+          sh ${{ steps.java_info.outputs.cmd_update_wrapper }}
+          sh ${{ steps.java_info.outputs.cmd_update_parent }}
+          sh ${{ steps.java_info.outputs.cmd_update_props }}
       - name: "Detect changes"
         id: "git"
         run: |

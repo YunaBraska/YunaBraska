@@ -37,48 +37,28 @@ jobs:
     # Map the job outputs to step outputs
     outputs:
       has_changes: ${{ steps.git.outputs.has_changes }}
-      java_version: ${{ steps.java_version_reader.outputs.java_version }}
-      project_version: ${{ steps.java_version_reader.outputs.project_version }}
-      has_publish_to_code_climate: ${{ steps.inputs.outputs.has_publish_to_code_climate }}
+      java_version: ${{ steps.java_info.outputs.java_version }}
+      project_version: ${{ steps.java_info.outputs.project_version }}
     steps:
-      - name: "Validate Input"
-        id: "inputs"
-        run: |
-          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
-          
-          ref_default=${{ github.ref_name || github.head_ref }}
-          ref="${ref_A:-${ref_B:-${ref_C:-${ref_default}}}}"
-          has_publish_to_code_climate=$(if [[ "${{secrets.CC_TEST_REPORTER_ID}}" == "" ]]; then echo "false"; else echo "true"; fi)
-          
-          echo "ref [$ref]"
-          echo "has_publish_to_code_climate [$has_publish_to_code_climate]"
-          
-          echo "ref=$ref" >> $GITHUB_OUTPUT
-          echo "has_publish_to_code_climate=$has_publish_to_code_climate" >> $GITHUB_OUTPUT
-        env:
-          ref_A: ${{ inputs.ref }}
-          ref_B: ${{ github.event.inputs.ref }}
-          ref_C: ${{ github.event.client_payload.ref }}
       - name: "Checkout"
         uses: actions/checkout@main
         with:
-          ref: ${{ steps.inputs.outputs.ref }}
+          ref: ${{ inputs.ref || github.ref || github.ref_name || github.head_ref }}
       - name: "Get Java Version"
-        id: "java_version_reader"
-        uses: YunaBraska/java-version@main
+        id: "java_info"
+        uses: YunaBraska/java-info-action@main
       - name: "Setup java"
         uses: actions/setup-java@main
         if: steps.git.outputs.has_changes == 'true'
         with:
           distribution: 'adopt'
-          java-version: ${{ steps.java_version_reader.outputs.java_version }}
+          java-version: ${{ steps.java_info.outputs.java_version }}
       - name: "Resolve Plugins & Dependencies"
         run: |
-          sh ${{ steps.java_version_reader.outputs.cmd_resolve_deps }}
-          sh ${{ steps.java_version_reader.outputs.cmd_resolve_plugs }}
+          sh ${{ steps.java_info.outputs.cmd_resolve_deps }}
+          sh ${{ steps.java_info.outputs.cmd_resolve_plugs }}
       - name: "Run Tests"
-        run: |
-          ./mvnw -B -q clean verify
+        run: sh ${{ steps.java_info.outputs.cmd_test }}
       - name: "Detect version change"
         id: "git"
         run: |
@@ -104,7 +84,7 @@ jobs:
           create_branch: false
       - name: "Publish code quality"
         uses: paambaati/codeclimate-action@main
-        if: steps.inputs.outputs.has_publish_to_code_climate == 'true'
+        if: secrets.CC_TEST_REPORTER_ID
         env:
           CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
           JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
@@ -120,6 +100,5 @@ jobs:
           echo "has_changes                 [${{needs.test.outputs.has_changes}}]"
           echo "java_version                [${{needs.test.outputs.java_version}}]"
           echo "project_version             [${{needs.test.outputs.project_version}}]"
-          echo "has_publish_to_code_climate [${{needs.test.outputs.has_publish_to_code_climate}}]"
           echo "--------------------- ENVS ---------------------"
           env
