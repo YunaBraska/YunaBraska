@@ -85,10 +85,10 @@ jobs:
         with:
           coverageLocations: ${{ github.workspace }}/coverage/*.lcov:lcov
       - name: "Send toot to Mastodon [${{ steps.git_info.outputs.commit_type_feat != '' }}]"
-        if: env.MASTODON_ACCESS_TOKEN != '' && steps.git_info.outputs.commit_type_feat != ''
+        if: env.MASTODON_ACCESS_TOKEN != '' && steps.git_info.outputs.change_log_type_feat != ''
         uses: cbrgm/mastodon-github-action@main
         with:
-          message: "${{ steps.git_info.outputs.repo_name }} ${{ steps.semver_info.outputs.clean_semver }} 🎉 ${{ steps.git_info.outputs.commit_type_feat }} Try it out! https://github.com/marketplace/actions/${{ steps.git_info.outputs.repo_name }} ${{ inputs.mastodon_suffix || '' }}"
+          message: "${{ steps.git_info.outputs.repo_name }} ${{ steps.semver_info.outputs.clean_semver }} 🎉 ${{ steps.git_info.outputs.change_log_type_feat }} Try it out! https://github.com/marketplace/actions/${{ steps.git_info.outputs.repo_name }} ${{ inputs.mastodon_suffix || '' }}"
           visibility: "public"
         env:
           MASTODON_URL: https://hachyderm.io
