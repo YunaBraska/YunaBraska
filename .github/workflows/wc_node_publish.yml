@@ -41,7 +41,7 @@ jobs:
           npm audit fix --force
       - name: "Run Tests"
         run: |
-          npm ci && npm run test:coverage
+          npm ci && npm run test
       - name: "Read Git Info"
         id: "git_info"
         uses: YunaBraska/git-info-action@main
