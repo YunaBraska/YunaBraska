@@ -26,6 +26,4 @@ jobs:
           node-version: "16"
           cache: npm
       - name: "Run Tests"
-        run: |
-          npm ci
-          npm run test:coverage
+        run: npm ci && npm run test
