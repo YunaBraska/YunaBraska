@@ -7,6 +7,10 @@ on:
         type: string
         description: "[ref] e.g. branch, tag or commit to checkout [default: github_ref_name || github_head_ref ]"
         required: false
+      setup_java:
+        type: string
+        default: 'false'
+        required: false
 
 jobs:
   test:
@@ -20,6 +24,16 @@ jobs:
         uses: actions/checkout@main
         with:
           ref: ${{ inputs.ref || github.ref_name || github.head_ref }}
+      - name: "Read Java Info"
+        id: "java_info"
+        if: ${{ inputs.setup_java == 'true' }}
+        uses: YunaBraska/java-info-action@main
+      - name: "Setup Java"
+        if: ${{ inputs.setup_java == 'true' }}
+        uses: actions/setup-java@main
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: 'adopt'
       - name: "Setup Node [16]"
         uses: actions/setup-node@main
         with:
