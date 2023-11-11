@@ -15,6 +15,10 @@ on:
         type: string
         description: "[artifacts_filter] artifacts to append on the release [default: target/*.jar,build/*.jar]"
         required: false
+    secrets:
+      CI_TOKEN:
+        required: false
+        description: "for uploading changes"
     # Map the workflow outputs to job outputs
     outputs:
       has_pom:
@@ -169,7 +173,7 @@ jobs:
           artifacts: ${{ steps.inputs.outputs.artifacts_filter }}
           generateReleaseNotes: true
           bodyFile: target/release.log
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CI_TOKEN || secrets.GITHUB_TOKEN }}
   release_outputs:
     needs: "github_release"
     runs-on: ubuntu-latest
