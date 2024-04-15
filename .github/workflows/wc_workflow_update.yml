@@ -7,9 +7,6 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - name: "Check Permission"
-        run: |
-          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
       - name: "Checkout"
         uses: actions/checkout@main
         with:

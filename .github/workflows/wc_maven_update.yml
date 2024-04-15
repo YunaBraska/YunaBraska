@@ -40,8 +40,6 @@ jobs:
       - name: "Validate Input"
         id: "inputs"
         run: |
-          if [ "$GITHUB_ACTOR" != "YunaBraska" ]; then echo "Permission denied for user [$GITHUB_ACTOR]"; exit 1; fi
-
           ref_default=${{ github.ref_name || github.head_ref }}
           ref="${ref_A:-${ref_B:-${ref_C:-${ref_default}}}}"
 

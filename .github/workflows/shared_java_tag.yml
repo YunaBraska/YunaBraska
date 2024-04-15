@@ -1,0 +1,77 @@
+name: "[WC] Tag Maven"
+#description: "Creates a tag based on la"
+#designed to work on the default branch
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        description: "[ref] e.g. branch, tag or commit to checkout [default: github.ref_name || github.head_ref ]"
+        required: false
+      change_type:
+        type: string
+        description: "[String] Change Type [major, minor, patch, rc]"
+        required: false
+    # Map the workflow outputs to job outputs
+    outputs:
+      java_version:
+        description: "[String] java version from pom file"
+        value: ${{ jobs.tag.outputs.java_version }}
+      new_version:
+        description: "[String] new version"
+        value: ${{ jobs.tag.outputs.new_version }}
+      project_version:
+        description: "[String] project version from pom or version file"
+        value: ${{ jobs.tag.outputs.project_version }}
+      has_maven_central_release:
+        description: "[String] if code can be released on maven central"
+        value: ${{ jobs.tag.outputs.has_maven_central_release }}
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      new_version: ${{ steps.semver_info.outputs.clean_semver }}
+      java_version: ${{ steps.java_info.outputs.java_version }}
+      project_version: ${{ steps.java_info.outputs.project_version }}
+    steps:
+      - name: "Checkout [${{ inputs.ref || github.ref_name || github.head_ref }}]"
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 500
+          ref: ${{ inputs.ref || github.ref_name || github.head_ref }}
+      - name: "Read Java Info"
+        id: "java_info"
+        uses: YunaBraska/java-info-action@main
+      - name: "Read Git Info"
+        id: "git_info"
+        uses: YunaBraska/git-info-action@main
+      - name: "Get Semver Info [${{ steps.git_info.outputs.tag_latest }}]"
+        id: "semver_info"
+        uses: YunaBraska/semver-info-action@main
+        with:
+          semver-a: ${{ steps.git_info.outputs.tag_latest || steps.java_info.outputs.project_version }}
+          #TODO: make it possible to set versions.txt to semver-b automatically
+          semver-b: ${{ steps.git_info.outputs.tag_latest || steps.java_info.outputs.project_version }}
+          increase-a: ${{ inputs.change_type || 'rc' }}
+      - name: "Update Version File [${{ steps.semver_info.outputs.version_txt }} > ${{ steps.semver_info.outputs.clean_semver }}] target [${{ steps.semver_info.outputs.version_txt_path }}]"
+        if: steps.semver_info.outputs.version_txt_path != ''
+        run: echo "${{ steps.semver_info.outputs.clean_semver }}" > ${{ steps.semver_info.outputs.version_txt_path }}
+      - name: "Update Project Version (Maven Only) [${{ steps.java_info.outputs.project_version }} > ${{ steps.semver_info.outputs.clean_semver }}]"
+        if: steps.java_info.outputs.is_maven == 'true'
+        run: ${{ steps.java_info.outputs.cmd }} -B -q versions:set -DnewVersion=${{ steps.semver_info.outputs.clean_semver }} -DgenerateBackupPoms=false
+      - name: "Push changes"
+        uses: stefanzweifel/git-auto-commit-action@master
+        with:
+          commit_message: "chore: 🏷️ new version [${{ steps.semver_info.outputs.clean_semver }}]"
+          commit_user_name: "Kira"
+          commit_user_email: "kira@yuna.berlin"
+          commit_author: "Kira <kira@yuna.berlin>"
+          tagging_message: ${{ ${{ steps.semver_info.outputs.clean_semver }} }}
+          skip_dirty_check: true
+          skip_fetch: true
+          skip_checkout: true
+          disable_globbing: true
+          create_branch: false

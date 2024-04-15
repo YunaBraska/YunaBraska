@@ -1,0 +1,53 @@
+name: "[WC] Test Java"
+#description: "Runs maven tests && publish changes e.g. version.txt"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        description: "[ref] e.g. branch, tag or commit to checkout [default: github_ref_name || github_head_ref ]"
+        required: false
+    secrets:
+      CC_TEST_REPORTER_ID:
+        description: "Code Climate Id for test coverage and quality checks"
+        required: false
+    # Map the workflow outputs to job outputs
+    outputs:
+      java_version:
+        description: "[String] java version from pom file"
+        value: ${{ jobs.test.outputs.java_version }}
+      project_version:
+        description: "[String] project version from pom file"
+        value: ${{ jobs.test.outputs.project_version }}
+      builder_name:
+        description: "[String] [maven, gradle]"
+        value: ${{ jobs.test.outputs.builder_name }}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      java_version: ${{ steps.java_info.outputs.java_version }}
+      project_version: ${{ steps.java_info.outputs.project_version }}
+      builder_name: ${{ steps.java_info.outputs.builder_name }}
+      has_changes: ${{ steps.git_info.outputs.has_changes }}
+    steps:
+      - name: "Checkout [${{ inputs.ref || github.ref_name || github.head_ref }}]"
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.ref || github.ref_name || github.head_ref }}
+      - name: "Read Java Info"
+        id: "java_info"
+        uses: YunaBraska/java-info-action@main
+      - name: "Setup Java [${{ steps.java_info.outputs.java_version }}]"
+        uses: actions/setup-java@main
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: 'adopt'
+      - name: "Test & Build [${{ steps.java_info.outputs.builder_name }}]"
+        run: ${{ steps.java_info.outputs.cmd_test_build }}
+      - name: "Read Git Info"
+        id: "git_info"
+        uses: YunaBraska/git-info-action@main

@@ -72,7 +72,7 @@ jobs:
         with:
           makeLatest: true
           generateReleaseNotes: true
-          body: ${{ steps.git_info.outputs.commit_type_feat }}
+          body: ${{ steps.git_info.outputs.change_log_type_feat }}
           tag: ${{ steps.semver_info.outputs.clean_semver }}
           token: ${{ secrets.CI_WORKFLOW_TOKEN || secrets.CI_TOKEN || github.token }}
       - name: "Publish code quality [${{ steps.git_info.outputs.has_changes == 'true' || steps.git_info.outputs.has_local_changes == 'true' }}]"
@@ -84,7 +84,7 @@ jobs:
           CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
         with:
           coverageLocations: ${{ github.workspace }}/coverage/*.lcov:lcov
-      - name: "Send toot to Mastodon [${{ steps.git_info.outputs.commit_type_feat != '' }}]"
+      - name: "Send toot to Mastodon [${{ steps.git_info.outputs.change_log_type_feat != '' }}]"
         if: env.MASTODON_ACCESS_TOKEN != '' && steps.git_info.outputs.change_log_type_feat != ''
         uses: cbrgm/mastodon-github-action@main
         with:
