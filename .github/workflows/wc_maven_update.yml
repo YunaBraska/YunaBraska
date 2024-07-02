@@ -81,8 +81,8 @@ jobs:
         if: steps.pom.outputs.has_pom == 'true'
         run: |
           ./mvnw -B -q -N wrapper:wrapper
-          ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
-          ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
+          ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false -Dmaven.version.ignore=".+-(alpha|beta|M[0-9]+).*"
+          ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false -Dmaven.version.ignore=".+-(alpha|beta|M[0-9]+).*"
       - name: "Detect changes"
         id: "git"
         run: |
