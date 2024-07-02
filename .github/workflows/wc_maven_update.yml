@@ -80,7 +80,7 @@ jobs:
         id: "maven"
         if: steps.pom.outputs.has_pom == 'true'
         run: |
-          ./mvnw -B -q -N io.takari:maven:wrapper
+          ./mvnw -B -q -N wrapper:wrapper
           ./mvnw -B -q versions:update-parent -DgenerateBackupPoms=false
           ./mvnw -B -q versions:update-properties -DgenerateBackupPoms=false
       - name: "Detect changes"
