@@ -44,6 +44,8 @@ jobs:
           npm ci && npm run test
       - name: "Read Git Info"
         id: "git_info"
+        with:
+          ignore-files: "package-lock.json"
         uses: YunaBraska/git-info-action@main
       - name: "Get Semver Info [${{ steps.git_info.outputs.tag_latest }}]"
         id: "semver_info"
@@ -51,7 +53,7 @@ jobs:
         with:
           semver-a: ${{ steps.git_info.outputs.tag_latest }}
           semver-b: ${{ steps.git_info.outputs.tag_latest }}
-          increase-a: ${{ steps.git_info.outputs.change_type || 'patch' }}
+          increase-a: ${{ 'patch' }}
       - name: "Push changes [${{ steps.semver_info.outputs.clean_semver }}] [${{ steps.git_info.outputs.has_local_changes == 'true' }}]"
         if: steps.git_info.outputs.has_local_changes == 'true'
         uses: stefanzweifel/git-auto-commit-action@master
