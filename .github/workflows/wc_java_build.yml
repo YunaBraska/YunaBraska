@@ -296,7 +296,7 @@ jobs:
           deployment_id: ${{ steps.deployment-status.outputs.deployment_id }}
           desc: "Finished deploy [${{ steps.final_semver.outputs.semver }}] to [maven_central]"
       - name: "${{ steps.update.outputs.has_lib_chages_icon || '💾' }} Commit changes"
-        if: ${{ steps.update.outputs.has_lib_chages == 'true' || steps.repo_context.outputs.need_version_txt_update == 'true' }}
+        if: ${{ steps.update.outputs.has_lib_chages == 'true' || steps.context.outputs.run_deploy == 'true' }}
         run: |
           git add .
           git commit -am "chore: updated dependencies 📦"
