@@ -321,3 +321,4 @@ jobs:
           token: ${{secrets.CC_TEST_REPORTER_ID}}
           files: ${{ steps.repo_context.outputs.jacoco_report }}
           strip-prefix: docs,.mvn,mvnw,nvmw.cmd,.github
+          skip-errors: true
