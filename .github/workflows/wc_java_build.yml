@@ -316,9 +316,7 @@ jobs:
           generateReleaseNotes: true
       - name: "${{ steps.context.outputs.run_cc_icon || '📈' }} Publish code quality"
         if: ${{ steps.context.outputs.run_cc == 'true' && steps.repo_context.outputs.jacoco_report != '' }}
-        uses: paambaati/codeclimate-action@v9.0.0
-        env:
-          CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
-          JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
+        uses: qltysh/qlty-action/coverage@v1
         with:
-          coverageLocations: ${{ steps.repo_context.outputs.jacoco_report }}:jacoco
+          token: ${{secrets.CC_TEST_REPORTER_ID}}
+          files: ${{ steps.repo_context.outputs.jacoco_report }}
