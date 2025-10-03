@@ -69,8 +69,6 @@ class TwitterReleaseTest extends TestCase {
         findElement("input[autocomplete=current-password]").orElseThrow(() -> new RuntimeException("Login field not found [password]")).sendKeys("Zee1-ooso");
         findElements("div[role=button]").stream().filter(element -> element.getAttribute("innerHTML").toLowerCase().contains("log in")).findFirst().orElseThrow(() -> new RuntimeException("Login field submit [log in]")).click();
         System.out.println("Done");
-        //yuna-@web.de Zee1-ooso
-//        assertThat("Google", is(this.driver.getTitle()));
     }
 
 
