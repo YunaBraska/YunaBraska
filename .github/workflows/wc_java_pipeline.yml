@@ -1,0 +1,570 @@
+name: "[WC] Java Pipeline"
+
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        description: "Branch, tag or commit to checkout"
+      version:
+        type: string
+        required: false
+        default: "%timestamp%"
+        description: "Literal version or preset like %timestamp%"
+      version_policy:
+        type: string
+        required: false
+        default: "timestamp"
+        description: "Version strategy [timestamp, nats-sync]"
+      run_update:
+        type: boolean
+        required: false
+        default: true
+        description: "Update wrapper and dependency properties"
+      run_test:
+        type: boolean
+        required: false
+        default: true
+        description: "Run tests before any version handling"
+      create_tag:
+        type: boolean
+        required: false
+        default: false
+        description: "Create and push a release tag when possible"
+    secrets:
+      BOT_TOKEN:
+        required: false
+      CI_TOKEN:
+        required: false
+      CC_TEST_REPORTER_ID:
+        required: false
+    outputs:
+      has_changes:
+        description: "Whether the repository changed after the workflow logic"
+        value: ${{ jobs.pipeline.outputs.has_changes }}
+      has_changes_before_version:
+        description: "Whether update/test already changed tracked files"
+        value: ${{ jobs.pipeline.outputs.has_changes_before_version }}
+      resolved_version:
+        description: "Resolved version after workflow processing"
+        value: ${{ jobs.pipeline.outputs.resolved_version }}
+      version_source:
+        description: "How the version was resolved"
+        value: ${{ jobs.pipeline.outputs.version_source }}
+      can_push:
+        description: "Whether the workflow token could push changes"
+        value: ${{ jobs.pipeline.outputs.can_push }}
+      committed:
+        description: "Whether a commit was created"
+        value: ${{ jobs.pipeline.outputs.committed }}
+      tag_created:
+        description: "Whether a tag was pushed"
+        value: ${{ jobs.pipeline.outputs.tag_created }}
+      commit_sha:
+        description: "Commit SHA after workflow changes"
+        value: ${{ jobs.pipeline.outputs.commit_sha }}
+
+concurrency:
+  group: java-pipeline-${{ github.repository }}-${{ inputs.ref || github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    name: "🧪 Java Pipeline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: read
+    outputs:
+      has_changes: ${{ steps.changes_final.outputs.has_changes }}
+      has_changes_before_version: ${{ steps.changes_pre.outputs.has_changes_before_version }}
+      resolved_version: ${{ steps.version.outputs.resolved_version }}
+      version_source: ${{ steps.version.outputs.version_source }}
+      can_push: ${{ steps.push.outputs.can_push || steps.write_access.outputs.can_release || steps.push_skipped.outputs.can_push || 'false' }}
+      committed: ${{ steps.commit.outputs.committed || 'false' }}
+      tag_created: ${{ steps.push.outputs.tag_created || steps.push_skipped.outputs.tag_created || 'false' }}
+      commit_sha: ${{ steps.commit.outputs.commit_sha || github.sha }}
+    env:
+      INPUT_REF: ${{ inputs.ref }}
+      INPUT_VERSION: ${{ inputs.version }}
+      INPUT_VERSION_POLICY: ${{ inputs.version_policy }}
+      INPUT_RUN_UPDATE: ${{ inputs.run_update }}
+      INPUT_RUN_TEST: ${{ inputs.run_test }}
+      INPUT_CREATE_TAG: ${{ inputs.create_tag }}
+      WRITE_TOKEN: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN || github.token }}
+    steps:
+      - name: "📄 Create Context"
+        id: context
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ref="${INPUT_REF:-}"
+          if [[ -z "$ref" ]]; then
+            if [[ -n "${GITHUB_HEAD_REF:-}" ]]; then
+              ref="${GITHUB_HEAD_REF}"
+            elif [[ -n "${GITHUB_REF_NAME:-}" ]]; then
+              ref="${GITHUB_REF_NAME}"
+            else
+              ref="${GITHUB_SHA}"
+            fi
+          fi
+
+          branch_name="$ref"
+          if [[ "$branch_name" == refs/heads/* ]]; then
+            branch_name="${branch_name#refs/heads/}"
+          fi
+          if [[ "$branch_name" == refs/tags/* ]]; then
+            branch_name=""
+          fi
+          if [[ "$branch_name" =~ ^[0-9a-f]{7,40}$ ]]; then
+            branch_name=""
+          fi
+
+          create_tag="${INPUT_CREATE_TAG}"
+
+          if [[ "$create_tag" == "true" && -z "$branch_name" ]]; then
+            echo "create_tag requires a branch ref, got [$ref]" >&2
+            exit 1
+          fi
+
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+          echo "create_tag=$create_tag" >> "$GITHUB_OUTPUT"
+
+      - name: "🧑‍💻 Checkout [${{ steps.context.outputs.ref }}]"
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.context.outputs.ref }}
+          token: ${{ env.WRITE_TOKEN }}
+
+      - name: "🔐 Probe Release Write Access"
+        id: write_access
+        shell: bash
+        env:
+          CREATE_TAG: ${{ steps.context.outputs.create_tag }}
+          BRANCH_NAME: ${{ steps.context.outputs.branch_name }}
+          HAS_BOT_TOKEN: ${{ secrets.BOT_TOKEN != '' }}
+          HAS_CI_TOKEN: ${{ secrets.CI_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+
+          token_source="github.token"
+          if [[ "$HAS_BOT_TOKEN" == "true" ]]; then
+            token_source="BOT_TOKEN"
+          elif [[ "$HAS_CI_TOKEN" == "true" ]]; then
+            token_source="CI_TOKEN"
+          fi
+
+          can_push_branch="false"
+          can_release="false"
+          reason="create_tag_disabled"
+
+          if [[ "$CREATE_TAG" == "true" ]]; then
+            reason="branch_push_denied"
+            if git push --dry-run origin "HEAD:refs/heads/${BRANCH_NAME}" >/dev/null 2>&1; then
+              can_push_branch="true"
+              if [[ "$token_source" == "github.token" ]]; then
+                reason="github_token_cannot_trigger_tag_workflows"
+              else
+                can_release="true"
+                reason="ok"
+              fi
+            fi
+          fi
+
+          echo "token_source=$token_source" >> "$GITHUB_OUTPUT"
+          echo "can_push_branch=$can_push_branch" >> "$GITHUB_OUTPUT"
+          echo "can_release=$can_release" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
+      - name: "🔍 Read Java Info"
+        id: java_info
+        uses: YunaBraska/java-info-action@main
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Maven Cache]"
+        if: ${{ steps.java_info.outputs.is_maven == 'true' }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+          cache: "maven"
+          cache-dependency-path: |
+            **/pom.xml
+            **/.mvn/wrapper/maven-wrapper.properties
+            **/mvnw
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Gradle Cache]"
+        if: ${{ steps.java_info.outputs.is_gradle == 'true' }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+          cache: "gradle"
+          cache-dependency-path: |
+            **/build.gradle
+            **/build.gradle.kts
+            **/settings.gradle
+            **/settings.gradle.kts
+            **/gradle.properties
+            **/gradle/wrapper/gradle-wrapper.properties
+            **/gradlew
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [${{ steps.java_info.outputs.builder_name }}]"
+        if: ${{ steps.java_info.outputs.is_maven != 'true' && steps.java_info.outputs.is_gradle != 'true' }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+
+      - name: "🎭 Restore Playwright Cache [${{ runner.os }}]"
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-java-playwright-${{ hashFiles('**/pom.xml', '**/build.gradle*', '**/settings.gradle*', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-java-playwright-
+
+      - name: "${{ inputs.run_update && '🔄 Update Dependencies' || '💤 Skip Updates' }}"
+        if: ${{ inputs.run_update }}
+        shell: bash
+        env:
+          CMD_UPDATE_WRAPPER: ${{ steps.java_info.outputs.cmd_update_wrapper }}
+          CMD_UPDATE_PROPS: ${{ steps.java_info.outputs.cmd_update_props }}
+          CMD_UPDATE_PARENT: ${{ steps.java_info.outputs.cmd_update_parent }}
+          IS_MAVEN: ${{ steps.java_info.outputs.is_maven }}
+        run: |
+          set -euo pipefail
+
+          run_cmd() {
+            local command="$1"
+            local label="$2"
+            if [[ -n "$command" && "$command" != "null" ]]; then
+              echo "::group::${label}"
+              eval "$command"
+              echo "::endgroup::"
+            fi
+          }
+
+          run_cmd "$CMD_UPDATE_WRAPPER" "wrapper"
+          if [[ "$IS_MAVEN" == "true" ]]; then
+            run_cmd "$CMD_UPDATE_PROPS" "properties"
+            run_cmd "$CMD_UPDATE_PARENT" "parent"
+          fi
+
+      - name: "${{ inputs.run_test && '🧪 Build & Test' || '🏗️ Build' }}"
+        shell: bash
+        env:
+          CMD_BUILD: ${{ steps.java_info.outputs.cmd_build }}
+          CMD_TEST_BUILD: ${{ steps.java_info.outputs.cmd_test_build }}
+          RUN_TEST: ${{ inputs.run_test }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUN_TEST" == "true" ]]; then
+            eval "$CMD_TEST_BUILD"
+          else
+            eval "$CMD_BUILD"
+          fi
+
+      - name: "🧾 Detect Changes Before Versioning"
+        id: changes_pre
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --short)" ]]; then
+            echo "has_changes_before_version=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes_before_version=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: "🏷️ Resolve Version"
+        id: version
+        shell: bash
+        env:
+          PROJECT_VERSION: ${{ steps.java_info.outputs.project_version }}
+          CMD: ${{ steps.java_info.outputs.cmd }}
+          IS_MAVEN: ${{ steps.java_info.outputs.is_maven }}
+          HAS_CHANGES_BEFORE_VERSION: ${{ steps.changes_pre.outputs.has_changes_before_version }}
+          EVENT_NAME: ${{ github.event_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          normalize_version() {
+            local value="$1"
+            value="${value//$'\r'/}"
+            value="${value//$'\n'/}"
+            value="${value#v}"
+            printf '%s' "$value"
+          }
+
+          strip_prerelease() {
+            local value
+            value="$(normalize_version "$1")"
+            printf '%s' "${value%%-*}"
+          }
+
+          bump_rc() {
+            local value
+            value="$(normalize_version "$1")"
+            if [[ "$value" =~ ^([0-9]+(\.[0-9]+)*)(-rc\.([0-9]+))$ ]]; then
+              printf '%s-rc.%s' "${BASH_REMATCH[1]}" "$(( ${BASH_REMATCH[4]} + 1 ))"
+              return 0
+            fi
+            if [[ "$value" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+              printf '%s-rc.1' "$value"
+              return 0
+            fi
+            return 1
+          }
+
+          current_version="$(normalize_version "$PROJECT_VERSION")"
+          version_source="project_version"
+          if [[ -f version.txt ]]; then
+            version_file_version="$(normalize_version "$(cat version.txt)")"
+            if [[ -n "$version_file_version" ]]; then
+              current_version="$version_file_version"
+              version_source="version.txt"
+            fi
+          fi
+
+          explicit_version="false"
+          if [[ -n "${INPUT_VERSION}" && ! "${INPUT_VERSION}" =~ ^%.*%$ ]]; then
+            explicit_version="true"
+          fi
+
+          is_default_branch_push="false"
+          if [[ "${EVENT_NAME}" == "push" && "${REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
+            is_default_branch_push="true"
+          fi
+
+          is_manual_run="false"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            is_manual_run="true"
+          fi
+
+          should_version="false"
+          if [[ "${INPUT_CREATE_TAG}" == "true" ]]; then
+            if [[ "$explicit_version" == "true" || "$is_default_branch_push" == "true" || "$is_manual_run" == "true" || "$HAS_CHANGES_BEFORE_VERSION" == "true" ]]; then
+              should_version="true"
+            fi
+          fi
+
+          resolved_version="$current_version"
+          resolved_source="$version_source"
+
+          if [[ "$should_version" == "true" ]]; then
+            if [[ "$explicit_version" == "true" ]]; then
+              resolved_version="$(normalize_version "${INPUT_VERSION}")"
+              resolved_source="input"
+            elif [[ "${INPUT_VERSION_POLICY}" == "nats-sync" ]]; then
+              if [[ "$IS_MAVEN" != "true" ]]; then
+                echo "nats-sync version policy currently requires Maven" >&2
+                exit 1
+              fi
+
+              sync_version="$($CMD -B -q help:evaluate -Dexpression=nats-streaming-server.version -DforceStdout)"
+              sync_version="$(normalize_version "$sync_version")"
+              sync_base="$(strip_prerelease "$sync_version")"
+              current_base="$(strip_prerelease "$current_version")"
+              project_version_norm="$(normalize_version "$PROJECT_VERSION")"
+
+              if [[ "$current_base" != "$sync_base" ]]; then
+                resolved_version="$sync_base"
+                resolved_source="nats-sync:new-base"
+              elif [[ "$current_version" != "$project_version_norm" ]]; then
+                resolved_version="$current_version"
+                resolved_source="nats-sync:repo-state"
+              else
+                resolved_version="$(bump_rc "$current_version")"
+                resolved_source="nats-sync:rc"
+              fi
+            else
+              resolved_version="$(date -u '+%Y.%m.%j%H%M')"
+              resolved_source="%timestamp%"
+            fi
+          fi
+
+          echo "current_version=$current_version" >> "$GITHUB_OUTPUT"
+          echo "resolved_version=$resolved_version" >> "$GITHUB_OUTPUT"
+          echo "version_source=$resolved_source" >> "$GITHUB_OUTPUT"
+          echo "should_version=$should_version" >> "$GITHUB_OUTPUT"
+
+      - name: "📝 Write Version"
+        id: write_version
+        if: ${{ steps.version.outputs.should_version == 'true' }}
+        shell: bash
+        env:
+          RESOLVED_VERSION: ${{ steps.version.outputs.resolved_version }}
+          PROJECT_VERSION: ${{ steps.java_info.outputs.project_version }}
+          IS_MAVEN: ${{ steps.java_info.outputs.is_maven }}
+          IS_GRADLE: ${{ steps.java_info.outputs.is_gradle }}
+          CMD: ${{ steps.java_info.outputs.cmd }}
+        run: |
+          set -euo pipefail
+
+          version_written="false"
+
+          if [[ -f version.txt ]]; then
+            current_file_version="$(tr -d '\r\n' < version.txt)"
+            if [[ "$current_file_version" != "$RESOLVED_VERSION" ]]; then
+              printf '%s\n' "$RESOLVED_VERSION" > version.txt
+              version_written="true"
+            fi
+          fi
+
+          if [[ "$IS_MAVEN" == "true" && "$PROJECT_VERSION" != "$RESOLVED_VERSION" ]]; then
+            eval "$CMD -B -q versions:set -DnewVersion=\"$RESOLVED_VERSION\" -DgenerateBackupPoms=false"
+            version_written="true"
+          fi
+
+          if [[ "$IS_GRADLE" == "true" ]]; then
+            gradle_updated="false"
+            if [[ -f gradle.properties ]] && grep -Eq '^[[:space:]]*version[[:space:]]*=' gradle.properties; then
+              sed -i.bak -E "0,/^[[:space:]]*version[[:space:]]*=.*/s//version=${RESOLVED_VERSION}/" gradle.properties
+              rm -f gradle.properties.bak
+              gradle_updated="true"
+            else
+              for file in build.gradle build.gradle.kts; do
+                if [[ -f "$file" ]] && grep -Eq '^[[:space:]]*version[[:space:]]*=' "$file"; then
+                  sed -i.bak -E "0,/^[[:space:]]*version[[:space:]]*=[[:space:]]*\"[^\"]*\"/s//version = \"${RESOLVED_VERSION}\"/" "$file"
+                  sed -i.bak -E "0,/^[[:space:]]*version[[:space:]]*=[[:space:]]*'[^']*'/s//version = '${RESOLVED_VERSION}'/" "$file"
+                  rm -f "${file}.bak"
+                  gradle_updated="true"
+                  break
+                fi
+              done
+            fi
+
+            if [[ "$gradle_updated" == "true" ]]; then
+              version_written="true"
+            elif [[ "${INPUT_CREATE_TAG}" == "true" ]]; then
+              echo "Could not update the Gradle project version automatically" >&2
+              exit 1
+            fi
+          fi
+
+          echo "version_written=$version_written" >> "$GITHUB_OUTPUT"
+
+      - name: "🔍 Read Java Info After Versioning"
+        id: java_info_after
+        if: ${{ steps.version.outputs.should_version == 'true' }}
+        uses: YunaBraska/java-info-action@main
+
+      - name: "🔨 Rebuild With Resolved Version"
+        if: ${{ steps.write_version.outputs.version_written == 'true' }}
+        shell: bash
+        env:
+          CMD_BUILD: ${{ steps.java_info.outputs.cmd_build }}
+        run: |
+          set -euo pipefail
+          eval "$CMD_BUILD"
+
+      - name: "🧾 Detect Final Changes"
+        id: changes_final
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --short)" ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: "💾 Commit Changes"
+        id: commit
+        if: ${{ steps.changes_final.outputs.has_changes == 'true' && steps.context.outputs.create_tag == 'true' && steps.write_access.outputs.can_release == 'true' }}
+        shell: bash
+        env:
+          RESOLVED_VERSION: ${{ steps.version.outputs.resolved_version }}
+          CREATE_TAG: ${{ steps.context.outputs.create_tag }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "Kira Bot"
+          git config user.email "kira@noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$CREATE_TAG" == "true" && -n "$RESOLVED_VERSION" ]]; then
+            commit_message="chore: 🏷️ release [${RESOLVED_VERSION}]"
+          else
+            commit_message="chore: 🔄 update dependencies"
+          fi
+
+          git commit -m "$commit_message"
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: "🏷️ Create Local Tag"
+        id: tag
+        if: ${{ steps.commit.outputs.committed == 'true' && steps.context.outputs.create_tag == 'true' }}
+        shell: bash
+        env:
+          RESOLVED_VERSION: ${{ steps.version.outputs.resolved_version }}
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${RESOLVED_VERSION}" >/dev/null 2>&1; then
+            echo "Tag [${RESOLVED_VERSION}] already exists on origin" >&2
+            exit 1
+          fi
+
+          git tag -a "$RESOLVED_VERSION" -m "Release ${RESOLVED_VERSION}"
+          echo "tag_name=$RESOLVED_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: "📤 Push Branch And Tag"
+        id: push
+        if: ${{ steps.commit.outputs.committed == 'true' }}
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ steps.context.outputs.branch_name }}
+          CREATE_TAG: ${{ steps.context.outputs.create_tag }}
+          RESOLVED_VERSION: ${{ steps.version.outputs.resolved_version }}
+        run: |
+          set -euo pipefail
+
+          can_push="false"
+          tag_created="false"
+
+          if [[ "$CREATE_TAG" != "true" ]]; then
+            echo "Push step expected CREATE_TAG=true" >&2
+            exit 1
+          fi
+
+          if ! git push --atomic --dry-run origin "HEAD:refs/heads/${BRANCH_NAME}" "refs/tags/${RESOLVED_VERSION}" >/dev/null 2>&1; then
+            echo "Atomic branch/tag push dry-run failed for [${BRANCH_NAME}] and [${RESOLVED_VERSION}]" >&2
+            exit 1
+          fi
+
+          can_push="true"
+          git push --atomic origin "HEAD:refs/heads/${BRANCH_NAME}" "refs/tags/${RESOLVED_VERSION}"
+          tag_created="true"
+
+          echo "can_push=$can_push" >> "$GITHUB_OUTPUT"
+          echo "tag_created=$tag_created" >> "$GITHUB_OUTPUT"
+
+      - name: "🚫 Skip Commit And Tag"
+        if: ${{ steps.changes_final.outputs.has_changes == 'true' && steps.context.outputs.create_tag == 'true' && steps.write_access.outputs.can_release != 'true' }}
+        shell: bash
+        run: |
+          echo "Skipping commit/tag because release write access is unavailable: ${{ steps.write_access.outputs.reason }}"
+
+      - name: "💤 Push Skipped"
+        id: push_skipped
+        if: ${{ steps.commit.outcome == 'skipped' || steps.commit.outputs.committed != 'true' }}
+        shell: bash
+        run: |
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
+          echo "tag_created=false" >> "$GITHUB_OUTPUT"
