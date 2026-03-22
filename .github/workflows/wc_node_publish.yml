@@ -86,15 +86,15 @@ jobs:
         if: |
           env.CC_TEST_REPORTER_ID != '' &&
           (steps.git_info.outputs.has_changes == 'true' || steps.git_info.outputs.has_local_changes == 'true')
-        uses: qltysh/qlty-action/coverage@v1
+        uses: qltysh/qlty-action/coverage@v2
         with:
           token: ${{secrets.CC_TEST_REPORTER_ID}}
-          oidc: true
           files: coverage/lcov.info
           strip-prefix: docs,.mvn,mvnw,nvmw.cmd,.github
           skip-errors: true
         env:
           CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 #      - name: "Send toot to Mastodon [${{ steps.git_info.outputs.change_log_type_feat != '' }}]"
 #        if: env.MASTODON_ACCESS_TOKEN != '' && steps.git_info.outputs.change_log_type_feat != ''
 #        uses: cbrgm/mastodon-github-action@main
