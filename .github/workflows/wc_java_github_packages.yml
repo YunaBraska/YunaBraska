@@ -173,7 +173,7 @@ jobs:
 
       - name: "🎭 Restore Playwright Cache [${{ runner.os }}]"
         if: ${{ steps.playwright.outputs.enabled == 'true' }}
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-java-playwright-${{ hashFiles('**/pom.xml', '**/build.gradle*', '**/settings.gradle*', '**/gradle.properties') }}
