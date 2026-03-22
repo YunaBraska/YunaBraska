@@ -158,12 +158,17 @@ jobs:
           GROUP_PATH: ${{ steps.coords.outputs.group_path }}
           ARTIFACT_ID: ${{ steps.coords.outputs.artifact_id }}
           VERSION: ${{ steps.context.outputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
 
           pom_url="https://repo1.maven.org/maven2/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.pom"
           status_code="$(curl -sS -o /dev/null -w '%{http_code}' "$pom_url")"
           if [[ "$status_code" == "200" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "Maven Central already contains version [$VERSION]; continuing because this is a dry-run validation"
+              exit 0
+            fi
             echo "Maven Central already contains version [$VERSION]" >&2
             exit 1
           fi
