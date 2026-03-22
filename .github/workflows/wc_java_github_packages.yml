@@ -1,0 +1,185 @@
+name: "[WC] Java GitHub Packages"
+
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+        default: ""
+        description: "Existing git tag to publish"
+    secrets:
+      BOT_TOKEN:
+        required: false
+      CI_TOKEN:
+        required: false
+    outputs:
+      version:
+        description: "Published version"
+        value: ${{ jobs.publish.outputs.version }}
+      package_published:
+        description: "Whether the package was published"
+        value: ${{ jobs.publish.outputs.package_published }}
+
+concurrency:
+  group: java-github-packages-${{ github.repository }}-${{ inputs.version || github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: "📦 GitHub Packages"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.context.outputs.version }}
+      package_published: ${{ steps.publish_result.outputs.package_published }}
+    env:
+      INPUT_VERSION: ${{ inputs.version }}
+      WRITE_TOKEN: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN || github.token }}
+    steps:
+      - name: "📄 Resolve Tag"
+        id: context
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${INPUT_VERSION:-}"
+          if [[ -z "$version" && "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME}"
+          fi
+
+          tag_name="${version#refs/tags/}"
+          version="${tag_name#v}"
+
+          if [[ -z "$version" ]]; then
+            echo "No package version provided and this run is not on a tag ref" >&2
+            exit 1
+          fi
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: "🧑‍💻 Checkout Tag [${{ steps.context.outputs.tag_name }}]"
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ steps.context.outputs.tag_name }}
+          token: ${{ env.WRITE_TOKEN }}
+
+      - name: "🔐 Validate Tag"
+        shell: bash
+        env:
+          TAG_NAME: ${{ steps.context.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          git rev-parse --verify "refs/tags/${TAG_NAME}" >/dev/null
+
+      - name: "🔍 Read Java Info"
+        id: java_info
+        uses: YunaBraska/java-info-action@main
+
+      - name: "🧾 Validate Project Version"
+        shell: bash
+        env:
+          VERSION: ${{ steps.context.outputs.version }}
+          PROJECT_VERSION: ${{ steps.java_info.outputs.project_version }}
+        run: |
+          set -euo pipefail
+
+          normalized_project="${PROJECT_VERSION#v}"
+          if [[ "$normalized_project" != "$VERSION" ]]; then
+            echo "Project version [$normalized_project] does not match tag [$VERSION]" >&2
+            exit 1
+          fi
+
+          if [[ -f version.txt ]]; then
+            normalized_file_version="$(tr -d '\r\n' < version.txt)"
+            normalized_file_version="${normalized_file_version#v}"
+            if [[ "$normalized_file_version" != "$VERSION" ]]; then
+              echo "version.txt [$normalized_file_version] does not match tag [$VERSION]" >&2
+              exit 1
+            fi
+          fi
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: "🧭 Resolve Package Coordinates"
+        id: coords
+        shell: bash
+        env:
+          CMD: ${{ steps.java_info.outputs.cmd }}
+          IS_MAVEN: ${{ steps.java_info.outputs.is_maven }}
+          PROJECT_VERSION: ${{ steps.java_info.outputs.project_version }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$IS_MAVEN" != "true" ]]; then
+            echo "GitHub Packages workflow currently supports Maven projects only" >&2
+            exit 1
+          fi
+
+          group_id="$(eval "$CMD -B -q help:evaluate -Dexpression=project.groupId -DforceStdout" | tr -d '\r\n')"
+          artifact_id="$(eval "$CMD -B -q help:evaluate -Dexpression=project.artifactId -DforceStdout" | tr -d '\r\n')"
+          package_name="${group_id}.${artifact_id}"
+
+          echo "group_id=$group_id" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+          echo "package_name=$package_name" >> "$GITHUB_OUTPUT"
+
+      - name: "🛡️ Preflight Existing Package Version"
+        shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE_NAME: ${{ steps.coords.outputs.package_name }}
+          VERSION: ${{ steps.context.outputs.version }}
+          WRITE_TOKEN: ${{ env.WRITE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          api_url="https://api.github.com/users/${OWNER}/packages/maven/${PACKAGE_NAME}/versions?per_page=100"
+          response_file="$(mktemp)"
+          status_code="$(curl -sS -o "$response_file" -w '%{http_code}' \
+            -H "Authorization: Bearer ${WRITE_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "$api_url")"
+
+          if [[ "$status_code" == "200" ]]; then
+            if jq -e --arg version "$VERSION" '.[] | select(.name == $version)' "$response_file" >/dev/null; then
+              echo "GitHub Packages already contains version [$VERSION] for [$PACKAGE_NAME]" >&2
+              exit 1
+            fi
+          elif [[ "$status_code" != "404" ]]; then
+            echo "Could not inspect GitHub Packages state [HTTP $status_code]" >&2
+            cat "$response_file" >&2
+            exit 1
+          fi
+
+      - name: "📦 Publish Maven Package"
+        shell: bash
+        env:
+          CMD: ${{ steps.java_info.outputs.cmd }}
+          GITHUB_TOKEN: ${{ env.WRITE_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          eval "$CMD -B -q clean deploy -Dmaven.test.skip=true -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${REPOSITORY}"
+
+      - name: "🧾 Mark Package Result"
+        id: publish_result
+        shell: bash
+        run: |
+          echo "package_published=true" >> "$GITHUB_OUTPUT"
