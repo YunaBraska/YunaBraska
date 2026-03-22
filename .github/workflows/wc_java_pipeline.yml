@@ -23,7 +23,7 @@ on:
         type: string
         required: false
         default: ""
-        description: "Maven property used by sync-based versioning"
+        description: "Maven property holding the upstream version for sync-based versioning"
       run_update:
         type: boolean
         required: false
@@ -38,12 +38,12 @@ on:
         type: boolean
         required: false
         default: false
-        description: "Commit and push branch changes when possible"
+        description: "Commit and push branch changes when possible, even without a release tag"
       create_tag:
         type: boolean
         required: false
         default: false
-        description: "Create and push a release tag when possible"
+        description: "Create and push a release tag when possible; implies push_changes"
     secrets:
       BOT_TOKEN:
         required: false
