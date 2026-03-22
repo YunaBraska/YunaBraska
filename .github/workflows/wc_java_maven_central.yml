@@ -1,0 +1,253 @@
+name: "[WC] Java Maven Central"
+
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+        default: ""
+        description: "Existing git tag to publish"
+      dry_run:
+        type: boolean
+        required: false
+        default: false
+        description: "Build and validate only; skip Central deployment"
+    secrets:
+      BOT_TOKEN:
+        required: false
+      CI_TOKEN:
+        required: false
+      CENTRAL_USER:
+        required: false
+      CENTRAL_PASS:
+        required: false
+      GPG_SIGNING_KEY:
+        required: false
+      GPG_PASSPHRASE:
+        required: false
+    outputs:
+      version:
+        description: "Validated or published version"
+        value: ${{ jobs.publish.outputs.version }}
+      central_published:
+        description: "Whether the version was published to Maven Central"
+        value: ${{ jobs.publish.outputs.central_published }}
+
+concurrency:
+  group: java-maven-central-${{ github.repository }}-${{ inputs.version || github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: "🏛️ Maven Central"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.context.outputs.version }}
+      central_published: ${{ steps.publish_result.outputs.central_published }}
+    env:
+      INPUT_VERSION: ${{ inputs.version }}
+      WRITE_TOKEN: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN || github.token }}
+    steps:
+      - name: "📄 Resolve Tag"
+        id: context
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${INPUT_VERSION:-}"
+          if [[ -z "$version" && "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME}"
+          fi
+
+          tag_name="${version#refs/tags/}"
+          version="${tag_name#v}"
+
+          if [[ -z "$version" ]]; then
+            echo "No Central version provided and this run is not on a tag ref" >&2
+            exit 1
+          fi
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: "🧑‍💻 Checkout Tag [${{ steps.context.outputs.tag_name }}]"
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ steps.context.outputs.tag_name }}
+          token: ${{ env.WRITE_TOKEN }}
+
+      - name: "🔐 Validate Tag"
+        shell: bash
+        env:
+          TAG_NAME: ${{ steps.context.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          git rev-parse --verify "refs/tags/${TAG_NAME}" >/dev/null
+
+      - name: "🔍 Read Java Info"
+        id: java_info
+        uses: YunaBraska/java-info-action@main
+
+      - name: "🧾 Validate Project Version"
+        shell: bash
+        env:
+          VERSION: ${{ steps.context.outputs.version }}
+          PROJECT_VERSION: ${{ steps.java_info.outputs.project_version }}
+        run: |
+          set -euo pipefail
+
+          normalized_project="${PROJECT_VERSION#v}"
+          if [[ "$normalized_project" != "$VERSION" ]]; then
+            echo "Project version [$normalized_project] does not match tag [$VERSION]" >&2
+            exit 1
+          fi
+
+          if [[ -f version.txt ]]; then
+            normalized_file_version="$(tr -d '\r\n' < version.txt)"
+            normalized_file_version="${normalized_file_version#v}"
+            if [[ "$normalized_file_version" != "$VERSION" ]]; then
+              echo "version.txt [$normalized_file_version] does not match tag [$VERSION]" >&2
+              exit 1
+            fi
+          fi
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Maven Cache]"
+        if: ${{ inputs.dry_run }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+          cache: "maven"
+          cache-dependency-path: |
+            **/pom.xml
+            **/.mvn/wrapper/maven-wrapper.properties
+            **/mvnw
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Central + Maven Cache]"
+        if: ${{ !inputs.dry_run }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+          server-id: central
+          server-username: CENTRAL_USER
+          server-password: CENTRAL_PASS
+          gpg-private-key: ${{ secrets.GPG_SIGNING_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+          cache: "maven"
+          cache-dependency-path: |
+            **/pom.xml
+            **/.mvn/wrapper/maven-wrapper.properties
+            **/mvnw
+
+      - name: "🎭 Restore Playwright Cache [${{ runner.os }}]"
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-java-playwright-${{ hashFiles('**/pom.xml', '**/build.gradle*', '**/settings.gradle*', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-java-playwright-
+
+      - name: "🧭 Resolve Maven Coordinates"
+        id: coords
+        shell: bash
+        env:
+          CMD: ${{ steps.java_info.outputs.cmd }}
+          IS_MAVEN: ${{ steps.java_info.outputs.is_maven }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$IS_MAVEN" != "true" ]]; then
+            echo "Maven Central workflow currently supports Maven projects only" >&2
+            exit 1
+          fi
+
+          group_id="$(eval "$CMD -B -q help:evaluate -Dexpression=project.groupId -DforceStdout" | tr -d '\r\n')"
+          artifact_id="$(eval "$CMD -B -q help:evaluate -Dexpression=project.artifactId -DforceStdout" | tr -d '\r\n')"
+          group_path="${group_id//./\/}"
+
+          echo "group_id=$group_id" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+          echo "group_path=$group_path" >> "$GITHUB_OUTPUT"
+
+      - name: "🛡️ Preflight Central State"
+        shell: bash
+        env:
+          GROUP_PATH: ${{ steps.coords.outputs.group_path }}
+          ARTIFACT_ID: ${{ steps.coords.outputs.artifact_id }}
+          VERSION: ${{ steps.context.outputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          pom_url="https://repo1.maven.org/maven2/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.pom"
+          status_code="$(curl -sS -o /dev/null -w '%{http_code}' "$pom_url")"
+          if [[ "$status_code" == "200" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "Maven Central already contains version [$VERSION]; continuing because this is a dry-run validation"
+              exit 0
+            fi
+            echo "Maven Central already contains version [$VERSION]" >&2
+            exit 1
+          fi
+          if [[ "$status_code" != "404" ]]; then
+            echo "Unexpected Maven Central response [HTTP $status_code]" >&2
+            exit 1
+          fi
+
+      - name: "🏗️ Build Release Bundle"
+        if: ${{ inputs.dry_run }}
+        shell: bash
+        env:
+          CMD: ${{ steps.java_info.outputs.cmd }}
+        run: |
+          set -euo pipefail
+          eval "$CMD -B -q clean verify -P release -Dmaven.test.skip=true -Dgpg.skip=true"
+
+      - name: "🚀 Publish To Maven Central"
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        env:
+          CMD: ${{ steps.java_info.outputs.cmd }}
+          CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
+          CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          for var_name in CENTRAL_USER CENTRAL_PASS GPG_PASSPHRASE; do
+            if [[ -z "${!var_name:-}" ]]; then
+              echo "Missing required secret [$var_name]" >&2
+              missing=1
+            fi
+          done
+          if [[ -z "${{ secrets.GPG_SIGNING_KEY }}" ]]; then
+            echo "Missing required secret [GPG_SIGNING_KEY]" >&2
+            missing=1
+          fi
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+          eval "$CMD -B -q clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase=\"${GPG_PASSPHRASE}\""
+
+      - name: "🧾 Mark Central Result"
+        id: publish_result
+        shell: bash
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "central_published=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "central_published=true" >> "$GITHUB_OUTPUT"
+          fi

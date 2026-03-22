@@ -36,6 +36,7 @@ jobs:
       new_version: ${{ steps.semver_info.outputs.clean_semver }}
       java_version: ${{ steps.java_info.outputs.java_version }}
       project_version: ${{ steps.java_info.outputs.project_version }}
+      has_maven_central_release: ${{ steps.central_release.outputs.has_maven_central_release }}
     steps:
       - name: "Checkout [${{ inputs.ref || github.ref_name || github.head_ref }}]"
         uses: actions/checkout@main
@@ -62,6 +63,15 @@ jobs:
       - name: "Update Project Version (Maven Only) [${{ steps.java_info.outputs.project_version }} > ${{ steps.semver_info.outputs.clean_semver }}]"
         if: steps.java_info.outputs.is_maven == 'true'
         run: ${{ steps.java_info.outputs.cmd }} -B -q versions:set -DnewVersion=${{ steps.semver_info.outputs.clean_semver }} -DgenerateBackupPoms=false
+      - name: "Detect Maven Central Release Support"
+        id: "central_release"
+        shell: bash
+        run: |
+          has_maven_central_release="false"
+          if [[ -f pom.xml ]] && grep -Eq '<id>release</id>|central-publishing-maven-plugin' pom.xml; then
+            has_maven_central_release="true"
+          fi
+          echo "has_maven_central_release=${has_maven_central_release}" >> "$GITHUB_OUTPUT"
       - name: "Push changes"
         uses: stefanzweifel/git-auto-commit-action@master
         with:
@@ -69,7 +79,7 @@ jobs:
           commit_user_name: "Kira"
           commit_user_email: "kira@yuna.berlin"
           commit_author: "Kira <kira@yuna.berlin>"
-          tagging_message: ${{ ${{ steps.semver_info.outputs.clean_semver }} }}
+          tagging_message: ${{ steps.semver_info.outputs.clean_semver }}
           skip_dirty_check: true
           skip_fetch: true
           skip_checkout: true
