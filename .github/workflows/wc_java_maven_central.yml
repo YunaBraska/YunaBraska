@@ -14,7 +14,7 @@ on:
         type: boolean
         required: false
         default: false
-        description: "Build and validate only; skip Central deployment"
+        description: "Validate release build and signing only; skip Central deployment"
     secrets:
       BOT_TOKEN:
         required: false
@@ -119,20 +119,28 @@ jobs:
             fi
           fi
 
-      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Maven Cache]"
-        if: ${{ inputs.dry_run }}
-        uses: actions/setup-java@v5
-        with:
-          java-version: ${{ steps.java_info.outputs.java_version }}
-          distribution: "temurin"
-          cache: "maven"
-          cache-dependency-path: |
-            **/pom.xml
-            **/.mvn/wrapper/maven-wrapper.properties
-            **/mvnw
+      - name: "🔐 Validate Central Secrets"
+        shell: bash
+        env:
+          CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
+          CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          for var_name in CENTRAL_USER CENTRAL_PASS GPG_SIGNING_KEY GPG_PASSPHRASE; do
+            if [[ -z "${!var_name:-}" ]]; then
+              echo "Missing required secret [$var_name]" >&2
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
 
       - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Central + Maven Cache]"
-        if: ${{ !inputs.dry_run }}
         uses: actions/setup-java@v5
         with:
           java-version: ${{ steps.java_info.outputs.java_version }}
@@ -208,35 +216,30 @@ jobs:
         shell: bash
         env:
           CMD: ${{ steps.java_info.outputs.cmd }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -euo pipefail
-          eval "$CMD -B -q clean verify -P release -Dmaven.test.skip=true -Dgpg.skip=true"
+          eval "$CMD -B -q clean verify -P release -Dmaven.test.skip=true -Dgpg.passphrase=\"${GPG_PASSPHRASE}\""
+
+      - name: "🔏 Validate Signed Artifacts"
+        if: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! find . -path '*/target/*.asc' -print -quit | grep -q .; then
+            echo "No signed artifacts were produced by the release build" >&2
+            exit 1
+          fi
 
       - name: "🚀 Publish To Maven Central"
         if: ${{ !inputs.dry_run }}
         shell: bash
         env:
           CMD: ${{ steps.java_info.outputs.cmd }}
-          CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
-          CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -euo pipefail
-
-          missing=0
-          for var_name in CENTRAL_USER CENTRAL_PASS GPG_PASSPHRASE; do
-            if [[ -z "${!var_name:-}" ]]; then
-              echo "Missing required secret [$var_name]" >&2
-              missing=1
-            fi
-          done
-          if [[ -z "${{ secrets.GPG_SIGNING_KEY }}" ]]; then
-            echo "Missing required secret [GPG_SIGNING_KEY]" >&2
-            missing=1
-          fi
-          if [[ "$missing" -ne 0 ]]; then
-            exit 1
-          fi
 
           eval "$CMD -B -q clean deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase=\"${GPG_PASSPHRASE}\""
 
