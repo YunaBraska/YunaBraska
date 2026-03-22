@@ -108,7 +108,8 @@ jobs:
             fi
           fi
 
-      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Maven Cache]"
+        if: ${{ steps.java_info.outputs.is_maven == 'true' }}
         uses: actions/setup-java@v5
         with:
           java-version: ${{ steps.java_info.outputs.java_version }}
@@ -116,6 +117,34 @@ jobs:
           server-id: github
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
+          cache: "maven"
+          cache-dependency-path: |
+            **/pom.xml
+            **/.mvn/wrapper/maven-wrapper.properties
+            **/mvnw
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Gradle Cache]"
+        if: ${{ steps.java_info.outputs.is_gradle == 'true' }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+          cache: "gradle"
+          cache-dependency-path: |
+            **/build.gradle
+            **/build.gradle.kts
+            **/settings.gradle
+            **/settings.gradle.kts
+            **/gradle.properties
+            **/gradle/wrapper/gradle-wrapper.properties
+            **/gradlew
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
+        if: ${{ steps.java_info.outputs.is_maven != 'true' && steps.java_info.outputs.is_gradle != 'true' }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
 
       - name: "🧭 Resolve Package Coordinates"
         id: coords

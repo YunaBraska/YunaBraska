@@ -183,22 +183,40 @@ jobs:
           echo "can_release=$can_release" >> "$GITHUB_OUTPUT"
           echo "reason=$reason" >> "$GITHUB_OUTPUT"
 
-      - name: "♻️ Restore Cache [${{ runner.os }}]"
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.m2
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-java-pipeline-${{ hashFiles('**/pom.xml', '**/build.gradle*', '**/gradle.properties', '**/mvnw', '**/gradlew') }}
-          restore-keys: |
-            ${{ runner.os }}-java-pipeline-
-
       - name: "🔍 Read Java Info"
         id: java_info
         uses: YunaBraska/java-info-action@main
 
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Maven Cache]"
+        if: ${{ steps.java_info.outputs.is_maven == 'true' }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+          cache: "maven"
+          cache-dependency-path: |
+            **/pom.xml
+            **/.mvn/wrapper/maven-wrapper.properties
+            **/mvnw
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Gradle Cache]"
+        if: ${{ steps.java_info.outputs.is_gradle == 'true' }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          distribution: "temurin"
+          cache: "gradle"
+          cache-dependency-path: |
+            **/build.gradle
+            **/build.gradle.kts
+            **/settings.gradle
+            **/settings.gradle.kts
+            **/gradle.properties
+            **/gradle/wrapper/gradle-wrapper.properties
+            **/gradlew
+
       - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [${{ steps.java_info.outputs.builder_name }}]"
+        if: ${{ steps.java_info.outputs.is_maven != 'true' && steps.java_info.outputs.is_gradle != 'true' }}
         uses: actions/setup-java@v5
         with:
           java-version: ${{ steps.java_info.outputs.java_version }}

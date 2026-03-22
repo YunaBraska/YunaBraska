@@ -119,14 +119,19 @@ jobs:
             fi
           fi
 
-      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Maven Cache]"
         if: ${{ inputs.dry_run }}
         uses: actions/setup-java@v5
         with:
           java-version: ${{ steps.java_info.outputs.java_version }}
           distribution: "temurin"
+          cache: "maven"
+          cache-dependency-path: |
+            **/pom.xml
+            **/.mvn/wrapper/maven-wrapper.properties
+            **/mvnw
 
-      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Central]"
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Central + Maven Cache]"
         if: ${{ !inputs.dry_run }}
         uses: actions/setup-java@v5
         with:
@@ -137,6 +142,11 @@ jobs:
           server-password: CENTRAL_PASS
           gpg-private-key: ${{ secrets.GPG_SIGNING_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
+          cache: "maven"
+          cache-dependency-path: |
+            **/pom.xml
+            **/.mvn/wrapper/maven-wrapper.properties
+            **/mvnw
 
       - name: "🧭 Resolve Maven Coordinates"
         id: coords
