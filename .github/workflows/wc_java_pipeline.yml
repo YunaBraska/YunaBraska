@@ -34,16 +34,11 @@ on:
         required: false
         default: true
         description: "Run tests before any version handling"
-      push_changes:
-        type: boolean
-        required: false
-        default: false
-        description: "Commit and push branch changes when possible, even without a release tag"
       create_tag:
         type: boolean
         required: false
         default: false
-        description: "Create and push a release tag when possible; implies push_changes"
+        description: "Create and push a release tag when possible"
     secrets:
       BOT_TOKEN:
         required: false
@@ -105,7 +100,6 @@ jobs:
       INPUT_VERSION_SYNC_PROPERTY: ${{ inputs.version_sync_property }}
       INPUT_RUN_UPDATE: ${{ inputs.run_update }}
       INPUT_RUN_TEST: ${{ inputs.run_test }}
-      INPUT_PUSH_CHANGES: ${{ inputs.push_changes }}
       INPUT_CREATE_TAG: ${{ inputs.create_tag }}
       WRITE_TOKEN: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN || github.token }}
     steps:
@@ -137,20 +131,15 @@ jobs:
             branch_name=""
           fi
 
-          push_changes="${INPUT_PUSH_CHANGES}"
           create_tag="${INPUT_CREATE_TAG}"
-          if [[ "$create_tag" == "true" ]]; then
-            push_changes="true"
-          fi
 
-          if [[ "$push_changes" == "true" && -z "$branch_name" ]]; then
-            echo "push_changes/create_tag require a branch ref, got [$ref]" >&2
+          if [[ "$create_tag" == "true" && -z "$branch_name" ]]; then
+            echo "create_tag requires a branch ref, got [$ref]" >&2
             exit 1
           fi
 
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
-          echo "push_changes=$push_changes" >> "$GITHUB_OUTPUT"
           echo "create_tag=$create_tag" >> "$GITHUB_OUTPUT"
 
       - name: "🧑‍💻 Checkout [${{ steps.context.outputs.ref }}]"
@@ -421,7 +410,7 @@ jobs:
 
       - name: "💾 Commit Changes"
         id: commit
-        if: ${{ steps.changes_final.outputs.has_changes == 'true' && steps.context.outputs.push_changes == 'true' }}
+        if: ${{ steps.changes_final.outputs.has_changes == 'true' && steps.context.outputs.create_tag == 'true' }}
         shell: bash
         env:
           RESOLVED_VERSION: ${{ steps.version.outputs.resolved_version }}
