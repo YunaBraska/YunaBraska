@@ -84,7 +84,7 @@ jobs:
       has_changes_before_version: ${{ steps.changes_pre.outputs.has_changes_before_version }}
       resolved_version: ${{ steps.version.outputs.resolved_version }}
       version_source: ${{ steps.version.outputs.version_source }}
-      can_push: ${{ steps.push.outputs.can_push || steps.push_skipped.outputs.can_push || 'false' }}
+      can_push: ${{ steps.push.outputs.can_push || steps.write_access.outputs.can_release || steps.push_skipped.outputs.can_push || 'false' }}
       committed: ${{ steps.commit.outputs.committed || 'false' }}
       tag_created: ${{ steps.push.outputs.tag_created || steps.push_skipped.outputs.tag_created || 'false' }}
       commit_sha: ${{ steps.commit.outputs.commit_sha || github.sha }}
@@ -142,6 +142,46 @@ jobs:
           fetch-depth: 0
           ref: ${{ steps.context.outputs.ref }}
           token: ${{ env.WRITE_TOKEN }}
+
+      - name: "🔐 Probe Release Write Access"
+        id: write_access
+        shell: bash
+        env:
+          CREATE_TAG: ${{ steps.context.outputs.create_tag }}
+          BRANCH_NAME: ${{ steps.context.outputs.branch_name }}
+          HAS_BOT_TOKEN: ${{ secrets.BOT_TOKEN != '' }}
+          HAS_CI_TOKEN: ${{ secrets.CI_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+
+          token_source="github.token"
+          if [[ "$HAS_BOT_TOKEN" == "true" ]]; then
+            token_source="BOT_TOKEN"
+          elif [[ "$HAS_CI_TOKEN" == "true" ]]; then
+            token_source="CI_TOKEN"
+          fi
+
+          can_push_branch="false"
+          can_release="false"
+          reason="create_tag_disabled"
+
+          if [[ "$CREATE_TAG" == "true" ]]; then
+            reason="branch_push_denied"
+            if git push --dry-run origin "HEAD:refs/heads/${BRANCH_NAME}" >/dev/null 2>&1; then
+              can_push_branch="true"
+              if [[ "$token_source" == "github.token" ]]; then
+                reason="github_token_cannot_trigger_tag_workflows"
+              else
+                can_release="true"
+                reason="ok"
+              fi
+            fi
+          fi
+
+          echo "token_source=$token_source" >> "$GITHUB_OUTPUT"
+          echo "can_push_branch=$can_push_branch" >> "$GITHUB_OUTPUT"
+          echo "can_release=$can_release" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
 
       - name: "♻️ Restore Cache [${{ runner.os }}]"
         uses: actions/cache@v4
@@ -224,6 +264,9 @@ jobs:
           CMD: ${{ steps.java_info.outputs.cmd }}
           IS_MAVEN: ${{ steps.java_info.outputs.is_maven }}
           HAS_CHANGES_BEFORE_VERSION: ${{ steps.changes_pre.outputs.has_changes_before_version }}
+          EVENT_NAME: ${{ github.event_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
@@ -270,9 +313,19 @@ jobs:
             explicit_version="true"
           fi
 
+          is_default_branch_push="false"
+          if [[ "${EVENT_NAME}" == "push" && "${REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
+            is_default_branch_push="true"
+          fi
+
+          is_manual_run="false"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            is_manual_run="true"
+          fi
+
           should_version="false"
           if [[ "${INPUT_CREATE_TAG}" == "true" ]]; then
-            if [[ "$explicit_version" == "true" || "$HAS_CHANGES_BEFORE_VERSION" == "true" ]]; then
+            if [[ "$explicit_version" == "true" || "$is_default_branch_push" == "true" || "$is_manual_run" == "true" || "$HAS_CHANGES_BEFORE_VERSION" == "true" ]]; then
               should_version="true"
             fi
           fi
@@ -400,7 +453,7 @@ jobs:
 
       - name: "💾 Commit Changes"
         id: commit
-        if: ${{ steps.changes_final.outputs.has_changes == 'true' && steps.context.outputs.create_tag == 'true' }}
+        if: ${{ steps.changes_final.outputs.has_changes == 'true' && steps.context.outputs.create_tag == 'true' && steps.write_access.outputs.can_release == 'true' }}
         shell: bash
         env:
           RESOLVED_VERSION: ${{ steps.version.outputs.resolved_version }}
@@ -459,21 +512,28 @@ jobs:
           can_push="false"
           tag_created="false"
 
-          if [[ "$CREATE_TAG" == "true" ]]; then
-            if git push --atomic --dry-run origin "HEAD:refs/heads/${BRANCH_NAME}" "refs/tags/${RESOLVED_VERSION}" >/dev/null 2>&1; then
-              can_push="true"
-              git push --atomic origin "HEAD:refs/heads/${BRANCH_NAME}" "refs/tags/${RESOLVED_VERSION}"
-              tag_created="true"
-            fi
-          else
-            if git push --dry-run origin "HEAD:refs/heads/${BRANCH_NAME}" >/dev/null 2>&1; then
-              can_push="true"
-              git push origin "HEAD:refs/heads/${BRANCH_NAME}"
-            fi
+          if [[ "$CREATE_TAG" != "true" ]]; then
+            echo "Push step expected CREATE_TAG=true" >&2
+            exit 1
           fi
+
+          if ! git push --atomic --dry-run origin "HEAD:refs/heads/${BRANCH_NAME}" "refs/tags/${RESOLVED_VERSION}" >/dev/null 2>&1; then
+            echo "Atomic branch/tag push dry-run failed for [${BRANCH_NAME}] and [${RESOLVED_VERSION}]" >&2
+            exit 1
+          fi
+
+          can_push="true"
+          git push --atomic origin "HEAD:refs/heads/${BRANCH_NAME}" "refs/tags/${RESOLVED_VERSION}"
+          tag_created="true"
 
           echo "can_push=$can_push" >> "$GITHUB_OUTPUT"
           echo "tag_created=$tag_created" >> "$GITHUB_OUTPUT"
+
+      - name: "🚫 Skip Commit And Tag"
+        if: ${{ steps.changes_final.outputs.has_changes == 'true' && steps.context.outputs.create_tag == 'true' && steps.write_access.outputs.can_release != 'true' }}
+        shell: bash
+        run: |
+          echo "Skipping commit/tag because release write access is unavailable: ${{ steps.write_access.outputs.reason }}"
 
       - name: "💤 Push Skipped"
         id: push_skipped
