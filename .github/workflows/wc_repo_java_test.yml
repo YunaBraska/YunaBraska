@@ -39,6 +39,7 @@ jobs:
       has_changes: ${{ steps.git.outputs.has_changes }}
       java_version: ${{ steps.java_info.outputs.java_version }}
       project_version: ${{ steps.java_info.outputs.project_version }}
+      has_publish_to_code_climate: ${{ steps.cc_context.outputs.has_publish_to_code_climate }}
     steps:
       - name: "Checkout"
         uses: actions/checkout@main
@@ -47,18 +48,43 @@ jobs:
       - name: "Get Java Version"
         id: "java_info"
         uses: YunaBraska/java-info-action@main
+      - name: "Read Code Climate Context"
+        id: "cc_context"
+        shell: bash
+        env:
+          CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
+        run: |
+          has_publish_to_code_climate="false"
+          if [[ -n "${CC_TEST_REPORTER_ID}" ]]; then
+            has_publish_to_code_climate="true"
+          fi
+          echo "has_publish_to_code_climate=${has_publish_to_code_climate}" >> "$GITHUB_OUTPUT"
       - name: "Setup java"
         uses: actions/setup-java@main
-        if: steps.git.outputs.has_changes == 'true'
         with:
           distribution: 'adopt'
           java-version: ${{ steps.java_info.outputs.java_version }}
       - name: "Resolve Plugins & Dependencies"
+        shell: bash
+        env:
+          CMD_RESOLVE_DEPS: ${{ steps.java_info.outputs.cmd_resolve_deps }}
         run: |
-          sh ${{ steps.java_info.outputs.cmd_resolve_deps }}
-          sh ${{ steps.java_info.outputs.cmd_resolve_plugs }}
+          set -euo pipefail
+          if [[ -n "${CMD_RESOLVE_DEPS}" && "${CMD_RESOLVE_DEPS}" != "null" ]]; then
+            eval "${CMD_RESOLVE_DEPS}"
+          fi
       - name: "Run Tests"
-        run: sh ${{ steps.java_info.outputs.cmd_test }}
+        shell: bash
+        env:
+          CMD_TEST: ${{ steps.java_info.outputs.cmd_test }}
+          CMD_TEST_BUILD: ${{ steps.java_info.outputs.cmd_test_build }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${CMD_TEST_BUILD}" && "${CMD_TEST_BUILD}" != "null" ]]; then
+            eval "${CMD_TEST_BUILD}"
+          else
+            eval "${CMD_TEST}"
+          fi
       - name: "Detect version change"
         id: "git"
         run: |
@@ -84,7 +110,7 @@ jobs:
           create_branch: false
       - name: "Publish code quality"
         uses: paambaati/codeclimate-action@main
-        if: secrets.CC_TEST_REPORTER_ID
+        if: ${{ steps.cc_context.outputs.has_publish_to_code_climate == 'true' }}
         env:
           CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
           JACOCO_SOURCE_PATH: "${{github.workspace}}/src/main/java"
