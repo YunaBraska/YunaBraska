@@ -40,7 +40,8 @@ jobs:
       package_published: ${{ steps.publish_result.outputs.package_published }}
     env:
       INPUT_VERSION: ${{ inputs.version }}
-      WRITE_TOKEN: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN || github.token }}
+      CHECKOUT_TOKEN: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN || github.token }}
+      PACKAGE_TOKEN: ${{ github.token }}
     steps:
       - name: "📄 Resolve Tag"
         id: context
@@ -69,7 +70,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: refs/tags/${{ steps.context.outputs.tag_name }}
-          token: ${{ env.WRITE_TOKEN }}
+          token: ${{ env.CHECKOUT_TOKEN }}
 
       - name: "🔐 Validate Tag"
         shell: bash
@@ -145,14 +146,14 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           PACKAGE_NAME: ${{ steps.coords.outputs.package_name }}
           VERSION: ${{ steps.context.outputs.version }}
-          WRITE_TOKEN: ${{ env.WRITE_TOKEN }}
+          PACKAGE_TOKEN: ${{ env.PACKAGE_TOKEN }}
         run: |
           set -euo pipefail
 
           api_url="https://api.github.com/users/${OWNER}/packages/maven/${PACKAGE_NAME}/versions?per_page=100"
           response_file="$(mktemp)"
           status_code="$(curl -sS -o "$response_file" -w '%{http_code}' \
-            -H "Authorization: Bearer ${WRITE_TOKEN}" \
+            -H "Authorization: Bearer ${PACKAGE_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "$api_url")"
 
@@ -171,7 +172,7 @@ jobs:
         shell: bash
         env:
           CMD: ${{ steps.java_info.outputs.cmd }}
-          GITHUB_TOKEN: ${{ env.WRITE_TOKEN }}
+          GITHUB_TOKEN: ${{ env.PACKAGE_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
           REPOSITORY: ${{ github.repository }}
         run: |
