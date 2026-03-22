@@ -187,6 +187,31 @@ jobs:
         id: java_info
         uses: YunaBraska/java-info-action@main
 
+      - name: "🎭 Detect Playwright"
+        id: playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          if rg -qi \
+            --glob 'pom.xml' \
+            --glob '**/pom.xml' \
+            --glob 'build.gradle' \
+            --glob '**/build.gradle' \
+            --glob 'build.gradle.kts' \
+            --glob '**/build.gradle.kts' \
+            --glob 'settings.gradle' \
+            --glob '**/settings.gradle' \
+            --glob 'settings.gradle.kts' \
+            --glob '**/settings.gradle.kts' \
+            --glob 'gradle.properties' \
+            --glob '**/gradle.properties' \
+            'com\.microsoft\.playwright|(^|[^a-z])playwright([^a-z]|$)' \
+            .; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Maven Cache]"
         if: ${{ steps.java_info.outputs.is_maven == 'true' }}
         uses: actions/setup-java@v5
@@ -221,6 +246,15 @@ jobs:
         with:
           java-version: ${{ steps.java_info.outputs.java_version }}
           distribution: "temurin"
+
+      - name: "🎭 Restore Playwright Cache [${{ runner.os }}]"
+        if: ${{ steps.playwright.outputs.enabled == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-java-playwright-${{ hashFiles('**/pom.xml', '**/build.gradle*', '**/settings.gradle*', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-java-playwright-
 
       - name: "${{ inputs.run_update && '🔄 Update Dependencies' || '💤 Skip Updates' }}"
         if: ${{ inputs.run_update }}
