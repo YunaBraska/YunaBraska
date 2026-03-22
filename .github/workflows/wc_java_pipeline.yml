@@ -19,11 +19,6 @@ on:
         required: false
         default: "timestamp"
         description: "Version strategy [timestamp, nats-sync]"
-      version_sync_property:
-        type: string
-        required: false
-        default: ""
-        description: "Maven property holding the upstream version for sync-based versioning"
       run_update:
         type: boolean
         required: false
@@ -97,7 +92,6 @@ jobs:
       INPUT_REF: ${{ inputs.ref }}
       INPUT_VERSION: ${{ inputs.version }}
       INPUT_VERSION_POLICY: ${{ inputs.version_policy }}
-      INPUT_VERSION_SYNC_PROPERTY: ${{ inputs.version_sync_property }}
       INPUT_RUN_UPDATE: ${{ inputs.run_update }}
       INPUT_RUN_TEST: ${{ inputs.run_test }}
       INPUT_CREATE_TAG: ${{ inputs.create_tag }}
@@ -295,12 +289,8 @@ jobs:
                 echo "nats-sync version policy currently requires Maven" >&2
                 exit 1
               fi
-              if [[ -z "${INPUT_VERSION_SYNC_PROPERTY}" ]]; then
-                echo "nats-sync version policy requires version_sync_property" >&2
-                exit 1
-              fi
 
-              sync_version="$($CMD -B -q help:evaluate -Dexpression="${INPUT_VERSION_SYNC_PROPERTY}" -DforceStdout)"
+              sync_version="$($CMD -B -q help:evaluate -Dexpression=nats-streaming-server.version -DforceStdout)"
               sync_version="$(normalize_version "$sync_version")"
               sync_base="$(strip_prerelease "$sync_version")"
               current_base="$(strip_prerelease "$current_version")"
