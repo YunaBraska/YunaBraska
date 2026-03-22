@@ -112,7 +112,7 @@ jobs:
           ref: ${{ steps.context.outputs.ref }}
           token: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN  || secrets.GITHUB_TOKEN }}
       - name: "♻️ Restore cache [${{ runner.os }}-build-${{ hashFiles('**/pom.xml', '**/build.gradle*', '**/package-lock.json') }}]"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.m2
@@ -269,13 +269,36 @@ jobs:
           echo "semver=${semver}" >> $GITHUB_OUTPUT
       - name: "${{ steps.repo_context.outputs.should_deploy_icon || '🏷' }}️ Deploy start ${{ steps.final_semver.outputs.semver }}"
         if: ${{ steps.repo_context.outputs.should_deploy == 'true' }}
-        uses: bobheadxi/deployments@v1
         id: deployment-status
+        uses: actions/github-script@v8
         with:
-          step: start
-          token: ${{ secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
-          env: "maven_central"
-          desc: "Started deploy [${{ steps.final_semver.outputs.semver }}] to [maven_central]"
+          github-token: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const description = 'Started deploy [${{ steps.final_semver.outputs.semver }}] to [maven_central]';
+            const logUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const { owner, repo } = context.repo;
+            const { data: deployment } = await github.rest.repos.createDeployment({
+              owner,
+              repo,
+              ref: context.ref,
+              task: 'deploy',
+              required_contexts: [],
+              environment: 'maven_central',
+              description,
+              auto_merge: false,
+              transient_environment: true,
+            });
+            const { data: status } = await github.rest.repos.createDeploymentStatus({
+              owner,
+              repo,
+              deployment_id: deployment.id,
+              state: 'in_progress',
+              log_url: logUrl,
+              description,
+              ref: context.ref,
+            });
+            core.setOutput('deployment_id', deployment.id.toString());
+            core.setOutput('status_id', status.id.toString());
       - name: "${{ steps.repo_context.outputs.should_deploy_icon || '🍾' }}️ Deploy ${{ steps.final_semver.outputs.semver }}"
         if: ${{ steps.repo_context.outputs.should_deploy == 'true' }}
         run: ./mvnw deploy -P release -Dmaven.test.skip=true -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}" -B
@@ -286,15 +309,54 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       - name: "${{ steps.repo_context.outputs.should_deploy_icon || '🏷️' }} Deploy finish ${{ steps.final_semver.outputs.semver }}"
         if: ${{ steps.repo_context.outputs.should_deploy == 'true' }}
-        uses: bobheadxi/deployments@v1
+        uses: actions/github-script@v8
         with:
-          step: finish
-          token: ${{ secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
-          env: "maven_central"
-          env_url: "https://central.sonatype.com/publishing"
-          status: ${{ job.status }}
-          deployment_id: ${{ steps.deployment-status.outputs.deployment_id }}
-          desc: "Finished deploy [${{ steps.final_semver.outputs.semver }}] to [maven_central]"
+          github-token: ${{ secrets.BOT_TOKEN || secrets.CI_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const description = 'Finished deploy [${{ steps.final_semver.outputs.semver }}] to [maven_central]';
+            const environment = 'maven_central';
+            const deploymentId = Number('${{ steps.deployment-status.outputs.deployment_id }}');
+            const logUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const { owner, repo } = context.repo;
+            const { data: deployments } = await github.rest.repos.listDeployments({
+              owner,
+              repo,
+              environment,
+              per_page: 100,
+            });
+            for (const deployment of deployments) {
+              if (deployment.id === deploymentId) {
+                continue;
+              }
+              const { data: statuses } = await github.rest.repos.listDeploymentStatuses({
+                owner,
+                repo,
+                deployment_id: deployment.id,
+                per_page: 1,
+              });
+              if (statuses.length === 1 && statuses[0].state === 'inactive') {
+                continue;
+              }
+              await github.rest.repos.createDeploymentStatus({
+                owner,
+                repo,
+                deployment_id: deployment.id,
+                state: 'inactive',
+              });
+            }
+            const state = '${{ job.status }}' === 'cancelled' ? 'inactive' : '${{ job.status }}';
+            const { data: status } = await github.rest.repos.createDeploymentStatus({
+              owner,
+              repo,
+              deployment_id: deploymentId,
+              state,
+              description,
+              ref: context.ref,
+              environment_url: state === 'success' ? 'https://central.sonatype.com/publishing' : '',
+              log_url: logUrl,
+              auto_inactive: true,
+            });
+            core.setOutput('status_id', status.id.toString());
       - name: "${{ steps.update.outputs.has_lib_chages_icon || '💾' }} Commit changes"
         if: ${{ steps.update.outputs.has_lib_chages == 'true' || steps.context.outputs.run_deploy == 'true' }}
         run: |

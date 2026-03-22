@@ -7,6 +7,11 @@ on:
         type: string
         description: "[ref] e.g. branch, tag or commit to checkout [default: github.ref_name || github.head_ref ]"
         required: false
+      semver_strategy:
+        type: string
+        description: "[semver_strategy] e.g. major,minor,patch,rc [default: patch]"
+        required: false
+        default: "patch"
       mastodon_suffix:
         type: string
         description: "[mastodon_suffix] e.g. #GitHubActions #java #maven #gradle #workflow #github #githubactions #githubaction @github [default: '']"
@@ -29,10 +34,10 @@ jobs:
           ref: ${{ inputs.ref || github.ref_name || github.head_ref }}
           token: ${{ secrets.CI_WORKFLOW_TOKEN || secrets.CI_TOKEN || github.token }}
           fetch-depth: 500
-      - name: "Setup Node [16]"
+      - name: "Setup Node [24]"
         uses: actions/setup-node@main
         with:
-          node-version: "16"
+          node-version: "24"
           cache: npm
       - name: "update dependencies"
         run: |
@@ -53,7 +58,7 @@ jobs:
         with:
           semver-a: ${{ steps.git_info.outputs.tag_latest }}
           semver-b: ${{ steps.git_info.outputs.tag_latest }}
-          increase-a: ${{ 'patch' }}
+          increase-a: ${{ inputs.semver_strategy }}
       - name: "Push changes [${{ steps.semver_info.outputs.clean_semver }}] [${{ steps.git_info.outputs.has_local_changes == 'true' }}]"
         if: steps.git_info.outputs.has_local_changes == 'true'
         uses: stefanzweifel/git-auto-commit-action@master
