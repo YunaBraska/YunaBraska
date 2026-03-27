@@ -142,6 +142,10 @@ jobs:
 
       - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}] [Central + Maven Cache]"
         uses: actions/setup-java@v5
+        env:
+          CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
+          CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         with:
           java-version: ${{ steps.java_info.outputs.java_version }}
           distribution: "temurin"
