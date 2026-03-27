@@ -190,6 +190,117 @@ jobs:
 
           echo "artifact_list=$artifact_list" >> "$GITHUB_OUTPUT"
 
+      - name: "📝 Generate Release Notes"
+        id: notes
+        shell: bash
+        env:
+          TAG_NAME: ${{ steps.context.outputs.tag_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          notes_file="$(mktemp)"
+          previous_tag="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
+
+          extract_pom_properties() {
+            local ref="$1"
+            if [[ -z "$ref" ]]; then
+              return 0
+            fi
+
+            git show "${ref}:pom.xml" 2>/dev/null \
+              | sed -n '/<properties>/,/<\/properties>/p' \
+              | sed -n 's/.*<\([A-Za-z0-9_.-]*\)>\([^<]*\)<\/\1>.*/\1=\2/p' \
+              | LC_ALL=C sort -u
+          }
+
+          extract_gradle_properties() {
+            local ref="$1"
+            if [[ -z "$ref" ]]; then
+              return 0
+            fi
+
+            git show "${ref}:gradle.properties" 2>/dev/null \
+              | sed -n 's/^[[:space:]]*\([A-Za-z0-9_.-][A-Za-z0-9_.-]*\)[[:space:]]*=[[:space:]]*\(.*\)$/\1=\2/p' \
+              | LC_ALL=C sort -u
+          }
+
+          declare -A previous_props=()
+          declare -A current_props=()
+
+          while IFS='=' read -r key value; do
+            [[ -n "${key:-}" ]] || continue
+            [[ "$key" == "version" ]] && continue
+            previous_props["$key"]="$value"
+          done < <( { extract_pom_properties "$previous_tag"; extract_gradle_properties "$previous_tag"; } )
+
+          while IFS='=' read -r key value; do
+            [[ -n "${key:-}" ]] || continue
+            [[ "$key" == "version" ]] && continue
+            current_props["$key"]="$value"
+          done < <( { extract_pom_properties "$TAG_NAME"; extract_gradle_properties "$TAG_NAME"; } )
+
+          mapfile -t changed_props < <(
+            {
+              for key in "${!current_props[@]}"; do
+                old_value="${previous_props[$key]-__missing__}"
+                new_value="${current_props[$key]}"
+                if [[ "$old_value" != "$new_value" ]]; then
+                  printf '%s\t%s\t%s\n' "$key" "$old_value" "$new_value"
+                fi
+              done
+              for key in "${!previous_props[@]}"; do
+                if [[ -z "${current_props[$key]+present}" ]]; then
+                  printf '%s\t%s\t%s\n' "$key" "${previous_props[$key]}" "__removed__"
+                fi
+              done
+            } | LC_ALL=C sort
+          )
+
+          mapfile -t changed_files < <(
+            if [[ -n "$previous_tag" ]]; then
+              git diff --name-only "$previous_tag" "$TAG_NAME" | grep -v '^version.txt$' || true
+            else
+              git ls-tree -r --name-only "$TAG_NAME"
+            fi
+          )
+
+          {
+            echo "## Summary"
+            if [[ -n "$previous_tag" ]]; then
+              if [[ "${#changed_props[@]}" -gt 0 ]]; then
+                for entry in "${changed_props[@]}"; do
+                  IFS=$'\t' read -r key old_value new_value <<< "$entry"
+                  if [[ "$old_value" == "__missing__" ]]; then
+                    printf -- "- `%s`: added `%s`\n" "$key" "$new_value"
+                  elif [[ "$new_value" == "__removed__" ]]; then
+                    printf -- "- `%s`: removed (was `%s`)\n" "$key" "$old_value"
+                  else
+                    printf -- "- `%s`: `%s` -> `%s`\n" "$key" "$old_value" "$new_value"
+                  fi
+                done
+              else
+                echo "- No Maven or Gradle property changes were detected for this release."
+              fi
+              echo
+              echo "## Changed Files"
+              if [[ "${#changed_files[@]}" -gt 0 ]]; then
+                for file in "${changed_files[@]}"; do
+                  printf -- "- `%s`\n" "$file"
+                done
+              else
+                echo "- No tracked file changes besides `version.txt`."
+              fi
+              echo
+              echo "## Full Changelog"
+              echo "- https://github.com/${REPOSITORY}/compare/${previous_tag}...${TAG_NAME}"
+            else
+              echo "- First tagged release from this repository state."
+            fi
+          } > "$notes_file"
+
+          echo "notes_file=$notes_file" >> "$GITHUB_OUTPUT"
+
       - name: "🚀 Create Or Update GitHub Release"
         id: publish
         uses: ncipollo/release-action@v1
@@ -197,7 +308,7 @@ jobs:
           allowUpdates: true
           artifactErrorsFailBuild: true
           artifacts: ${{ steps.artifacts.outputs.artifact_list }}
-          generateReleaseNotes: true
+          bodyFile: ${{ steps.notes.outputs.notes_file }}
           omitBodyDuringUpdate: false
           prerelease: ${{ contains(steps.context.outputs.version, '-rc.') || contains(steps.context.outputs.version, '-beta.') || contains(steps.context.outputs.version, '-alpha.') }}
           replacesArtifacts: true
