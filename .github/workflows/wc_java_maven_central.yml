@@ -241,6 +241,8 @@ jobs:
         shell: bash
         env:
           CMD: ${{ steps.java_info.outputs.cmd }}
+          CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
+          CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -euo pipefail
