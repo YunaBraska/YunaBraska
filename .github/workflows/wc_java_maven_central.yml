@@ -10,11 +10,6 @@ on:
         required: false
         default: ""
         description: "Existing git tag to publish"
-      dry_run:
-        type: boolean
-        required: false
-        default: false
-        description: "Validate release build and signing only; skip Central deployment"
     secrets:
       BOT_TOKEN:
         required: false
@@ -30,7 +25,7 @@ on:
         required: false
     outputs:
       version:
-        description: "Validated or published version"
+        description: "Published version"
         value: ${{ jobs.publish.outputs.version }}
       central_published:
         description: "Whether the version was published to Maven Central"
@@ -196,17 +191,12 @@ jobs:
           GROUP_PATH: ${{ steps.coords.outputs.group_path }}
           ARTIFACT_ID: ${{ steps.coords.outputs.artifact_id }}
           VERSION: ${{ steps.context.outputs.version }}
-          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
 
           pom_url="https://repo1.maven.org/maven2/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.pom"
           status_code="$(curl -sS -o /dev/null -w '%{http_code}' "$pom_url")"
           if [[ "$status_code" == "200" ]]; then
-            if [[ "$DRY_RUN" == "true" ]]; then
-              echo "Maven Central already contains version [$VERSION]; continuing because this is a dry-run validation"
-              exit 0
-            fi
             echo "Maven Central already contains version [$VERSION]" >&2
             exit 1
           fi
@@ -215,29 +205,7 @@ jobs:
             exit 1
           fi
 
-      - name: "🏗️ Build Release Bundle"
-        if: ${{ inputs.dry_run }}
-        shell: bash
-        env:
-          CMD: ${{ steps.java_info.outputs.cmd }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: |
-          set -euo pipefail
-          eval "$CMD -B -q clean verify -P release -Dmaven.test.skip=true -Dgpg.passphrase=\"${GPG_PASSPHRASE}\""
-
-      - name: "🔏 Validate Signed Artifacts"
-        if: ${{ inputs.dry_run }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if ! find . -path '*/target/*.asc' -print -quit | grep -q .; then
-            echo "No signed artifacts were produced by the release build" >&2
-            exit 1
-          fi
-
-      - name: "🚀 Publish To Maven Central"
-        if: ${{ !inputs.dry_run }}
+      - name: "🏗️🔏🚀 Build, Sign And Publish To Maven Central"
         shell: bash
         env:
           CMD: ${{ steps.java_info.outputs.cmd }}
@@ -252,11 +220,5 @@ jobs:
       - name: "🧾 Mark Central Result"
         id: publish_result
         shell: bash
-        env:
-          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [[ "$DRY_RUN" == "true" ]]; then
-            echo "central_published=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "central_published=true" >> "$GITHUB_OUTPUT"
-          fi
+          echo "central_published=true" >> "$GITHUB_OUTPUT"
