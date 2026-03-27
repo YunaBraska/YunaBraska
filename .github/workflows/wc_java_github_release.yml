@@ -272,30 +272,30 @@ jobs:
                 for entry in "${changed_props[@]}"; do
                   IFS=$'\t' read -r key old_value new_value <<< "$entry"
                   if [[ "$old_value" == "__missing__" ]]; then
-                    printf -- "- `%s`: added `%s`\n" "$key" "$new_value"
+                    printf -- '- `%s`: added `%s`\n' "$key" "$new_value"
                   elif [[ "$new_value" == "__removed__" ]]; then
-                    printf -- "- `%s`: removed (was `%s`)\n" "$key" "$old_value"
+                    printf -- '- `%s`: removed (was `%s`)\n' "$key" "$old_value"
                   else
-                    printf -- "- `%s`: `%s` -> `%s`\n" "$key" "$old_value" "$new_value"
+                    printf -- '- `%s`: `%s` -> `%s`\n' "$key" "$old_value" "$new_value"
                   fi
                 done
               else
-                echo "- No Maven or Gradle property changes were detected for this release."
+                echo '- No Maven or Gradle property changes were detected for this release.'
               fi
               echo
-              echo "## Changed Files"
+              echo '## Changed Files'
               if [[ "${#changed_files[@]}" -gt 0 ]]; then
                 for file in "${changed_files[@]}"; do
-                  printf -- "- `%s`\n" "$file"
+                  printf -- '- `%s`\n' "$file"
                 done
               else
-                echo "- No tracked file changes besides `version.txt`."
+                echo '- No tracked file changes besides `version.txt`.'
               fi
               echo
-              echo "## Full Changelog"
-              echo "- https://github.com/${REPOSITORY}/compare/${previous_tag}...${TAG_NAME}"
+              echo '## Full Changelog'
+              printf -- '- https://github.com/%s/compare/%s...%s\n' "$REPOSITORY" "$previous_tag" "$TAG_NAME"
             else
-              echo "- First tagged release from this repository state."
+              echo '- First tagged release from this repository state.'
             fi
           } > "$notes_file"
 
