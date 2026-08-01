@@ -38,7 +38,7 @@ jobs:
 
       - name: "🔧 Restore Maven Wrapper"
         shell: sh
-        run: chmod +x "$GITHUB_WORKSPACE/mvnw"
+        run: chmod +x "${GITHUB_WORKSPACE}/mvnw"
 
       - name: "🔍 Read Java Info"
         id: java_info
@@ -63,9 +63,9 @@ jobs:
         shell: sh
         run: |
           set -eu
-          if [ "$DRY_RUN" = "true" ]; then
+          if [ "${DRY_RUN}" = "true" ]; then
             ${{ steps.java_info.outputs.cmd }} -B -Prelease -DskipTests -Dgpg.skip=true package
             exit 0
           fi
           repository="github::default::https://maven.pkg.github.com/${GITHUB_PACKAGES_REPOSITORY}"
-          ${{ steps.java_info.outputs.cmd }} -B -Prelease -DskipTests -Dgpg.skip=true -DaltDeploymentRepository="$repository" deploy
+          ${{ steps.java_info.outputs.cmd }} -B -Prelease -DskipTests -Dgpg.skip=true -DaltDeploymentRepository="${repository}" deploy
