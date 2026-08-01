@@ -39,20 +39,32 @@ jobs:
         id: java_info
         uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
 
+      - name: Set up Java ${{ steps.java_info.outputs.java_version }}
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          cache: maven
+
       - name: Prepare release assets
         env:
-          ARTIFACT_ID: ${{ steps.java_info.outputs.artifact_name }}
+          MAVEN_CMD: ${{ steps.java_info.outputs.cmd }}
           RELEASE_VERSION: ${{ inputs.version }}
         shell: sh
         run: |
           set -eu
+          artifact_id=$($MAVEN_CMD -q -DforceStdout help:evaluate -Dexpression=project.artifactId)
+          if [ -z "$artifact_id" ]; then
+            echo "Unable to resolve Maven artifactId." >&2
+            exit 1
+          fi
           assets_dir="$RUNNER_TEMP/release-assets"
           rm -rf "$assets_dir"
           mkdir -p "$assets_dir"
-          cp pom.xml "$assets_dir/${ARTIFACT_ID}-${RELEASE_VERSION}.pom"
-          cp "target/${ARTIFACT_ID}-${RELEASE_VERSION}.jar" "$assets_dir/"
-          cp "target/${ARTIFACT_ID}-${RELEASE_VERSION}-sources.jar" "$assets_dir/"
-          cp "target/${ARTIFACT_ID}-${RELEASE_VERSION}-javadoc.jar" "$assets_dir/"
+          cp pom.xml "$assets_dir/${artifact_id}-${RELEASE_VERSION}.pom"
+          cp "target/${artifact_id}-${RELEASE_VERSION}.jar" "$assets_dir/"
+          cp "target/${artifact_id}-${RELEASE_VERSION}-sources.jar" "$assets_dir/"
+          cp "target/${artifact_id}-${RELEASE_VERSION}-javadoc.jar" "$assets_dir/"
 
       - name: Create GitHub release ${{ inputs.version }}
         env:
