@@ -54,7 +54,7 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
 
-      - name: "🚀 Publish to GitHub Packages"
+      - name: "🚀 GitHub Packages"
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_ACTOR: ${{ github.actor }}
@@ -64,8 +64,8 @@ jobs:
         run: |
           set -eu
           if [ "${DRY_RUN}" = "true" ]; then
-            ${{ steps.java_info.outputs.cmd }} -B -Dmaven.javadoc.skip=false -DskipTests package
+            ${{ steps.java_info.outputs.cmd }} -B -DskipTests package
             exit 0
           fi
           repository="github::default::https://maven.pkg.github.com/${GITHUB_PACKAGES_REPOSITORY}"
-          ${{ steps.java_info.outputs.cmd }} -B -Dmaven.javadoc.skip=false -DskipTests -DaltDeploymentRepository="${repository}" deploy
+          ${{ steps.java_info.outputs.cmd }} -B -DskipTests -DaltDeploymentRepository="${repository}" deploy

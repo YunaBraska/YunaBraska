@@ -82,7 +82,7 @@ jobs:
           CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: "🚀 Publish to Maven Central"
+      - name: "🚀 Maven Central"
         env:
           CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
           CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
@@ -92,7 +92,7 @@ jobs:
         run: |
           set -eu
           if [ "${DRY_RUN}" = "true" ]; then
-            ${{ steps.java_info.outputs.cmd }} -B -Pcentral -Dmaven.javadoc.skip=false -DskipTests -DskipPublishing=true verify
+            ${{ steps.java_info.outputs.cmd }} -B -Pcentral -DskipTests -DskipPublishing=true verify
             exit 0
           fi
-          ${{ steps.java_info.outputs.cmd }} -B -Pcentral -Dmaven.javadoc.skip=false -DskipTests deploy
+          ${{ steps.java_info.outputs.cmd }} -B -Pcentral -DskipTests deploy
