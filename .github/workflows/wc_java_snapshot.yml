@@ -1,0 +1,156 @@
+name: 🔄 CD · Snapshot
+
+on:
+  workflow_call:
+    inputs:
+      default_branch:
+        required: false
+        default: main
+        type: string
+      github_packages:
+        required: false
+        default: true
+        type: boolean
+      maven_central:
+        required: false
+        default: true
+        type: boolean
+      upstream_version:
+        required: false
+        default: ''
+        type: string
+      version_source:
+        required: false
+        default: date
+        type: string
+    secrets:
+      CENTRAL_PASS:
+        required: false
+      CENTRAL_USER:
+        required: false
+      GPG_PASSPHRASE:
+        required: false
+      GPG_SIGNING_KEY:
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: java-snapshot-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      dry_run_central: ${{ steps.plan.outputs.dry_run_central }}
+      dry_run_github_packages: ${{ steps.plan.outputs.dry_run_github_packages }}
+      ref: ${{ steps.plan.outputs.ref }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: "🏷️ Plan Snapshot"
+        id: plan
+        shell: sh
+        run: |
+          set -eu
+          default_branch="${{ inputs.default_branch }}"
+          github_packages="${{ inputs.github_packages }}"
+          maven_central="${{ inputs.maven_central }}"
+          upstream_version="${{ inputs.upstream_version }}"
+          version_source="${{ inputs.version_source }}"
+
+          if { [ "${maven_central}" = "true" ] || [ "${github_packages}" = "true" ]; } && [ "${GITHUB_REF}" != "refs/heads/${default_branch}" ]; then
+            echo "Snapshot publishing must run from ${default_branch}." >&2
+            exit 1
+          fi
+
+          case "${version_source}" in
+            date)
+              base_version=$(git log -1 --format=%cs HEAD | tr '-' '.')
+              ;;
+            upstream)
+              base_version="${upstream_version}"
+              test -n "${base_version}"
+              ;;
+            *)
+              echo "Unsupported version source: ${version_source}" >&2
+              exit 1
+              ;;
+          esac
+
+          if [ "${maven_central}" = "true" ]; then
+            dry_run_central=false
+          else
+            dry_run_central=true
+          fi
+          if [ "${github_packages}" = "true" ]; then
+            dry_run_github_packages=false
+          else
+            dry_run_github_packages=true
+          fi
+
+          ref=$(git rev-parse HEAD)
+          version="${base_version}-SNAPSHOT"
+          {
+            printf 'dry_run_central=%s\n' "${dry_run_central}"
+            printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
+            printf 'ref=%s\n' "${ref}"
+            printf 'version=%s\n' "${version}"
+          } >> "${GITHUB_OUTPUT}"
+
+          printf 'dry_run_central=%s\n' "${dry_run_central}"
+          printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
+          printf 'ref=%s\n' "${ref}"
+          printf 'version_source=%s\n' "${version_source}"
+          printf 'version=%s\n' "${version}"
+
+  build:
+    needs:
+      - plan
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_java_build_common.yml
+    with:
+      ref: ${{ needs.plan.outputs.ref }}
+      release: true
+      version: ${{ needs.plan.outputs.version }}
+
+  publish-central:
+    needs:
+      - plan
+      - build
+    if: ${{ always() && !cancelled() && needs.build.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/wc_java_publish_central.yml
+    with:
+      dry_run: ${{ needs.plan.outputs.dry_run_central == 'true' }}
+    secrets:
+      CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
+      CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
+      GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+  publish-github-packages:
+    needs:
+      - plan
+      - build
+    if: ${{ always() && !cancelled() && needs.build.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+      packages: write
+    uses: ./.github/workflows/wc_java_publish_github_packages.yml
+    with:
+      dry_run: ${{ needs.plan.outputs.dry_run_github_packages == 'true' }}
