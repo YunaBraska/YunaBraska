@@ -4,12 +4,12 @@ on:
   workflow_call:
     inputs:
       run_id:
-        description: Workflow run ID containing the build artifact.
+        description: Build run.
         required: false
         default: ''
         type: string
       dry_run:
-        description: Sign artifacts without uploading to Maven Central.
+        description: Dry run.
         required: true
         type: boolean
     secrets:
