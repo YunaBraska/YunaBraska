@@ -1,8 +1,17 @@
-name: "[WC] Publish Java To GitHub Packages"
+name: 📦 CD · Publish GitHub Packages
 
 on:
   workflow_call:
     inputs:
+      run_id:
+        description: Workflow run ID containing the build artifact.
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: Build release packages without uploading to GitHub Packages.
+        required: true
+        type: boolean
       build_output_timestamp:
         description: UTC timestamp resolved by the build job.
         required: true
@@ -23,22 +32,23 @@ jobs:
       name: github-packages
       url: ${{ format('https://github.com/{0}/packages', github.repository) }}
     steps:
-      - name: Download release workspace
+      - name: "📥 Download Build Artifact"
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: java-release-workspace
+          name: build-workspace
           path: ${{ github.workspace }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.run_id || github.run_id }}
 
-      - name: Restore Maven wrapper
+      - name: "🔧 Restore Maven Wrapper"
         shell: sh
         run: chmod +x "$GITHUB_WORKSPACE/mvnw"
 
-      - name: Read Java information
+      - name: "🔍 Read Java Info"
         id: java_info
         uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
 
-      - name: Set up Java ${{ steps.java_info.outputs.java_version }}
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: temurin
@@ -48,14 +58,19 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
 
-      - name: Publish to GitHub Packages
+      - name: "🚀 Publish to GitHub Packages"
         env:
           BUILD_OUTPUT_TIMESTAMP: ${{ inputs.build_output_timestamp }}
+          DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_PACKAGES_REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: sh
         run: |
           set -eu
+          if [ "$DRY_RUN" = "true" ]; then
+            ${{ steps.java_info.outputs.cmd }} -B -Prelease -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests -Dgpg.skip=true package
+            exit 0
+          fi
           repository="github::default::https://maven.pkg.github.com/${GITHUB_PACKAGES_REPOSITORY}"
           ${{ steps.java_info.outputs.cmd }} -B -Prelease -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests -Dgpg.skip=true -DaltDeploymentRepository="$repository" deploy
