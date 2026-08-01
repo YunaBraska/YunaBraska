@@ -1,4 +1,4 @@
-name: Build Java release packages
+name: Build Java
 
 on:
   workflow_call:
@@ -7,9 +7,15 @@ on:
         description: Commit, branch, or tag to build.
         required: true
         type: string
+      release:
+        description: Build a versioned release workspace for publication.
+        required: false
+        default: false
+        type: boolean
       version:
         description: Version to apply only to this release workspace.
-        required: true
+        required: false
+        default: ''
         type: string
     outputs:
       commit_sha:
@@ -23,7 +29,7 @@ permissions: {}
 
 jobs:
   build:
-    name: Build release packages
+    name: Build Java
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -57,7 +63,17 @@ jobs:
           java-version: ${{ steps.java_info.outputs.java_version }}
           cache: maven
 
+      - name: Check release version
+        if: inputs.release == true
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        shell: sh
+        run: |
+          set -eu
+          test -n "$RELEASE_VERSION"
+
       - name: Set release version ${{ inputs.version }}
+        if: inputs.release == true
         env:
           BUILD_OUTPUT_TIMESTAMP: ${{ steps.commit_info.outputs.build_output_timestamp }}
           RELEASE_VERSION: ${{ inputs.version }}
@@ -65,12 +81,19 @@ jobs:
         run: ${{ steps.java_info.outputs.cmd }} -B -Dproject.build.outputTimestamp="${BUILD_OUTPUT_TIMESTAMP}" versions:set -DnewVersion="${RELEASE_VERSION}" -DgenerateBackupPoms=false
 
       - name: Build release packages
+        if: inputs.release == true
         env:
           BUILD_OUTPUT_TIMESTAMP: ${{ steps.commit_info.outputs.build_output_timestamp }}
         shell: sh
         run: ${{ steps.java_info.outputs.cmd }} -B -Prelease -Dproject.build.outputTimestamp="${BUILD_OUTPUT_TIMESTAMP}" -Dgpg.skip=true verify
 
+      - name: Build and test
+        if: inputs.release != true
+        shell: sh
+        run: ${{ steps.java_info.outputs.cmd }} -B verify
+
       - name: Upload release workspace
+        if: inputs.release == true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: java-release-workspace
