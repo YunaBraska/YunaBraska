@@ -1,0 +1,116 @@
+name: 🤖 CD · Weekly Releases
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run.
+        required: true
+        default: true
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: weekly-releases
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+    steps:
+      - name: "🔎 Discover Releases"
+        shell: sh
+        run: |
+          set -eu
+          organization="${GITHUB_REPOSITORY_OWNER}"
+          releases_file="${RUNNER_TEMP}/java-releases.tsv"
+          workflow_file="${RUNNER_TEMP}/workflow.yml"
+          : > "${releases_file}"
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "BOT_TOKEN is not configured; weekly releases are disabled."
+            exit 0
+          fi
+
+          gh repo list "${organization}" --limit 1000 --json nameWithOwner,isArchived,isFork,defaultBranchRef \
+            --jq '.[] | select(.isArchived == false and .isFork == false and .defaultBranchRef != null) | [.nameWithOwner, .defaultBranchRef.name] | @tsv' \
+            | while IFS="$(printf '\t')" read -r repository default_branch; do
+                if ! workflow_paths=$(gh api "repos/${repository}/contents/.github/workflows?ref=${default_branch}" --jq '.[] | select(.type == "file") | select((.name | endswith(".yml")) or (.name | endswith(".yaml"))) | .path' 2>/dev/null); then
+                  continue
+                fi
+
+                matches=0
+                for workflow_path in ${workflow_paths}; do
+                  if ! gh api -H 'Accept: application/vnd.github.raw+json' "repos/${repository}/contents/${workflow_path}?ref=${default_branch}" > "${workflow_file}" 2>/dev/null; then
+                    continue
+                  fi
+                  if ! grep -Eq '^[[:space:]]*workflow_dispatch:' "${workflow_file}"; then
+                    continue
+                  fi
+                  if grep -Eq '^[[:space:]]*uses:[[:space:]]*YunaBraska/YunaBraska/\.github/workflows/wc_java_release\.yml@[[:xdigit:]]{40}([[:space:]]*(#.*)?)?$' "${workflow_file}"; then
+                    matches=$((matches + 1))
+                    ref=$(sed -nE 's@^[[:space:]]*uses:[[:space:]]*YunaBraska/YunaBraska/\.github/workflows/wc_java_release\.yml@([[:xdigit:]]{40}).*@\1@p' "${workflow_file}")
+                    printf '%s\t%s\t%s\t%s\n' "${repository}" "${default_branch}" "${workflow_path}" "${ref}" >> "${releases_file}"
+                  fi
+                done
+
+                if [ "${matches}" -gt 1 ]; then
+                  echo "Skipping ${repository}: multiple pinned Java release workflows."
+                  sed -i "\\|^${repository}[[:space:]]|d" "${releases_file}"
+                fi
+              done
+
+          while IFS="$(printf '\t')" read -r repository default_branch workflow_path ref; do
+            printf 'repository=%s\n' "${repository}"
+            printf 'default_branch=%s\n' "${default_branch}"
+            printf 'workflow_path=%s\n' "${workflow_path}"
+            printf 'reusable_ref=%s\n' "${ref}"
+          done < "${releases_file}"
+
+      - name: "🤖 Merge and Release"
+        shell: sh
+        run: |
+          set -eu
+          dry_run="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}"
+          releases_file="${RUNNER_TEMP}/java-releases.tsv"
+          failures=0
+
+          test -f "${releases_file}" || exit 0
+          while IFS="$(printf '\t')" read -r repository default_branch workflow_path ref; do
+            echo "Dispatching ${repository}:${workflow_path} pinned at ${ref}."
+            prs=$(gh pr list --repo "${repository}" --base "${default_branch}" --state open --json number,headRefName,isDraft,mergeStateStatus \
+              --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN") | select((.headRefName | startswith("dependabot/")) or (.headRefName | startswith("bot/maintenance-"))) | .number')
+            for pr in ${prs}; do
+              if ! gh pr checks "${pr}" --repo "${repository}" >/dev/null 2>&1; then
+                echo "${repository}#${pr} is not green; leaving it open."
+                continue
+              fi
+              if [ "${dry_run}" = "true" ]; then
+                echo "Would merge ${repository}#${pr}."
+              elif gh pr merge "${pr}" --repo "${repository}" --squash --delete-branch; then
+                echo "Merged ${repository}#${pr}."
+              else
+                echo "Could not merge ${repository}#${pr}." >&2
+                failures=$((failures + 1))
+              fi
+            done
+
+            if [ "${dry_run}" = "true" ]; then
+              echo "Would dispatch ${repository}:${workflow_path}@${default_branch}."
+            elif gh workflow run "${workflow_path}" --repo "${repository}" --ref "${default_branch}"; then
+              echo "Dispatched ${repository}:${workflow_path}@${default_branch}."
+            else
+              echo "Could not dispatch ${repository}:${workflow_path}@${default_branch}." >&2
+              failures=$((failures + 1))
+            fi
+          done < "${releases_file}"
+
+          test "${failures}" -eq 0
