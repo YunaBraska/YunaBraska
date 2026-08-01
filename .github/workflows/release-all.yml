@@ -57,7 +57,7 @@ jobs:
                   fi
                   if grep -Eq '^[[:space:]]*uses:[[:space:]]*YunaBraska/YunaBraska/\.github/workflows/wc_java_release\.yml@[[:xdigit:]]{40}([[:space:]]*(#.*)?)?$' "${workflow_file}"; then
                     matches=$((matches + 1))
-                    ref=$(sed -nE 's@^[[:space:]]*uses:[[:space:]]*YunaBraska/YunaBraska/\.github/workflows/wc_java_release\.yml@([[:xdigit:]]{40}).*@\1@p' "${workflow_file}")
+                    ref=$(sed -nE 's|^[[:space:]]*uses:[[:space:]]*YunaBraska/YunaBraska/\.github/workflows/wc_java_release\.yml@([[:xdigit:]]{40}).*|\1|p' "${workflow_file}")
                     printf '%s\t%s\t%s\t%s\n' "${repository}" "${default_branch}" "${workflow_path}" "${ref}" >> "${releases_file}"
                   fi
                 done
