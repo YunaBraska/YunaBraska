@@ -12,10 +12,6 @@ on:
         description: Sign artifacts without uploading to Maven Central.
         required: true
         type: boolean
-      build_output_timestamp:
-        description: UTC timestamp resolved by the build job.
-        required: true
-        type: string
     secrets:
       CENTRAL_USER:
         required: true
@@ -88,7 +84,6 @@ jobs:
 
       - name: "🚀 Publish to Maven Central"
         env:
-          BUILD_OUTPUT_TIMESTAMP: ${{ inputs.build_output_timestamp }}
           CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
           CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -97,7 +92,7 @@ jobs:
         run: |
           set -eu
           if [ "$DRY_RUN" = "true" ]; then
-            ${{ steps.java_info.outputs.cmd }} -B -Prelease,central -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests -DskipPublishing=true verify
+            ${{ steps.java_info.outputs.cmd }} -B -Prelease,central -DskipTests -DskipPublishing=true verify
             exit 0
           fi
-          ${{ steps.java_info.outputs.cmd }} -B -Prelease,central -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests deploy
+          ${{ steps.java_info.outputs.cmd }} -B -Prelease,central -DskipTests deploy

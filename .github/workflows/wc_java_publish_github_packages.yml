@@ -12,10 +12,6 @@ on:
         description: Build release packages without uploading to GitHub Packages.
         required: true
         type: boolean
-      build_output_timestamp:
-        description: UTC timestamp resolved by the build job.
-        required: true
-        type: string
 
 permissions: {}
 
@@ -60,7 +56,6 @@ jobs:
 
       - name: "🚀 Publish to GitHub Packages"
         env:
-          BUILD_OUTPUT_TIMESTAMP: ${{ inputs.build_output_timestamp }}
           DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_PACKAGES_REPOSITORY: ${{ github.repository }}
@@ -69,8 +64,8 @@ jobs:
         run: |
           set -eu
           if [ "$DRY_RUN" = "true" ]; then
-            ${{ steps.java_info.outputs.cmd }} -B -Prelease -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests -Dgpg.skip=true package
+            ${{ steps.java_info.outputs.cmd }} -B -Prelease -DskipTests -Dgpg.skip=true package
             exit 0
           fi
           repository="github::default::https://maven.pkg.github.com/${GITHUB_PACKAGES_REPOSITORY}"
-          ${{ steps.java_info.outputs.cmd }} -B -Prelease -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests -Dgpg.skip=true -DaltDeploymentRepository="$repository" deploy
+          ${{ steps.java_info.outputs.cmd }} -B -Prelease -DskipTests -Dgpg.skip=true -DaltDeploymentRepository="$repository" deploy
