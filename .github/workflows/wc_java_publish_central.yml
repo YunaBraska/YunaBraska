@@ -1,0 +1,97 @@
+name: "[WC] Publish Java To Central"
+
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        description: Package and validate without uploading to Maven Central.
+        required: true
+        type: boolean
+      build_output_timestamp:
+        description: UTC timestamp resolved by the build job.
+        required: true
+        type: string
+    secrets:
+      CENTRAL_USER:
+        required: true
+      CENTRAL_PASS:
+        required: true
+      GPG_SIGNING_KEY:
+        required: true
+      GPG_PASSPHRASE:
+        required: true
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+    environment:
+      name: maven-central
+      url: https://central.sonatype.com
+    steps:
+      - name: Check Central credentials
+        shell: sh
+        env:
+          CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
+          CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -eu
+          : "${CENTRAL_USER:?Missing required secret: CENTRAL_USER}"
+          : "${CENTRAL_PASS:?Missing required secret: CENTRAL_PASS}"
+          : "${GPG_SIGNING_KEY:?Missing required secret: GPG_SIGNING_KEY}"
+          : "${GPG_PASSPHRASE:?Missing required secret: GPG_PASSPHRASE}"
+
+      - name: Download release workspace
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: java-release-workspace
+          path: ${{ github.workspace }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore Maven wrapper
+        shell: sh
+        run: chmod +x "$GITHUB_WORKSPACE/mvnw"
+
+      - name: Read Java information
+        id: java_info
+        uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
+
+      - name: Set up Java ${{ steps.java_info.outputs.java_version }}
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_USER
+          server-password: CENTRAL_PASS
+          gpg-private-key: ${{ secrets.GPG_SIGNING_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+        env:
+          CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
+          CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Publish to Maven Central
+        env:
+          BUILD_OUTPUT_TIMESTAMP: ${{ inputs.build_output_timestamp }}
+          CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
+          CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        shell: sh
+        run: |
+          set -eu
+          if [ "$DRY_RUN" = "true" ]; then
+            ${{ steps.java_info.outputs.cmd }} -B -Prelease,central -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests -DskipPublishing=true verify
+            exit 0
+          fi
+          ${{ steps.java_info.outputs.cmd }} -B -Prelease,central -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests deploy

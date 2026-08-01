@@ -1,0 +1,61 @@
+name: "[WC] Publish Java To GitHub Packages"
+
+on:
+  workflow_call:
+    inputs:
+      build_output_timestamp:
+        description: UTC timestamp resolved by the build job.
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+      packages: write
+    environment:
+      name: github-packages
+      url: ${{ format('https://github.com/{0}/packages', github.repository) }}
+    steps:
+      - name: Download release workspace
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: java-release-workspace
+          path: ${{ github.workspace }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore Maven wrapper
+        shell: sh
+        run: chmod +x "$GITHUB_WORKSPACE/mvnw"
+
+      - name: Read Java information
+        id: java_info
+        uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
+
+      - name: Set up Java ${{ steps.java_info.outputs.java_version }}
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Publish to GitHub Packages
+        env:
+          BUILD_OUTPUT_TIMESTAMP: ${{ inputs.build_output_timestamp }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_PACKAGES_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: sh
+        run: |
+          set -eu
+          repository="github::default::https://maven.pkg.github.com/${GITHUB_PACKAGES_REPOSITORY}"
+          ${{ steps.java_info.outputs.cmd }} -B -Prelease -Dproject.build.outputTimestamp="$BUILD_OUTPUT_TIMESTAMP" -DskipTests -Dgpg.skip=true -DaltDeploymentRepository="$repository" deploy
