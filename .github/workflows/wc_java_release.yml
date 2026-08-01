@@ -105,26 +105,25 @@ jobs:
 
       - name: "🏷️ Plan Release"
         id: plan
-        env:
-          AUTO_MERGE: ${{ inputs.auto_merge }}
-          EVENT_NAME: ${{ github.event_name }}
-          FORCE: ${{ inputs.force }}
-          GITHUB_PACKAGES: ${{ inputs.github_packages }}
-          MAVEN_CENTRAL: ${{ inputs.maven_central }}
-          MERGE_ENABLED: ${{ needs.merge.outputs.enabled }}
-          UPSTREAM_VERSION: ${{ inputs.upstream_version }}
-          VERSION_SOURCE: ${{ inputs.version_source }}
         shell: sh
         run: |
           set -eu
+          auto_merge="${{ inputs.auto_merge }}"
+          event_name="${{ github.event_name }}"
+          force="${{ inputs.force }}"
+          github_packages="${{ inputs.github_packages }}"
+          maven_central="${{ inputs.maven_central }}"
+          merge_enabled="${{ needs.merge.outputs.enabled }}"
+          upstream_version="${{ inputs.upstream_version }}"
+          version_source="${{ inputs.version_source }}"
           git fetch --tags origin
 
-          if [ "${EVENT_NAME}" = "schedule" ]; then
+          if [ "${event_name}" = "schedule" ]; then
             git fetch origin main
             git checkout --detach origin/main
           fi
 
-          if [ "${MAVEN_CENTRAL}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+          if [ "${maven_central}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/main" ]; then
             echo "Maven Central publishing must run from main." >&2
             exit 1
           fi
@@ -137,13 +136,13 @@ jobs:
             has_material_changes=true
           fi
 
-          case "${VERSION_SOURCE}" in
+          case "${version_source}" in
             date)
               version=$(git log -1 --format=%cs HEAD | tr '-' '.')
               version_changed="${has_material_changes}"
               ;;
             upstream)
-              version="${UPSTREAM_VERSION}"
+              version="${upstream_version}"
               test -n "${version}"
               if [ "${version}" = "${latest_tag}" ]; then
                 version_changed=false
@@ -152,17 +151,17 @@ jobs:
               fi
               ;;
             *)
-              echo "Unsupported version source: ${VERSION_SOURCE}" >&2
+              echo "Unsupported version source: ${version_source}" >&2
               exit 1
               ;;
           esac
 
           should_release=false
-          if [ "${EVENT_NAME}" = "schedule" ]; then
-            if [ "${AUTO_MERGE}" = "true" ] && [ "${MERGE_ENABLED}" = "true" ] && [ "${version_changed}" = "true" ]; then
+          if [ "${event_name}" = "schedule" ]; then
+            if [ "${auto_merge}" = "true" ] && [ "${merge_enabled}" = "true" ] && [ "${version_changed}" = "true" ]; then
               should_release=true
             fi
-          elif [ "${FORCE}" = "true" ] || [ "${version_changed}" = "true" ]; then
+          elif [ "${force}" = "true" ] || [ "${version_changed}" = "true" ]; then
             should_release=true
           fi
 
@@ -171,12 +170,12 @@ jobs:
             exit 1
           fi
 
-          if [ "${MAVEN_CENTRAL}" = "true" ]; then
+          if [ "${maven_central}" = "true" ]; then
             dry_run_central=false
           else
             dry_run_central=true
           fi
-          if [ "${GITHUB_PACKAGES}" = "true" ]; then
+          if [ "${github_packages}" = "true" ]; then
             dry_run_github_packages=false
           else
             dry_run_github_packages=true
@@ -196,7 +195,7 @@ jobs:
           printf 'ref=%s\n' "${ref}"
           printf 'latest_tag=%s\n' "${latest_tag:-none}"
           printf 'has_material_changes=%s\n' "${has_material_changes}"
-          printf 'version_source=%s\n' "${VERSION_SOURCE}"
+          printf 'version_source=%s\n' "${version_source}"
           printf 'version=%s\n' "${version}"
           printf 'should_release=%s\n' "${should_release}"
 

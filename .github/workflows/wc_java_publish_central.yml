@@ -86,12 +86,11 @@ jobs:
         env:
           CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
           CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
-          DRY_RUN: ${{ inputs.dry_run }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         shell: sh
         run: |
           set -eu
-          if [ "${DRY_RUN}" = "true" ]; then
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
             ${{ steps.java_info.outputs.cmd }} -B -Pcentral -DskipTests -DskipPublishing=true verify
             exit 0
           fi

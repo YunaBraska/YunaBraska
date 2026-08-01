@@ -56,16 +56,13 @@ jobs:
 
       - name: "🚀 GitHub Packages"
         env:
-          DRY_RUN: ${{ inputs.dry_run }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_PACKAGES_REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: sh
         run: |
           set -eu
-          if [ "${DRY_RUN}" = "true" ]; then
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
             ${{ steps.java_info.outputs.cmd }} -B -DskipTests package
             exit 0
           fi
-          repository="github::default::https://maven.pkg.github.com/${GITHUB_PACKAGES_REPOSITORY}"
+          repository="github::default::https://maven.pkg.github.com/${{ github.repository }}"
           ${{ steps.java_info.outputs.cmd }} -B -DskipTests -DaltDeploymentRepository="${repository}" deploy
