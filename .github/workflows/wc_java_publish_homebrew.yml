@@ -1,0 +1,96 @@
+name: 🍺 CD · Publish Homebrew
+
+on:
+  workflow_call:
+    inputs:
+      formula_path:
+        required: true
+        type: string
+      tap_repository:
+        required: true
+        type: string
+      url:
+        required: true
+        type: string
+      sha256:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      dry_run:
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: true
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: "🧑‍💻 Checkout Tap"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          repository: ${{ inputs.tap_repository }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: "🍺 Update Formula"
+        env:
+          FORMULA_PATH: ${{ inputs.formula_path }}
+          SHA256: ${{ inputs.sha256 }}
+          URL: ${{ inputs.url }}
+        shell: sh
+        run: |
+          set -eu
+          formula="${GITHUB_WORKSPACE}/tap/${FORMULA_PATH}"
+          test -f "${formula}"
+          awk -v sha256="${SHA256}" -v url="${URL}" '
+            /^[[:space:]]*url "/ && !url_written {
+              indent = substr($0, 1, match($0, /[^[:space:]]/) - 1)
+              print indent "url \"" url "\""
+              url_written = 1
+              next
+            }
+            /^[[:space:]]*sha256 "/ && !sha256_written {
+              indent = substr($0, 1, match($0, /[^[:space:]]/) - 1)
+              print indent "sha256 \"" sha256 "\""
+              sha256_written = 1
+              next
+            }
+            { print }
+            END {
+              if (!url_written || !sha256_written) {
+                exit 1
+              }
+            }
+          ' "${formula}" > "${formula}.next"
+          mv "${formula}.next" "${formula}"
+          git -C "${GITHUB_WORKSPACE}/tap" diff --check
+          git -C "${GITHUB_WORKSPACE}/tap" diff -- "${FORMULA_PATH}"
+
+      - name: "📤 Open Formula Pull Request"
+        if: inputs.dry_run != true
+        env:
+          FORMULA_PATH: ${{ inputs.formula_path }}
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        shell: sh
+        run: |
+          set -eu
+          branch="release/homebrew-${VERSION}"
+          git -C "${GITHUB_WORKSPACE}/tap" config user.name 'github-actions[bot]'
+          git -C "${GITHUB_WORKSPACE}/tap" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "${GITHUB_WORKSPACE}/tap" switch -c "${branch}"
+          git -C "${GITHUB_WORKSPACE}/tap" add -- "${FORMULA_PATH}"
+          git -C "${GITHUB_WORKSPACE}/tap" commit -m "brew: ${FORMULA_PATH} ${VERSION}"
+          git -C "${GITHUB_WORKSPACE}/tap" push origin "${branch}"
+          gh pr create --repo "${{ inputs.tap_repository }}" --base main --head "${branch}" --title "brew: ${FORMULA_PATH} ${VERSION}" --body ''
