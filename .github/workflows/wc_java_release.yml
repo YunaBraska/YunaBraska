@@ -3,10 +3,10 @@ name: 🏷️ CD · Release
 on:
   workflow_call:
     inputs:
-      auto_merge:
+      default_branch:
         required: false
-        default: false
-        type: boolean
+        default: main
+        type: string
       force:
         required: false
         default: false
@@ -28,8 +28,6 @@ on:
         default: date
         type: string
     secrets:
-      BOT_TOKEN:
-        required: false
       CENTRAL_PASS:
         required: false
       CENTRAL_USER:
@@ -46,47 +44,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  merge:
-    if: github.event_name == 'schedule' && inputs.auto_merge == true
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      checks: read
-      contents: write
-      pull-requests: write
-    outputs:
-      enabled: ${{ steps.merge.outputs.enabled }}
-    steps:
-      - name: "🤖 Merge Green Updates"
-        id: merge
-        env:
-          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
-        shell: sh
-        run: |
-          set -eu
-          if [ -z "${GH_TOKEN:-}" ]; then
-            printf 'enabled=false\n'
-            printf 'enabled=false\n' >> "${GITHUB_OUTPUT}"
-            echo "BOT_TOKEN is not configured; weekly release is disabled."
-            exit 0
-          fi
-
-          printf 'enabled=true\n'
-          printf 'enabled=true\n' >> "${GITHUB_OUTPUT}"
-          gh pr list --base main --state open --json number,headRefName,isDraft,mergeStateStatus \
-            --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN") | select((.headRefName | startswith("dependabot/")) or (.headRefName | startswith("bot/maintenance-"))) | .number' \
-            | while IFS= read -r pr; do
-                if ! gh pr checks "${pr}" >/dev/null 2>&1; then
-                  echo "PR #${pr} is not green; leaving it open."
-                  continue
-                fi
-                gh pr merge "${pr}" --squash --delete-branch
-              done
-
   plan:
-    needs:
-      - merge
-    if: ${{ always() && (needs.merge.result == 'success' || needs.merge.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -108,23 +66,16 @@ jobs:
         shell: sh
         run: |
           set -eu
-          auto_merge="${{ inputs.auto_merge }}"
-          event_name="${{ github.event_name }}"
+          default_branch="${{ inputs.default_branch }}"
           force="${{ inputs.force }}"
           github_packages="${{ inputs.github_packages }}"
           maven_central="${{ inputs.maven_central }}"
-          merge_enabled="${{ needs.merge.outputs.enabled }}"
           upstream_version="${{ inputs.upstream_version }}"
           version_source="${{ inputs.version_source }}"
           git fetch --tags origin
 
-          if [ "${event_name}" = "schedule" ]; then
-            git fetch origin main
-            git checkout --detach origin/main
-          fi
-
-          if [ "${maven_central}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/main" ]; then
-            echo "Maven Central publishing must run from main." >&2
+          if [ "${maven_central}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/${default_branch}" ]; then
+            echo "Maven Central publishing must run from ${default_branch}." >&2
             exit 1
           fi
 
@@ -157,11 +108,7 @@ jobs:
           esac
 
           should_release=false
-          if [ "${event_name}" = "schedule" ]; then
-            if [ "${auto_merge}" = "true" ] && [ "${merge_enabled}" = "true" ] && [ "${version_changed}" = "true" ]; then
-              should_release=true
-            fi
-          elif [ "${force}" = "true" ] || [ "${version_changed}" = "true" ]; then
+          if [ "${force}" = "true" ] || [ "${version_changed}" = "true" ]; then
             should_release=true
           fi
 
