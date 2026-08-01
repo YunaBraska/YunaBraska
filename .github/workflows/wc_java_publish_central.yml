@@ -92,7 +92,7 @@ jobs:
         run: |
           set -eu
           if [ "${DRY_RUN}" = "true" ]; then
-            ${{ steps.java_info.outputs.cmd }} -B -Prelease,central -DskipTests -DskipPublishing=true verify
+            ${{ steps.java_info.outputs.cmd }} -B -Pcentral -Dmaven.javadoc.skip=false -DskipTests -DskipPublishing=true verify
             exit 0
           fi
-          ${{ steps.java_info.outputs.cmd }} -B -Prelease,central -DskipTests deploy
+          ${{ steps.java_info.outputs.cmd }} -B -Pcentral -Dmaven.javadoc.skip=false -DskipTests deploy
