@@ -255,23 +255,8 @@ jobs:
     permissions:
       actions: read
       contents: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@09dc05d4a245632f92374ae36d53577b17211b74
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@0f29f67547c3182d5ac2ac2e7209088c109926b7
     with:
       commit_sha: ${{ needs.build.outputs.commit_sha }}
+      prerelease: ${{ contains(needs.plan.outputs.version, '-rc.') }}
       version: ${{ needs.plan.outputs.version }}
-
-  pre-release:
-    needs:
-      - plan
-      - release
-    if: ${{ always() && !cancelled() && contains(needs.plan.outputs.version, '-rc.') && needs.release.result == 'success' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: "🏷️ Mark RC"
-        shell: sh
-        run: |
-          set -eu
-          GH_TOKEN="${{ github.token }}" gh release edit "${{ needs.plan.outputs.version }}" --repo "${{ github.repository }}" --prerelease
