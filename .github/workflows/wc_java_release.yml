@@ -255,8 +255,7 @@ jobs:
     permissions:
       actions: read
       contents: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@0f29f67547c3182d5ac2ac2e7209088c109926b7
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@621b2d1d95c2c6523f775a9d23329b1ac79b09f9
     with:
       commit_sha: ${{ needs.build.outputs.commit_sha }}
-      prerelease: ${{ contains(needs.plan.outputs.version, '-rc.') }}
       version: ${{ needs.plan.outputs.version }}
