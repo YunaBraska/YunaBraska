@@ -7,7 +7,7 @@ on:
         required: false
         default: ''
         type: string
-      release:
+      upload_artifact:
         required: false
         default: false
         type: boolean
@@ -85,7 +85,7 @@ jobs:
         run: ${{ steps.java_info.outputs.cmd }} -B verify
 
       - name: "📦 Upload Build Artifact"
-        if: inputs.release == true
+        if: inputs.upload_artifact == true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: build-workspace
