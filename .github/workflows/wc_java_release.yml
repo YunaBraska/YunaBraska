@@ -56,13 +56,8 @@ jobs:
     outputs:
       dry_run_central: ${{ steps.plan.outputs.dry_run_central }}
       dry_run_github_packages: ${{ steps.plan.outputs.dry_run_github_packages }}
-      # Create a tag and GitHub release.
-      github_release: ${{ steps.plan.outputs.github_release }}
-      # Mark the GitHub release as a pre-release.
-      github_pre_release: ${{ steps.plan.outputs.github_pre_release }}
       ref: ${{ steps.plan.outputs.ref }}
-      # Build and publish artifacts.
-      publish: ${{ steps.plan.outputs.publish }}
+      upload_artifact: ${{ steps.plan.outputs.upload_artifact }}
       version: ${{ steps.plan.outputs.version }}
     steps:
       - name: "🧑‍💻 Checkout"
@@ -130,7 +125,7 @@ jobs:
               else
                 version="${version}-SNAPSHOT"
               fi
-              publish=true
+              upload_artifact=true
               ;;
             rc)
               if [ "${{ inputs.version_source }}" != "upstream" ]; then
@@ -140,9 +135,9 @@ jobs:
               version="${{ steps.semver_info.outputs.next_rc }}"
               test -n "${version}"
               if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                publish=false
+                upload_artifact=false
               else
-                publish=true
+                upload_artifact=true
               fi
               ;;
             release)
@@ -153,9 +148,9 @@ jobs:
               else
                 version_changed=true
               fi
-              publish=false
+              upload_artifact=false
               if [ "${{ inputs.force }}" = "true" ] || [ "${version_changed}" = "true" ]; then
-                publish=true
+                upload_artifact=true
               fi
               ;;
             *)
@@ -164,19 +159,16 @@ jobs:
               ;;
           esac
 
-          github_release=false
-          github_pre_release=false
-          if [ "${{ inputs.release_strategy }}" != "snapshot" ] && [ "${publish}" = "true" ]; then
-            github_release=true
-          fi
-          if [ "${{ inputs.release_strategy }}" = "rc" ] && [ "${publish}" = "true" ]; then
-            github_pre_release=true
-          fi
-
-          if [ "${{ inputs.release_strategy }}" != "snapshot" ] && [ "${publish}" = "true" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-            echo "Release tag already exists: ${version}" >&2
-            exit 1
-          fi
+          case "${version}" in
+            *-SNAPSHOT)
+              ;;
+            *)
+              if [ "${upload_artifact}" = "true" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                echo "Release tag already exists: ${version}" >&2
+                exit 1
+              fi
+              ;;
+          esac
 
           if [ "${{ inputs.maven_central }}" = "true" ]; then
             dry_run_central=false
@@ -193,19 +185,15 @@ jobs:
           {
             printf 'dry_run_central=%s\n' "${dry_run_central}"
             printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
-            printf 'github_release=%s\n' "${github_release}"
-            printf 'github_pre_release=%s\n' "${github_pre_release}"
-            printf 'publish=%s\n' "${publish}"
             printf 'ref=%s\n' "${ref}"
+            printf 'upload_artifact=%s\n' "${upload_artifact}"
             printf 'version=%s\n' "${version}"
           } >> "${GITHUB_OUTPUT}"
 
           printf 'dry_run_central=%s\n' "${dry_run_central}"
           printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
-          printf 'github_release=%s\n' "${github_release}"
-          printf 'github_pre_release=%s\n' "${github_pre_release}"
-          printf 'publish=%s\n' "${publish}"
           printf 'ref=%s\n' "${ref}"
+          printf 'upload_artifact=%s\n' "${upload_artifact}"
           printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
           printf 'has_material_changes=%s\n' "${has_material_changes}"
           printf 'release_strategy=%s\n' "${{ inputs.release_strategy }}"
@@ -216,13 +204,13 @@ jobs:
   build:
     needs:
       - plan
-    if: ${{ always() && needs.plan.outputs.publish == 'true' }}
+    if: ${{ always() && needs.plan.outputs.upload_artifact == 'true' }}
     permissions:
       contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_build_common.yml@09dc05d4a245632f92374ae36d53577b17211b74
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_build_common.yml@bcd35fef5e5436f1bc55e004a27536eba556e3ea
     with:
       ref: ${{ needs.plan.outputs.ref }}
-      release: true
+      upload_artifact: true
       version: ${{ needs.plan.outputs.version }}
 
   publish-central:
@@ -263,7 +251,7 @@ jobs:
       - build
       - publish-central
       - publish-github-packages
-    if: ${{ always() && !cancelled() && needs.plan.outputs.github_release == 'true' && needs.build.result == 'success' && needs.publish-central.result == 'success' && needs.publish-github-packages.result == 'success' }}
+    if: ${{ always() && !cancelled() && needs.plan.outputs.upload_artifact == 'true' && !endsWith(needs.plan.outputs.version, '-SNAPSHOT') && needs.build.result == 'success' && needs.publish-central.result == 'success' && needs.publish-github-packages.result == 'success' }}
     permissions:
       actions: read
       contents: write
@@ -276,7 +264,7 @@ jobs:
     needs:
       - plan
       - release
-    if: ${{ always() && !cancelled() && needs.plan.outputs.github_pre_release == 'true' && needs.release.result == 'success' }}
+    if: ${{ always() && !cancelled() && contains(needs.plan.outputs.version, '-rc.') && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
