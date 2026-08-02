@@ -10,10 +10,6 @@ on:
       commit_sha:
         required: true
         type: string
-      prerelease:
-        required: false
-        default: false
-        type: boolean
       version:
         required: true
         type: string
@@ -55,9 +51,14 @@ jobs:
           set -eu
           if GH_TOKEN="${{ github.token }}" gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "GitHub release already exists for ${{ inputs.version }}"
-          elif [ "${{ inputs.prerelease }}" = "true" ]; then
-            GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --prerelease --latest=false
           else
-            GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --latest
+            case "${{ inputs.version }}" in
+              *-*)
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --prerelease --latest=false
+                ;;
+              *)
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --latest
+                ;;
+            esac
           fi
           GH_TOKEN="${{ github.token }}" gh release upload "${{ inputs.version }}" "${RUNNER_TEMP}/release-assets"/* --repo "${{ github.repository }}" --clobber
