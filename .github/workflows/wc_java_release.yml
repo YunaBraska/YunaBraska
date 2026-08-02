@@ -56,10 +56,13 @@ jobs:
     outputs:
       dry_run_central: ${{ steps.plan.outputs.dry_run_central }}
       dry_run_github_packages: ${{ steps.plan.outputs.dry_run_github_packages }}
-      create_release: ${{ steps.plan.outputs.create_release }}
-      pre_release: ${{ steps.plan.outputs.pre_release }}
+      # Create a tag and GitHub release.
+      github_release: ${{ steps.plan.outputs.github_release }}
+      # Mark the GitHub release as a pre-release.
+      github_pre_release: ${{ steps.plan.outputs.github_pre_release }}
       ref: ${{ steps.plan.outputs.ref }}
-      should_release: ${{ steps.plan.outputs.should_release }}
+      # Build and publish artifacts.
+      publish: ${{ steps.plan.outputs.publish }}
       version: ${{ steps.plan.outputs.version }}
     steps:
       - name: "🧑‍💻 Checkout"
@@ -77,10 +80,10 @@ jobs:
           printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
           printf 'latest_tag=%s\n' "${latest_tag:-none}"
 
-      - name: "🔢 Read Semver"
+      - name: "🔢 Resolve Semver"
         id: semver_info
         if: ${{ inputs.version_source == 'upstream' }}
-        uses: YunaBraska/semver-info-action@65ec2697ed91859f89abdacb28f7d7824b84ddf1 # v2.0.83
+        uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
         with:
           semver-a: ${{ inputs.upstream_version }}
           semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
@@ -91,98 +94,96 @@ jobs:
         shell: sh
         run: |
           set -eu
-          default_branch="${{ inputs.default_branch }}"
-          force="${{ inputs.force }}"
-          github_packages="${{ inputs.github_packages }}"
-          maven_central="${{ inputs.maven_central }}"
-          release_strategy="${{ inputs.release_strategy }}"
-          upstream_version="${{ inputs.upstream_version }}"
-          version_source="${{ inputs.version_source }}"
-          latest_tag="${{ steps.latest_tag.outputs.latest_tag }}"
-          is_valid_semver="${{ steps.semver_info.outputs.is_valid_semver_a }}"
-          clean_semver="${{ steps.semver_info.outputs.clean_semver_a }}"
-          next_rc="${{ steps.semver_info.outputs.next_rc }}"
-
-          if [ "${maven_central}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/${default_branch}" ]; then
-            echo "Maven Central publishing must run from ${default_branch}." >&2
+          if [ "${{ inputs.maven_central }}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/${{ inputs.default_branch }}" ]; then
+            echo "Maven Central publishing must run from ${{ inputs.default_branch }}." >&2
             exit 1
           fi
 
           has_material_changes=false
-          if [ -z "${latest_tag}" ]; then
+          if [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
             has_material_changes=true
-          elif ! git diff --quiet "${latest_tag}"..HEAD -- pom.xml src; then
+          elif ! git diff --quiet "${{ steps.latest_tag.outputs.latest_tag }}"..HEAD -- pom.xml src; then
             has_material_changes=true
           fi
 
-          case "${version_source}" in
+          case "${{ inputs.version_source }}" in
             date)
-              base_version=$(git log -1 --format=%cs HEAD | tr '-' '.')
+              version=$(git log -1 --format=%cs HEAD | tr '-' '.')
               ;;
             upstream)
-              if [ "${is_valid_semver}" != "true" ]; then
-                echo "Invalid upstream version: ${upstream_version}" >&2
+              if [ "${{ steps.semver_info.outputs.is_valid_semver_a }}" != "true" ]; then
+                echo "Invalid upstream version: ${{ inputs.upstream_version }}" >&2
                 exit 1
               fi
-              base_version="${clean_semver}"
+              version="${{ steps.semver_info.outputs.clean_semver_a }}"
               ;;
             *)
-              echo "Unsupported version source: ${version_source}" >&2
+              echo "Unsupported version source: ${{ inputs.version_source }}" >&2
               exit 1
               ;;
           esac
 
-          case "${release_strategy}" in
+          case "${{ inputs.release_strategy }}" in
             snapshot)
-              version="${base_version}-SNAPSHOT"
-              should_release=true
-              create_release=false
-              pre_release=false
+              if [ "${{ inputs.version_source }}" = "upstream" ]; then
+                version="${{ steps.semver_info.outputs.next_snapshot }}"
+              else
+                version="${version}-SNAPSHOT"
+              fi
+              publish=true
               ;;
             rc)
-              version="${next_rc}"
+              if [ "${{ inputs.version_source }}" != "upstream" ]; then
+                echo "RC releases require an upstream version." >&2
+                exit 1
+              fi
+              version="${{ steps.semver_info.outputs.next_rc }}"
               test -n "${version}"
-              create_release=true
-              pre_release=true
               if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                should_release=false
+                publish=false
               else
-                should_release=true
+                publish=true
               fi
               ;;
             release)
-              version="${base_version}"
-              create_release=true
-              pre_release=false
-              if [ "${version_source}" = "date" ]; then
+              if [ "${{ inputs.version_source }}" = "date" ]; then
                 version_changed="${has_material_changes}"
               elif git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
                 version_changed=false
               else
                 version_changed=true
               fi
-              should_release=false
-              if [ "${force}" = "true" ] || [ "${version_changed}" = "true" ]; then
-                should_release=true
+              publish=false
+              if [ "${{ inputs.force }}" = "true" ] || [ "${version_changed}" = "true" ]; then
+                publish=true
               fi
               ;;
             *)
-              echo "Unsupported release strategy: ${release_strategy}" >&2
+              echo "Unsupported release strategy: ${{ inputs.release_strategy }}" >&2
               exit 1
               ;;
           esac
 
-          if [ "${release_strategy}" != "snapshot" ] && [ "${should_release}" = "true" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+          github_release=false
+          github_pre_release=false
+          if [ "${{ inputs.release_strategy }}" != "snapshot" ] && [ "${publish}" = "true" ]; then
+            github_release=true
+          fi
+          if [ "${{ inputs.release_strategy }}" = "rc" ] && [ "${publish}" = "true" ]; then
+            github_pre_release=true
+          fi
+
+          if [ "${{ inputs.release_strategy }}" != "snapshot" ] && [ "${publish}" = "true" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
             echo "Release tag already exists: ${version}" >&2
             exit 1
           fi
 
-          if [ "${maven_central}" = "true" ]; then
+          if [ "${{ inputs.maven_central }}" = "true" ]; then
             dry_run_central=false
           else
             dry_run_central=true
           fi
-          if [ "${github_packages}" = "true" ]; then
+          if [ "${{ inputs.github_packages }}" = "true" ]; then
             dry_run_github_packages=false
           else
             dry_run_github_packages=true
@@ -192,29 +193,30 @@ jobs:
           {
             printf 'dry_run_central=%s\n' "${dry_run_central}"
             printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
-            printf 'create_release=%s\n' "${create_release}"
-            printf 'pre_release=%s\n' "${pre_release}"
+            printf 'github_release=%s\n' "${github_release}"
+            printf 'github_pre_release=%s\n' "${github_pre_release}"
+            printf 'publish=%s\n' "${publish}"
             printf 'ref=%s\n' "${ref}"
-            printf 'should_release=%s\n' "${should_release}"
             printf 'version=%s\n' "${version}"
           } >> "${GITHUB_OUTPUT}"
 
           printf 'dry_run_central=%s\n' "${dry_run_central}"
           printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
-          printf 'create_release=%s\n' "${create_release}"
-          printf 'pre_release=%s\n' "${pre_release}"
+          printf 'github_release=%s\n' "${github_release}"
+          printf 'github_pre_release=%s\n' "${github_pre_release}"
+          printf 'publish=%s\n' "${publish}"
           printf 'ref=%s\n' "${ref}"
-          printf 'latest_tag=%s\n' "${latest_tag:-none}"
+          printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
           printf 'has_material_changes=%s\n' "${has_material_changes}"
-          printf 'release_strategy=%s\n' "${release_strategy}"
-          printf 'version_source=%s\n' "${version_source}"
+          printf 'release_strategy=%s\n' "${{ inputs.release_strategy }}"
+          printf 'version_source=%s\n' "${{ inputs.version_source }}"
           printf 'version=%s\n' "${version}"
-          printf 'should_release=%s\n' "${should_release}"
+          printf 'upstream_version=%s\n' "${{ inputs.upstream_version }}"
 
   build:
     needs:
       - plan
-    if: ${{ always() && needs.plan.outputs.should_release == 'true' }}
+    if: ${{ always() && needs.plan.outputs.publish == 'true' }}
     permissions:
       contents: read
     uses: YunaBraska/YunaBraska/.github/workflows/wc_java_build_common.yml@09dc05d4a245632f92374ae36d53577b17211b74
@@ -255,13 +257,13 @@ jobs:
     with:
       dry_run: ${{ needs.plan.outputs.dry_run_github_packages == 'true' }}
 
-  create-release:
+  release:
     needs:
       - plan
       - build
       - publish-central
       - publish-github-packages
-    if: ${{ always() && !cancelled() && needs.plan.outputs.create_release == 'true' && needs.build.result == 'success' && needs.publish-central.result == 'success' && needs.publish-github-packages.result == 'success' }}
+    if: ${{ always() && !cancelled() && needs.plan.outputs.github_release == 'true' && needs.build.result == 'success' && needs.publish-central.result == 'success' && needs.publish-github-packages.result == 'success' }}
     permissions:
       actions: read
       contents: write
@@ -270,20 +272,18 @@ jobs:
       commit_sha: ${{ needs.build.outputs.commit_sha }}
       version: ${{ needs.plan.outputs.version }}
 
-  mark-pre-release:
+  pre-release:
     needs:
       - plan
-      - create-release
-    if: ${{ always() && !cancelled() && needs.plan.outputs.pre_release == 'true' && needs.create-release.result == 'success' }}
+      - release
+    if: ${{ always() && !cancelled() && needs.plan.outputs.github_pre_release == 'true' && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
       - name: "🏷️ Mark RC"
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: sh
         run: |
           set -eu
-          gh release edit "${{ needs.plan.outputs.version }}" --repo "${{ github.repository }}" --prerelease
+          GH_TOKEN="${{ github.token }}" gh release edit "${{ needs.plan.outputs.version }}" --repo "${{ github.repository }}" --prerelease
