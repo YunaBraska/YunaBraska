@@ -19,6 +19,10 @@ on:
         required: false
         default: true
         type: boolean
+      release_strategy:
+        required: false
+        default: release
+        type: string
       upstream_version:
         required: false
         default: ''
@@ -52,6 +56,8 @@ jobs:
     outputs:
       dry_run_central: ${{ steps.plan.outputs.dry_run_central }}
       dry_run_github_packages: ${{ steps.plan.outputs.dry_run_github_packages }}
+      create_release: ${{ steps.plan.outputs.create_release }}
+      pre_release: ${{ steps.plan.outputs.pre_release }}
       ref: ${{ steps.plan.outputs.ref }}
       should_release: ${{ steps.plan.outputs.should_release }}
       version: ${{ steps.plan.outputs.version }}
@@ -60,6 +66,25 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
+
+      - name: "🏷️ Read Latest Tag"
+        id: latest_tag
+        shell: sh
+        run: |
+          set -eu
+          git fetch --tags origin
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
+          printf 'latest_tag=%s\n' "${latest_tag:-none}"
+
+      - name: "🔢 Read Semver"
+        id: semver_info
+        if: ${{ inputs.version_source == 'upstream' }}
+        uses: YunaBraska/semver-info-action@65ec2697ed91859f89abdacb28f7d7824b84ddf1 # v2.0.83
+        with:
+          semver-a: ${{ inputs.upstream_version }}
+          semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
+          fallBack-semver-b: 0.0.0
 
       - name: "🏷️ Plan Release"
         id: plan
@@ -70,16 +95,19 @@ jobs:
           force="${{ inputs.force }}"
           github_packages="${{ inputs.github_packages }}"
           maven_central="${{ inputs.maven_central }}"
+          release_strategy="${{ inputs.release_strategy }}"
           upstream_version="${{ inputs.upstream_version }}"
           version_source="${{ inputs.version_source }}"
-          git fetch --tags origin
+          latest_tag="${{ steps.latest_tag.outputs.latest_tag }}"
+          is_valid_semver="${{ steps.semver_info.outputs.is_valid_semver_a }}"
+          clean_semver="${{ steps.semver_info.outputs.clean_semver_a }}"
+          next_rc="${{ steps.semver_info.outputs.next_rc }}"
 
           if [ "${maven_central}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/${default_branch}" ]; then
             echo "Maven Central publishing must run from ${default_branch}." >&2
             exit 1
           fi
 
-          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
           has_material_changes=false
           if [ -z "${latest_tag}" ]; then
             has_material_changes=true
@@ -89,17 +117,14 @@ jobs:
 
           case "${version_source}" in
             date)
-              version=$(git log -1 --format=%cs HEAD | tr '-' '.')
-              version_changed="${has_material_changes}"
+              base_version=$(git log -1 --format=%cs HEAD | tr '-' '.')
               ;;
             upstream)
-              version="${upstream_version}"
-              test -n "${version}"
-              if [ "${version}" = "${latest_tag}" ]; then
-                version_changed=false
-              else
-                version_changed=true
+              if [ "${is_valid_semver}" != "true" ]; then
+                echo "Invalid upstream version: ${upstream_version}" >&2
+                exit 1
               fi
+              base_version="${clean_semver}"
               ;;
             *)
               echo "Unsupported version source: ${version_source}" >&2
@@ -107,12 +132,47 @@ jobs:
               ;;
           esac
 
-          should_release=false
-          if [ "${force}" = "true" ] || [ "${version_changed}" = "true" ]; then
-            should_release=true
-          fi
+          case "${release_strategy}" in
+            snapshot)
+              version="${base_version}-SNAPSHOT"
+              should_release=true
+              create_release=false
+              pre_release=false
+              ;;
+            rc)
+              version="${next_rc}"
+              test -n "${version}"
+              create_release=true
+              pre_release=true
+              if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                should_release=false
+              else
+                should_release=true
+              fi
+              ;;
+            release)
+              version="${base_version}"
+              create_release=true
+              pre_release=false
+              if [ "${version_source}" = "date" ]; then
+                version_changed="${has_material_changes}"
+              elif git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                version_changed=false
+              else
+                version_changed=true
+              fi
+              should_release=false
+              if [ "${force}" = "true" ] || [ "${version_changed}" = "true" ]; then
+                should_release=true
+              fi
+              ;;
+            *)
+              echo "Unsupported release strategy: ${release_strategy}" >&2
+              exit 1
+              ;;
+          esac
 
-          if [ "${should_release}" = "true" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+          if [ "${release_strategy}" != "snapshot" ] && [ "${should_release}" = "true" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
             echo "Release tag already exists: ${version}" >&2
             exit 1
           fi
@@ -132,6 +192,8 @@ jobs:
           {
             printf 'dry_run_central=%s\n' "${dry_run_central}"
             printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
+            printf 'create_release=%s\n' "${create_release}"
+            printf 'pre_release=%s\n' "${pre_release}"
             printf 'ref=%s\n' "${ref}"
             printf 'should_release=%s\n' "${should_release}"
             printf 'version=%s\n' "${version}"
@@ -139,9 +201,12 @@ jobs:
 
           printf 'dry_run_central=%s\n' "${dry_run_central}"
           printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
+          printf 'create_release=%s\n' "${create_release}"
+          printf 'pre_release=%s\n' "${pre_release}"
           printf 'ref=%s\n' "${ref}"
           printf 'latest_tag=%s\n' "${latest_tag:-none}"
           printf 'has_material_changes=%s\n' "${has_material_changes}"
+          printf 'release_strategy=%s\n' "${release_strategy}"
           printf 'version_source=%s\n' "${version_source}"
           printf 'version=%s\n' "${version}"
           printf 'should_release=%s\n' "${should_release}"
@@ -152,7 +217,7 @@ jobs:
     if: ${{ always() && needs.plan.outputs.should_release == 'true' }}
     permissions:
       contents: read
-    uses: ./.github/workflows/wc_java_build_common.yml
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_build_common.yml@09dc05d4a245632f92374ae36d53577b17211b74
     with:
       ref: ${{ needs.plan.outputs.ref }}
       release: true
@@ -167,7 +232,7 @@ jobs:
       actions: read
       contents: read
       deployments: write
-    uses: ./.github/workflows/wc_java_publish_central.yml
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@09dc05d4a245632f92374ae36d53577b17211b74
     with:
       dry_run: ${{ needs.plan.outputs.dry_run_central == 'true' }}
     secrets:
@@ -186,7 +251,7 @@ jobs:
       contents: read
       deployments: write
       packages: write
-    uses: ./.github/workflows/wc_java_publish_github_packages.yml
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@09dc05d4a245632f92374ae36d53577b17211b74
     with:
       dry_run: ${{ needs.plan.outputs.dry_run_github_packages == 'true' }}
 
@@ -196,11 +261,29 @@ jobs:
       - build
       - publish-central
       - publish-github-packages
-    if: ${{ always() && !cancelled() && needs.build.result == 'success' && needs.publish-central.result == 'success' && needs.publish-github-packages.result == 'success' }}
+    if: ${{ always() && !cancelled() && needs.plan.outputs.create_release == 'true' && needs.build.result == 'success' && needs.publish-central.result == 'success' && needs.publish-github-packages.result == 'success' }}
     permissions:
       actions: read
       contents: write
-    uses: ./.github/workflows/wc_java_create_github_release.yml
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@09dc05d4a245632f92374ae36d53577b17211b74
     with:
       commit_sha: ${{ needs.build.outputs.commit_sha }}
       version: ${{ needs.plan.outputs.version }}
+
+  mark-pre-release:
+    needs:
+      - plan
+      - create-release
+    if: ${{ always() && !cancelled() && needs.plan.outputs.pre_release == 'true' && needs.create-release.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: "🏷️ Mark RC"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: sh
+        run: |
+          set -eu
+          gh release edit "${{ needs.plan.outputs.version }}" --repo "${{ github.repository }}" --prerelease
