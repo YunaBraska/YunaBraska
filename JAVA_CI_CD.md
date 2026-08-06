@@ -1,62 +1,102 @@
 # Java CI/CD
 
-Reusable Java workflows live in `.github/workflows/` and are pinned by a full commit SHA. They use POSIX `sh`.
+Reusable Java workflows use POSIX `sh`. External calls use a full commit SHA; an internal call uses `./.github/workflows/` at the same commit.
 
 ```mermaid
 flowchart LR
-  A[Trigger] --> B[Plan version]
-  B -->|no release| X[Done]
-  B --> C[Build and verify]
-  C --> D[Maven Central: deploy or dry run]
-  C --> E[GitHub Packages: deploy or dry run]
-  D --> F{Snapshot?}
+  A[Trigger] --> B[Build: resolve version]
+  B --> C[Release: deploy or dry run]
+  C --> D[Maven Central]
+  C --> E[GitHub Packages]
+  D --> F[GitHub release]
   E --> F
-  F -->|yes| X
-  F -->|no| G[GitHub tag and release]
-  G --> H[Homebrew: formula PR or dry run]
+  F --> G[Homebrew]
 ```
 
-The build receives one resolved version, sets it only in its workspace, and uses the commit timestamp for reproducible output. It never reads `project.version` to decide a release.
+Build resolves one version, writes it only to its workspace POM, and tests it. It never reads `project.version` to decide a release.
 
 ## Full GitHub + Maven + Homebrew release
 
-Replace `my-tool` and `YunaBraska/homebrew-tap`. Omit the Homebrew job when the repository has no formula.
+Replace `my-tool` and `YunaBraska/homebrew-tap`. Omit any publisher the repository does not use.
 
 ```yml
 on:
   workflow_dispatch:
     inputs:
+      maven_central:
+        description: Maven Central.
+        required: true
+        default: true
+        type: boolean
+      github_packages:
+        description: GitHub Packages.
+        required: true
+        default: true
+        type: boolean
       homebrew:
         description: Homebrew.
         required: true
         default: true
         type: boolean
+      force:
+        description: Force.
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   release:
     permissions:
-      actions: read
-      contents: write
-      deployments: write
-      packages: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@f3ced49a6c7188d86778f332998af4049b141524
+      contents: read
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@b317778e8353eecddc671bd4afbedd0fa659f990
     with:
-      maven_central: true
-      github_packages: true
-      release_strategy: release # snapshot | rc | release
-      version_source: date # date | upstream
+      force: ${{ inputs.force }}
+
+  central:
+    needs: release
+    if: ${{ always() && !cancelled() && needs.release.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@b317778e8353eecddc671bd4afbedd0fa659f990
+    with:
+      dry_run: ${{ inputs.maven_central != true || needs.release.outputs.dry_run == 'true' }}
     secrets:
       CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
       CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
       GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
-  homebrew:
+  packages:
     needs: release
-    if: needs.release.outputs.upload_artifact == 'true' && !endsWith(needs.release.outputs.version, '-SNAPSHOT')
+    if: ${{ always() && !cancelled() && needs.release.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+      packages: write
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@b317778e8353eecddc671bd4afbedd0fa659f990
+    with:
+      dry_run: ${{ inputs.github_packages != true || needs.release.outputs.dry_run == 'true' }}
+
+  github:
+    needs: [release, central, packages]
+    if: ${{ always() && !cancelled() && needs.release.outputs.dry_run == 'false' && !endsWith(needs.release.outputs.version, '-SNAPSHOT') && needs.release.result == 'success' && needs.central.result == 'success' && needs.packages.result == 'success' }}
+    permissions:
+      actions: read
+      contents: write
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@b317778e8353eecddc671bd4afbedd0fa659f990
+    with:
+      commit_sha: ${{ needs.release.outputs.commit_sha }}
+      version: ${{ needs.release.outputs.version }}
+
+  homebrew:
+    needs: [release, github]
+    if: ${{ needs.github.result == 'success' }}
     permissions:
       contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@f3ced49a6c7188d86778f332998af4049b141524
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@b317778e8353eecddc671bd4afbedd0fa659f990
     with:
       formula_path: Formula/my-tool.rb
       tap_repository: YunaBraska/homebrew-tap
@@ -67,26 +107,27 @@ jobs:
       HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 ```
 
-Homebrew is deliberately a separate final job: its formula, tap, and release asset are repository-specific. It receives the release version from the same workflow output. Uncheck `homebrew` to validate the formula without opening a tap pull request.
+## Version resolution
 
-| Source / strategy | Version | Tag and release |
-| --- | --- | --- |
-| `date` / `snapshot` | `YYYY.MM.DD-SNAPSHOT` | No |
-| `date` / `release` | `YYYY.MM.DD` | On `pom.xml` or `src` change, or `force` |
-| `upstream` / `snapshot`, `rc`, `release` | Semver action result | Snapshot: no; otherwise: yes |
+| Source / Semver strategy | Version |
+| --- | --- |
+| no `upstream_version` / empty | Commit date: `YYYY.M.D` |
+| `upstream_version` / empty | Exact upstream version |
+| either / `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
 
-`maven_central` and `github_packages` default to `true`. Set either to `false` to run its job as a dry run; build, validation, and the other publisher still run. Maven Central publishing is allowed only from `main`. GitHub Packages is an artifact publisher; GitHub tag/release is always real for non-snapshots and has no dry-run switch.
+Common build defaults to `snapshot`. The Semver base is the highest upstream version or tag; with neither it is `0.0.0`, so the first snapshot is `0.0.1-SNAPSHOT`.
 
-Any GitHub release version containing `-` is a pre-release (`-rc`, `-beta`, `-alpha`, `-SNAPSHOT`, and similar). A stable version is Latest.
+`false` selects a publisher dry run; build and all selected publisher validation still run. An unchanged release or non-default branch also uses dry runs. GitHub releases are real and created only for a new non-snapshot version.
+
+A GitHub version with a hyphen is a pre-release.
 
 ## Building blocks
 
 | Workflow | Purpose |
 | --- | --- |
-| `wc_java_build_common.yml` | Build, test, set a supplied version, optionally upload `build-workspace`. Outputs `commit_sha` and `version`. |
-| `wc_java_publish_central.yml` | Download `build-workspace`; validate or deploy to Maven Central. |
-| `wc_java_publish_github_packages.yml` | Download `build-workspace`; package or deploy to GitHub Packages. |
-| `wc_java_create_github_release.yml` | Download `build-workspace`; create/update the GitHub release and upload its assets. |
-| `wc_java_publish_homebrew.yml` | Download a release asset, update a formula, and open a pull request in the tap. |
-
-The three artifact consumers accept an optional `run_id` when called independently. Use the release workflow for the normal path; it connects the build artifact automatically.
+| `wc_java_build_common.yml` | Resolve, build, test, and optionally upload `build-workspace`. |
+| `wc_java_release.yml` | Build and decide deploy versus dry run. Outputs `commit_sha`, `dry_run`, and `version`. |
+| `wc_java_publish_central.yml` | Validate or deploy the build workspace to Maven Central. |
+| `wc_java_publish_github_packages.yml` | Validate or deploy the build workspace to GitHub Packages. |
+| `wc_java_create_github_release.yml` | Create/update a GitHub release and upload its assets. |
+| `wc_java_publish_homebrew.yml` | Download a release asset, update a formula, and open a tap PR. |
