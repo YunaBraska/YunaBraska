@@ -2,6 +2,13 @@ name: 🏷️ CD · Release
 
 on:
   workflow_call:
+    outputs:
+      upload_artifact:
+        description: Build artifact was created.
+        value: ${{ jobs.plan.outputs.upload_artifact }}
+      version:
+        description: Resolved release version.
+        value: ${{ jobs.plan.outputs.version }}
     inputs:
       default_branch:
         required: false
@@ -70,7 +77,6 @@ jobs:
         shell: sh
         run: |
           set -eu
-          git fetch --tags origin
           latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
           printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
           printf 'latest_tag=%s\n' "${latest_tag:-none}"
@@ -92,13 +98,6 @@ jobs:
           if [ "${{ inputs.maven_central }}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/${{ inputs.default_branch }}" ]; then
             echo "Maven Central publishing must run from ${{ inputs.default_branch }}." >&2
             exit 1
-          fi
-
-          has_material_changes=false
-          if [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
-            has_material_changes=true
-          elif ! git diff --quiet "${{ steps.latest_tag.outputs.latest_tag }}"..HEAD -- pom.xml src; then
-            has_material_changes=true
           fi
 
           case "${{ inputs.version_source }}" in
@@ -141,15 +140,14 @@ jobs:
               fi
               ;;
             release)
-              if [ "${{ inputs.version_source }}" = "date" ]; then
-                version_changed="${has_material_changes}"
-              elif git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                version_changed=false
-              else
-                version_changed=true
-              fi
               upload_artifact=false
-              if [ "${{ inputs.force }}" = "true" ] || [ "${version_changed}" = "true" ]; then
+              if [ "${{ inputs.force }}" = "true" ]; then
+                upload_artifact=true
+              elif [ "${{ inputs.version_source }}" = "upstream" ]; then
+                if ! git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                  upload_artifact=true
+                fi
+              elif [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ] || ! git diff --quiet "${{ steps.latest_tag.outputs.latest_tag }}"..HEAD -- pom.xml src; then
                 upload_artifact=true
               fi
               ;;
@@ -195,7 +193,6 @@ jobs:
           printf 'ref=%s\n' "${ref}"
           printf 'upload_artifact=%s\n' "${upload_artifact}"
           printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
-          printf 'has_material_changes=%s\n' "${has_material_changes}"
           printf 'release_strategy=%s\n' "${{ inputs.release_strategy }}"
           printf 'version_source=%s\n' "${{ inputs.version_source }}"
           printf 'version=%s\n' "${version}"

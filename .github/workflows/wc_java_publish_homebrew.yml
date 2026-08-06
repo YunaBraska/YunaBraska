@@ -9,10 +9,7 @@ on:
       tap_repository:
         required: true
         type: string
-      url:
-        required: true
-        type: string
-      sha256:
+      asset_name:
         required: true
         type: string
       version:
@@ -33,8 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
       - name: "🧑‍💻 Checkout Tap"
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -43,13 +39,30 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
 
+      - name: "📥 Read Release Asset"
+        id: release_asset
+        shell: sh
+        run: |
+          set -eu
+          assets_dir="${RUNNER_TEMP}/homebrew-assets"
+          mkdir -p "${assets_dir}"
+          GH_TOKEN="${{ github.token }}" gh release download "${{ inputs.version }}" --repo "${{ github.repository }}" --pattern "${{ inputs.asset_name }}" --dir "${assets_dir}"
+          asset="${assets_dir}/${{ inputs.asset_name }}"
+          test -f "${asset}"
+          sha256=$(sha256sum "${asset}" | awk '{print $1}')
+          url="https://github.com/${{ github.repository }}/releases/download/${{ inputs.version }}/${{ inputs.asset_name }}"
+          printf 'sha256=%s\n' "${sha256}" >> "${GITHUB_OUTPUT}"
+          printf 'url=%s\n' "${url}" >> "${GITHUB_OUTPUT}"
+          printf 'sha256=%s\n' "${sha256}"
+          printf 'url=%s\n' "${url}"
+
       - name: "🍺 Update Formula"
         shell: sh
         run: |
           set -eu
           formula="${GITHUB_WORKSPACE}/tap/${{ inputs.formula_path }}"
           test -f "${formula}"
-          awk -v sha256="${{ inputs.sha256 }}" -v url="${{ inputs.url }}" '
+          awk -v sha256="${{ steps.release_asset.outputs.sha256 }}" -v url="${{ steps.release_asset.outputs.url }}" '
             /^[[:space:]]*url "/ && !url_written {
               indent = substr($0, 1, match($0, /[^[:space:]]/) - 1)
               print indent "url \"" url "\""
@@ -75,8 +88,6 @@ jobs:
 
       - name: "📤 Open Formula Pull Request"
         if: inputs.dry_run != true
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         shell: sh
         run: |
           set -eu
@@ -87,4 +98,4 @@ jobs:
           git -C "${GITHUB_WORKSPACE}/tap" add -- "${{ inputs.formula_path }}"
           git -C "${GITHUB_WORKSPACE}/tap" commit -m "brew: ${{ inputs.formula_path }} ${{ inputs.version }}"
           git -C "${GITHUB_WORKSPACE}/tap" push origin "${branch}"
-          gh pr create --repo "${{ inputs.tap_repository }}" --base main --head "${branch}" --title "brew: ${{ inputs.formula_path }} ${{ inputs.version }}" --body ''
+          GH_TOKEN="${{ secrets.HOMEBREW_TAP_TOKEN }}" gh pr create --repo "${{ inputs.tap_repository }}" --base main --head "${branch}" --title "brew: ${{ inputs.formula_path }} ${{ inputs.version }}" --body ''
