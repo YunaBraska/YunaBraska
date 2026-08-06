@@ -4,18 +4,23 @@ on:
   workflow_call:
     inputs:
       formula_path:
+        description: Formula path.
         required: true
         type: string
       tap_repository:
+        description: Homebrew tap.
         required: true
         type: string
       asset_name:
+        description: Release asset.
         required: true
         type: string
       version:
+        description: Release version.
         required: true
         type: string
       dry_run:
+        description: Update without pull request.
         required: false
         default: false
         type: boolean
@@ -92,8 +97,8 @@ jobs:
         run: |
           set -eu
           branch="release/homebrew-${{ inputs.version }}"
-          git -C "${GITHUB_WORKSPACE}/tap" config user.name 'github-actions[bot]'
-          git -C "${GITHUB_WORKSPACE}/tap" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "${GITHUB_WORKSPACE}/tap" config user.name 'Kira Bot'
+          git -C "${GITHUB_WORKSPACE}/tap" config user.email 'kira@noreply.github.com'
           git -C "${GITHUB_WORKSPACE}/tap" switch -c "${branch}"
           git -C "${GITHUB_WORKSPACE}/tap" add -- "${{ inputs.formula_path }}"
           git -C "${GITHUB_WORKSPACE}/tap" commit -m "brew: ${{ inputs.formula_path }} ${{ inputs.version }}"

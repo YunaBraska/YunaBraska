@@ -3,51 +3,31 @@ name: 🏷️ CD · Release
 on:
   workflow_call:
     outputs:
-      upload_artifact:
-        description: Build artifact was created.
-        value: ${{ jobs.plan.outputs.upload_artifact }}
+      commit_sha:
+        description: Build commit.
+        value: ${{ jobs.build.outputs.commit_sha }}
+      dry_run:
+        description: No new version to publish.
+        value: ${{ jobs.release.outputs.dry_run }}
       version:
         description: Resolved release version.
-        value: ${{ jobs.plan.outputs.version }}
+        value: ${{ jobs.build.outputs.version }}
     inputs:
-      default_branch:
-        required: false
-        default: main
-        type: string
       force:
+        description: Publish unchanged source.
         required: false
         default: false
         type: boolean
-      github_packages:
-        required: false
-        default: true
-        type: boolean
-      maven_central:
-        required: false
-        default: true
-        type: boolean
-      release_strategy:
-        required: false
-        default: release
-        type: string
-      upstream_version:
+      semver_strategy:
+        description: Semver next strategy.
         required: false
         default: ''
         type: string
-      version_source:
+      upstream_version:
+        description: Upstream version.
         required: false
-        default: date
+        default: ''
         type: string
-    secrets:
-      CENTRAL_PASS:
-        required: false
-      CENTRAL_USER:
-        required: false
-      GPG_PASSPHRASE:
-        required: false
-      GPG_SIGNING_KEY:
-        required: false
-
 permissions: {}
 
 concurrency:
@@ -55,204 +35,83 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  plan:
+  build:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_java_build_common.yml
+    with:
+      ref: ${{ github.sha }}
+      semver_strategy: ${{ inputs.semver_strategy }}
+      upstream_version: ${{ inputs.upstream_version }}
+      upload_artifact: true
+
+  release:
+    needs:
+      - build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     outputs:
-      dry_run_central: ${{ steps.plan.outputs.dry_run_central }}
-      dry_run_github_packages: ${{ steps.plan.outputs.dry_run_github_packages }}
-      ref: ${{ steps.plan.outputs.ref }}
-      upload_artifact: ${{ steps.plan.outputs.upload_artifact }}
-      version: ${{ steps.plan.outputs.version }}
+      dry_run: ${{ steps.release_info.outputs.dry_run }}
     steps:
       - name: "🧑‍💻 Checkout"
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
-      - name: "🏷️ Read Latest Tag"
-        id: latest_tag
+      - name: "🏷️ Release"
+        id: release_info
         shell: sh
         run: |
           set -eu
-          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
-          printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
-          printf 'latest_tag=%s\n' "${latest_tag:-none}"
-
-      - name: "🔢 Resolve Semver"
-        id: semver_info
-        if: ${{ inputs.version_source == 'upstream' }}
-        uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
-        with:
-          semver-a: ${{ inputs.upstream_version }}
-          semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
-          fallBack-semver-b: 0.0.0
-
-      - name: "🏷️ Plan Release"
-        id: plan
-        shell: sh
-        run: |
-          set -eu
-          if [ "${{ inputs.maven_central }}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/${{ inputs.default_branch }}" ]; then
-            echo "Maven Central publishing must run from ${{ inputs.default_branch }}." >&2
-            exit 1
-          fi
-
-          case "${{ inputs.version_source }}" in
-            date)
-              version=$(git log -1 --format=%cs HEAD | tr '-' '.')
-              ;;
-            upstream)
-              if [ "${{ steps.semver_info.outputs.is_valid_semver_a }}" != "true" ]; then
-                echo "Invalid upstream version: ${{ inputs.upstream_version }}" >&2
-                exit 1
-              fi
-              version="${{ steps.semver_info.outputs.clean_semver_a }}"
-              ;;
-            *)
-              echo "Unsupported version source: ${{ inputs.version_source }}" >&2
-              exit 1
-              ;;
-          esac
-
-          case "${{ inputs.release_strategy }}" in
+          version="${{ needs.build.outputs.version }}"
+          case "${{ inputs.semver_strategy }}" in
             snapshot)
-              if [ "${{ inputs.version_source }}" = "upstream" ]; then
-                version="${{ steps.semver_info.outputs.next_snapshot }}"
-              else
-                version="${version}-SNAPSHOT"
-              fi
-              upload_artifact=true
+              dry_run=false
               ;;
-            rc)
-              if [ "${{ inputs.version_source }}" != "upstream" ]; then
-                echo "RC releases require an upstream version." >&2
-                exit 1
-              fi
-              version="${{ steps.semver_info.outputs.next_rc }}"
-              test -n "${version}"
-              if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                upload_artifact=false
-              else
-                upload_artifact=true
-              fi
-              ;;
-            release)
-              upload_artifact=false
+            '')
+              dry_run=true
               if [ "${{ inputs.force }}" = "true" ]; then
-                upload_artifact=true
-              elif [ "${{ inputs.version_source }}" = "upstream" ]; then
+                dry_run=false
+              elif [ -n "${{ inputs.upstream_version }}" ]; then
                 if ! git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                  upload_artifact=true
+                  dry_run=false
                 fi
-              elif [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ] || ! git diff --quiet "${{ steps.latest_tag.outputs.latest_tag }}"..HEAD -- pom.xml src; then
-                upload_artifact=true
+              else
+                latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+                if [ -z "${latest_tag}" ] || ! git diff --quiet "${latest_tag}"..HEAD -- pom.xml src; then
+                  dry_run=false
+                fi
               fi
               ;;
             *)
-              echo "Unsupported release strategy: ${{ inputs.release_strategy }}" >&2
-              exit 1
+              if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                dry_run=true
+              else
+                dry_run=false
+              fi
               ;;
           esac
+
+          if [ "${GITHUB_REF}" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+            dry_run=true
+          fi
 
           case "${version}" in
             *-SNAPSHOT)
               ;;
             *)
-              if [ "${upload_artifact}" = "true" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+              if [ "${dry_run}" = "false" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
                 echo "Release tag already exists: ${version}" >&2
                 exit 1
               fi
               ;;
           esac
 
-          if [ "${{ inputs.maven_central }}" = "true" ]; then
-            dry_run_central=false
-          else
-            dry_run_central=true
-          fi
-          if [ "${{ inputs.github_packages }}" = "true" ]; then
-            dry_run_github_packages=false
-          else
-            dry_run_github_packages=true
-          fi
-
-          ref=$(git rev-parse HEAD)
           {
-            printf 'dry_run_central=%s\n' "${dry_run_central}"
-            printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
-            printf 'ref=%s\n' "${ref}"
-            printf 'upload_artifact=%s\n' "${upload_artifact}"
-            printf 'version=%s\n' "${version}"
+            printf 'dry_run=%s\n' "${dry_run}"
           } >> "${GITHUB_OUTPUT}"
-
-          printf 'dry_run_central=%s\n' "${dry_run_central}"
-          printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
-          printf 'ref=%s\n' "${ref}"
-          printf 'upload_artifact=%s\n' "${upload_artifact}"
-          printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
-          printf 'release_strategy=%s\n' "${{ inputs.release_strategy }}"
-          printf 'version_source=%s\n' "${{ inputs.version_source }}"
+          printf 'dry_run=%s\n' "${dry_run}"
+          printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
           printf 'version=%s\n' "${version}"
-          printf 'upstream_version=%s\n' "${{ inputs.upstream_version }}"
-
-  build:
-    needs:
-      - plan
-    if: ${{ always() && needs.plan.outputs.upload_artifact == 'true' }}
-    permissions:
-      contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_build_common.yml@bcd35fef5e5436f1bc55e004a27536eba556e3ea
-    with:
-      ref: ${{ needs.plan.outputs.ref }}
-      upload_artifact: true
-      version: ${{ needs.plan.outputs.version }}
-
-  publish-central:
-    needs:
-      - plan
-      - build
-    if: ${{ always() && !cancelled() && needs.build.result == 'success' }}
-    permissions:
-      actions: read
-      contents: read
-      deployments: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@09dc05d4a245632f92374ae36d53577b17211b74
-    with:
-      dry_run: ${{ needs.plan.outputs.dry_run_central == 'true' }}
-    secrets:
-      CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
-      CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
-      GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
-      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-
-  publish-github-packages:
-    needs:
-      - plan
-      - build
-    if: ${{ always() && !cancelled() && needs.build.result == 'success' }}
-    permissions:
-      actions: read
-      contents: read
-      deployments: write
-      packages: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@09dc05d4a245632f92374ae36d53577b17211b74
-    with:
-      dry_run: ${{ needs.plan.outputs.dry_run_github_packages == 'true' }}
-
-  release:
-    needs:
-      - plan
-      - build
-      - publish-central
-      - publish-github-packages
-    if: ${{ always() && !cancelled() && needs.plan.outputs.upload_artifact == 'true' && !endsWith(needs.plan.outputs.version, '-SNAPSHOT') && needs.build.result == 'success' && needs.publish-central.result == 'success' && needs.publish-github-packages.result == 'success' }}
-    permissions:
-      actions: read
-      contents: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@621b2d1d95c2c6523f775a9d23329b1ac79b09f9
-    with:
-      commit_sha: ${{ needs.build.outputs.commit_sha }}
-      version: ${{ needs.plan.outputs.version }}

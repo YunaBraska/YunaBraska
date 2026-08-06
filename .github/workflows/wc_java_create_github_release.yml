@@ -4,13 +4,16 @@ on:
   workflow_call:
     inputs:
       run_id:
+        description: Build run.
         required: false
         default: ''
         type: string
       commit_sha:
+        description: Build commit.
         required: true
         type: string
       version:
+        description: Release version.
         required: true
         type: string
 
