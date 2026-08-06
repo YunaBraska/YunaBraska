@@ -26,15 +26,15 @@ on:
     outputs:
       commit_sha:
         description: Commit SHA.
-        value: ${{ jobs.build.outputs.commit_sha }}
+        value: ${{ jobs.test.outputs.commit_sha }}
       version:
         description: Resolved version.
-        value: ${{ jobs.build.outputs.version }}
+        value: ${{ jobs.test.outputs.version }}
 
 permissions: {}
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
