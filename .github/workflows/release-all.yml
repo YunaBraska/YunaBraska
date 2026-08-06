@@ -52,14 +52,11 @@ jobs:
                   if ! gh api -H 'Accept: application/vnd.github.raw+json' "repos/${repository}/contents/${workflow_path}?ref=${default_branch}" > "${workflow_file}" 2>/dev/null; then
                     continue
                   fi
-                  if ! grep -Eq '^[[:space:]]*workflow_dispatch:' "${workflow_file}"; then
+                  if ! grep -Eq '^[[:space:]]*# yuna-java-release:[[:space:]]*true[[:space:]]*$' "${workflow_file}"; then
                     continue
                   fi
-                  if grep -Eq '^[[:space:]]*uses:[[:space:]]*YunaBraska/YunaBraska/\.github/workflows/wc_java_release\.yml@[[:xdigit:]]{40}([[:space:]]*(#.*)?)?$' "${workflow_file}"; then
-                    matches=$((matches + 1))
-                    ref=$(sed -nE 's|^[[:space:]]*uses:[[:space:]]*YunaBraska/YunaBraska/\.github/workflows/wc_java_release\.yml@([[:xdigit:]]{40}).*|\1|p' "${workflow_file}")
-                    printf '%s\t%s\t%s\t%s\n' "${repository}" "${default_branch}" "${workflow_path}" "${ref}" >> "${releases_file}"
-                  fi
+                  matches=$((matches + 1))
+                  printf '%s\t%s\t%s\n' "${repository}" "${default_branch}" "${workflow_path}" >> "${releases_file}"
                 done
 
                 if [ "${matches}" -gt 1 ]; then
@@ -68,11 +65,10 @@ jobs:
                 fi
               done
 
-          while IFS="$(printf '\t')" read -r repository default_branch workflow_path ref; do
+          while IFS="$(printf '\t')" read -r repository default_branch workflow_path; do
             printf 'repository=%s\n' "${repository}"
             printf 'default_branch=%s\n' "${default_branch}"
             printf 'workflow_path=%s\n' "${workflow_path}"
-            printf 'reusable_ref=%s\n' "${ref}"
           done < "${releases_file}"
 
       - name: "🤖 Merge and Release"
@@ -83,11 +79,17 @@ jobs:
           releases_file="${RUNNER_TEMP}/java-releases.tsv"
           failures=0
 
-          test -f "${releases_file}" || exit 0
-          while IFS="$(printf '\t')" read -r repository default_branch workflow_path ref; do
-            echo "Dispatching ${repository}:${workflow_path} pinned at ${ref}."
-            prs=$(gh pr list --repo "${repository}" --base "${default_branch}" --state open --json number,headRefName,isDraft,mergeStateStatus \
-              --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN") | select((.headRefName | startswith("dependabot/")) or (.headRefName | startswith("bot/maintenance-"))) | .number')
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "BOT_TOKEN is not configured; weekly releases are disabled."
+            exit 0
+          fi
+
+          merge_ready_prs() {
+            repository=$1
+            base_branch=$2
+            branch_pattern=$3
+            prs=$(gh pr list --repo "${repository}" --base "${base_branch}" --state open --json number,headRefName,isDraft,mergeStateStatus \
+              --jq ".[] | select(.isDraft == false) | select(.mergeStateStatus == \"CLEAN\") | select(.headRefName | test(\"${branch_pattern}\")) | .number")
             for pr in ${prs}; do
               if ! gh pr checks "${pr}" --repo "${repository}" >/dev/null 2>&1; then
                 echo "${repository}#${pr} is not green; leaving it open."
@@ -102,6 +104,13 @@ jobs:
                 failures=$((failures + 1))
               fi
             done
+          }
+
+          merge_ready_prs "${GITHUB_REPOSITORY_OWNER}/homebrew-tap" main '^bot/maintenance-homebrew-'
+          test -f "${releases_file}" || exit 0
+          while IFS="$(printf '\t')" read -r repository default_branch workflow_path; do
+            echo "Dispatching ${repository}:${workflow_path}."
+            merge_ready_prs "${repository}" "${default_branch}" '^(dependabot/|bot/maintenance-)'
 
             if [ "${dry_run}" = "true" ]; then
               echo "Would dispatch ${repository}:${workflow_path}@${default_branch}."

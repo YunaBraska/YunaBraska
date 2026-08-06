@@ -44,6 +44,21 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
 
+      - name: "🌿 Prepare Formula Branch"
+        if: inputs.dry_run != true
+        shell: sh
+        run: |
+          set -eu
+          branch="bot/maintenance-homebrew-${{ github.event.repository.name }}-${{ inputs.version }}"
+          git -C "${GITHUB_WORKSPACE}/tap" config user.name 'Kira Bot'
+          git -C "${GITHUB_WORKSPACE}/tap" config user.email 'kira@noreply.github.com'
+          if git -C "${GITHUB_WORKSPACE}/tap" ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+            git -C "${GITHUB_WORKSPACE}/tap" fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+            git -C "${GITHUB_WORKSPACE}/tap" switch --track -c "${branch}" "origin/${branch}"
+          else
+            git -C "${GITHUB_WORKSPACE}/tap" switch -c "${branch}"
+          fi
+
       - name: "📥 Read Release Asset"
         id: release_asset
         shell: sh
@@ -96,11 +111,17 @@ jobs:
         shell: sh
         run: |
           set -eu
-          branch="release/homebrew-${{ inputs.version }}"
-          git -C "${GITHUB_WORKSPACE}/tap" config user.name 'Kira Bot'
-          git -C "${GITHUB_WORKSPACE}/tap" config user.email 'kira@noreply.github.com'
-          git -C "${GITHUB_WORKSPACE}/tap" switch -c "${branch}"
+          branch="bot/maintenance-homebrew-${{ github.event.repository.name }}-${{ inputs.version }}"
+          if git -C "${GITHUB_WORKSPACE}/tap" diff --quiet -- "${{ inputs.formula_path }}"; then
+            echo "Formula is already up to date."
+            exit 0
+          fi
           git -C "${GITHUB_WORKSPACE}/tap" add -- "${{ inputs.formula_path }}"
           git -C "${GITHUB_WORKSPACE}/tap" commit -m "brew: ${{ inputs.formula_path }} ${{ inputs.version }}"
           git -C "${GITHUB_WORKSPACE}/tap" push origin "${branch}"
-          GH_TOKEN="${{ secrets.HOMEBREW_TAP_TOKEN }}" gh pr create --repo "${{ inputs.tap_repository }}" --base main --head "${branch}" --title "brew: ${{ inputs.formula_path }} ${{ inputs.version }}" --body ''
+          pr=$(GH_TOKEN="${{ secrets.HOMEBREW_TAP_TOKEN }}" gh pr list --repo "${{ inputs.tap_repository }}" --head "${branch}" --state open --json number --jq '.[0].number')
+          if [ -n "${pr}" ]; then
+            echo "Formula pull request already exists: #${pr}"
+          else
+            GH_TOKEN="${{ secrets.HOMEBREW_TAP_TOKEN }}" gh pr create --repo "${{ inputs.tap_repository }}" --base main --head "${branch}" --title "brew: ${{ inputs.formula_path }} ${{ inputs.version }}" --body ''
+          fi

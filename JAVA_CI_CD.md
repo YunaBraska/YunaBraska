@@ -44,6 +44,9 @@ on:
         default: false
         type: boolean
 
+# yuna-java-release: true
+name: 🏷️ CD · Release
+
 jobs:
   release:
     permissions:
@@ -115,11 +118,13 @@ jobs:
 | `upstream_version` / empty | Exact upstream version |
 | either / `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
 
-Common build defaults to `snapshot`. The Semver base is the highest upstream version or tag; with neither it is `0.0.0`, so the first snapshot is `0.0.1-SNAPSHOT`.
+Common build defaults to `snapshot`. The Semver base is the highest valid upstream version or tag; with neither it is `0.0.0`, so the first snapshot is `0.0.1-SNAPSHOT`.
 
-`false` selects a publisher dry run; build and all selected publisher validation still run. An unchanged release or non-default branch also uses dry runs. GitHub releases are real and created only for a new non-snapshot version.
+`false` selects a publisher dry run; build and artifact-publisher validation still run. An unchanged release or non-default branch also uses dry runs. GitHub releases are real and created only for a new non-snapshot version. Homebrew validation needs that GitHub release asset and opens a `bot/maintenance-homebrew-<repository>-<version>` tap PR; the next weekly run merges it when green.
 
 A GitHub version with a hyphen is a pre-release.
+
+Weekly release discovery requires exactly one `# yuna-java-release: true` marker.
 
 ## Building blocks
 
