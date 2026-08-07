@@ -63,15 +63,16 @@ jobs:
             printf 'build_output_timestamp=%s\n' "${build_output_timestamp}"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: "🏷️ Read SemVer Tag"
-        id: semver_tag
+      - name: "🏷️ Read Latest Tag"
+        id: latest_tag
         if: ${{ inputs.semver_strategy != '' }}
         shell: sh
         run: |
           set -eu
-          semver_tag=$(git tag --merged HEAD --sort=-version:refname | grep -E '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' | sed -n '1p')
-          printf 'semver_tag=%s\n' "${semver_tag}" >> "${GITHUB_OUTPUT}"
-          printf 'semver_tag=%s\n' "${semver_tag:-none}"
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          latest_tag=$(printf '%s\n' "${latest_tag}" | sed -E 's/^0+([0-9])/\1/; s/\.0+([0-9])/\.\1/g')
+          printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
+          printf 'latest_tag=%s\n' "${latest_tag:-none}"
 
       - name: "🔢 Resolve Semver"
         id: semver_info
@@ -79,7 +80,7 @@ jobs:
         uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
         with:
           semver-a: ${{ inputs.upstream_version }}
-          semver-b: ${{ steps.semver_tag.outputs.semver_tag }}
+          semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
           fallBack-semver-a: 0.0.0
           fallBack-semver-b: 0.0.0
 
@@ -106,7 +107,7 @@ jobs:
           {
             printf 'version=%s\n' "${version}"
           } >> "${GITHUB_OUTPUT}"
-          printf 'semver_tag=%s\n' "${{ steps.semver_tag.outputs.semver_tag || 'none' }}"
+          printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
           printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
           printf 'version=%s\n' "${version}"
           printf 'upstream_version=%s\n' "${{ inputs.upstream_version }}"
