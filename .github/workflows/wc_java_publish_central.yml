@@ -8,10 +8,6 @@ on:
         required: false
         default: ''
         type: string
-      dry_run:
-        description: Dry run.
-        required: true
-        type: boolean
     secrets:
       CENTRAL_USER:
         required: true
@@ -90,8 +86,4 @@ jobs:
         shell: sh
         run: |
           set -eu
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ${{ steps.java_info.outputs.cmd }} -B -Pcentral -DskipTests -DskipPublishing=true verify
-            exit 0
-          fi
           ${{ steps.java_info.outputs.cmd }} -B -Pcentral -DskipTests deploy

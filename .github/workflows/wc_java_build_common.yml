@@ -18,6 +18,11 @@ on:
         required: false
         default: ''
         type: string
+      dry_run:
+        description: Resolve a snapshot.
+        required: false
+        default: false
+        type: boolean
       upload_artifact:
         description: Upload build workspace.
         required: false
@@ -65,7 +70,7 @@ jobs:
 
       - name: "🏷️ Read Latest Tag"
         id: latest_tag
-        if: ${{ inputs.semver_strategy != '' }}
+        if: ${{ inputs.dry_run == true || inputs.semver_strategy != '' }}
         shell: sh
         run: |
           set -eu
@@ -76,13 +81,13 @@ jobs:
 
       - name: "🔢 Resolve Semver"
         id: semver_info
-        if: ${{ inputs.upstream_version != '' || inputs.semver_strategy != '' }}
+        if: ${{ inputs.dry_run == true || inputs.upstream_version != '' || inputs.semver_strategy != '' }}
         uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
         with:
           semver-a: ${{ inputs.upstream_version }}
           semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
-          fallBack-semver-a: 0.0.0
-          fallBack-semver-b: 0.0.0
+          fallBack-semver-a: 0.0.1
+          fallBack-semver-b: 0.0.1
 
       - name: "🏷️ Resolve Version"
         id: version_info
@@ -99,7 +104,10 @@ jobs:
             version=$(git log -1 --format=%cs HEAD | awk -F- '{printf "%d.%d.%d\n", $1, $2, $3}')
           fi
 
-          if [ -n "${{ inputs.semver_strategy }}" ]; then
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            version="${{ steps.semver_info.outputs.next_snapshot }}"
+            test -n "${version}"
+          elif [ -n "${{ inputs.semver_strategy }}" ]; then
             version="${{ steps.semver_info.outputs[format('next_{0}', inputs.semver_strategy)] }}"
             test -n "${version}"
           fi
@@ -108,6 +116,7 @@ jobs:
             printf 'version=%s\n' "${version}"
           } >> "${GITHUB_OUTPUT}"
           printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
+          printf 'dry_run=%s\n' "${{ inputs.dry_run }}"
           printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
           printf 'version=%s\n' "${version}"
           printf 'upstream_version=%s\n' "${{ inputs.upstream_version }}"

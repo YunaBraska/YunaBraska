@@ -20,7 +20,7 @@ on:
         required: true
         type: string
       dry_run:
-        description: Update without pull request.
+        description: Validate without update.
         required: false
         default: false
         type: boolean
@@ -59,8 +59,18 @@ jobs:
             git -C "${GITHUB_WORKSPACE}/tap" switch -c "${branch}"
           fi
 
+      - name: "🍺 Validate Formula"
+        if: inputs.dry_run == true
+        shell: sh
+        run: |
+          set -eu
+          formula="${GITHUB_WORKSPACE}/tap/${{ inputs.formula_path }}"
+          test -f "${formula}"
+          brew audit --strict --formula "${formula}"
+
       - name: "📥 Read Release Asset"
         id: release_asset
+        if: inputs.dry_run != true
         shell: sh
         run: |
           set -eu
@@ -77,6 +87,7 @@ jobs:
           printf 'url=%s\n' "${url}"
 
       - name: "🍺 Update Formula"
+        if: inputs.dry_run != true
         shell: sh
         run: |
           set -eu

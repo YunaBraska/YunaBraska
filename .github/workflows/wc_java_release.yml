@@ -7,14 +7,19 @@ on:
         description: Build commit.
         value: ${{ jobs.build.outputs.commit_sha }}
       dry_run:
-        description: No new version to publish.
-        value: ${{ jobs.release.outputs.dry_run }}
+        description: Publish a snapshot instead of a release.
+        value: ${{ jobs.mode.outputs.dry_run }}
       version:
         description: Resolved release version.
         value: ${{ jobs.build.outputs.version }}
     inputs:
       force:
         description: Publish unchanged source.
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: Publish a snapshot.
         required: false
         default: false
         type: boolean
@@ -35,19 +40,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    permissions:
-      contents: read
-    uses: ./.github/workflows/wc_java_build_common.yml
-    with:
-      ref: ${{ github.sha }}
-      semver_strategy: ${{ inputs.semver_strategy }}
-      upstream_version: ${{ inputs.upstream_version }}
-      upload_artifact: true
-
-  release:
-    needs:
-      - build
+  mode:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -60,12 +53,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: "🏷️ Release"
+      - name: "🏷️ Release Mode"
         id: release_info
         shell: sh
         run: |
           set -eu
-          version="${{ needs.build.outputs.version }}"
           case "${{ inputs.semver_strategy }}" in
             snapshot)
               dry_run=false
@@ -75,7 +67,7 @@ jobs:
               if [ "${{ inputs.force }}" = "true" ]; then
                 dry_run=false
               elif [ -n "${{ inputs.upstream_version }}" ]; then
-                if ! git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                if ! git rev-parse -q --verify "refs/tags/${{ inputs.upstream_version }}" >/dev/null; then
                   dry_run=false
                 fi
               else
@@ -86,32 +78,30 @@ jobs:
               fi
               ;;
             *)
-              if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                dry_run=true
-              else
-                dry_run=false
-              fi
+              dry_run=false
               ;;
           esac
 
-          if [ "${GITHUB_REF}" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+          if [ "${{ inputs.dry_run }}" = "true" ] || [ "${GITHUB_REF}" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
             dry_run=true
           fi
-
-          case "${version}" in
-            *-SNAPSHOT)
-              ;;
-            *)
-              if [ "${dry_run}" = "false" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                echo "Release tag already exists: ${version}" >&2
-                exit 1
-              fi
-              ;;
-          esac
 
           {
             printf 'dry_run=%s\n' "${dry_run}"
           } >> "${GITHUB_OUTPUT}"
           printf 'dry_run=%s\n' "${dry_run}"
           printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
-          printf 'version=%s\n' "${version}"
+          printf 'upstream_version=%s\n' "${{ inputs.upstream_version }}"
+
+  build:
+    needs:
+      - mode
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_java_build_common.yml
+    with:
+      ref: ${{ github.sha }}
+      semver_strategy: ${{ inputs.semver_strategy }}
+      upstream_version: ${{ inputs.upstream_version }}
+      dry_run: ${{ needs.mode.outputs.dry_run == 'true' }}
+      upload_artifact: true

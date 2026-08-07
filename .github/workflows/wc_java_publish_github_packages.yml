@@ -8,10 +8,6 @@ on:
         required: false
         default: ''
         type: string
-      dry_run:
-        description: Dry run.
-        required: true
-        type: boolean
 
 permissions: {}
 
@@ -60,9 +56,5 @@ jobs:
         shell: sh
         run: |
           set -eu
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ${{ steps.java_info.outputs.cmd }} -B -DskipTests package
-            exit 0
-          fi
           repository="github::default::https://maven.pkg.github.com/${{ github.repository }}"
           ${{ steps.java_info.outputs.cmd }} -B -DskipTests -DaltDeploymentRepository="${repository}" deploy
