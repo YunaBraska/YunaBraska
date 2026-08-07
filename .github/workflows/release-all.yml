@@ -60,7 +60,7 @@ jobs:
                 done
 
                 if [ "${matches}" -gt 1 ]; then
-                  echo "Skipping ${repository}: multiple pinned Java release workflows."
+                  echo "Skipping ${repository}: multiple release markers."
                   sed -i "\\|^${repository}[[:space:]]|d" "${releases_file}"
                 fi
               done
