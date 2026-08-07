@@ -51,7 +51,7 @@ jobs:
   release:
     permissions:
       contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@b317778e8353eecddc671bd4afbedd0fa659f990
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
     with:
       force: ${{ inputs.force }}
       dry_run: ${{ inputs.maven_central != true || inputs.github_packages != true || inputs.homebrew != true }}
@@ -63,7 +63,7 @@ jobs:
       actions: read
       contents: read
       deployments: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@b317778e8353eecddc671bd4afbedd0fa659f990
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
     secrets:
       CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
       CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
@@ -78,7 +78,7 @@ jobs:
       contents: read
       deployments: write
       packages: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@b317778e8353eecddc671bd4afbedd0fa659f990
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
 
   github:
     needs: [release, central, packages]
@@ -86,7 +86,7 @@ jobs:
     permissions:
       actions: read
       contents: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@b317778e8353eecddc671bd4afbedd0fa659f990
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
     with:
       commit_sha: ${{ needs.release.outputs.commit_sha }}
       version: ${{ needs.release.outputs.version }}
@@ -96,7 +96,7 @@ jobs:
     if: ${{ always() && !cancelled() && needs.release.result == 'success' && (needs.github.result == 'success' || needs.release.outputs.dry_run == 'true') }}
     permissions:
       contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@b317778e8353eecddc671bd4afbedd0fa659f990
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
     with:
       formula_path: Formula/my-tool.rb
       tap_repository: YunaBraska/homebrew-tap
