@@ -2,45 +2,32 @@ name: 🏷️ CD · Release
 
 on:
   workflow_call:
+    outputs:
+      commit_sha:
+        description: Build commit.
+        value: ${{ jobs.build.outputs.commit_sha }}
+      dry_run:
+        description: No new version to publish.
+        value: ${{ jobs.release.outputs.dry_run }}
+      version:
+        description: Resolved release version.
+        value: ${{ jobs.build.outputs.version }}
     inputs:
-      default_branch:
-        required: false
-        default: main
-        type: string
       force:
+        description: Publish unchanged source.
         required: false
         default: false
         type: boolean
-      github_packages:
-        required: false
-        default: true
-        type: boolean
-      maven_central:
-        required: false
-        default: true
-        type: boolean
-      release_strategy:
-        required: false
-        default: release
-        type: string
-      upstream_version:
+      semver_strategy:
+        description: Semver next strategy.
         required: false
         default: ''
         type: string
-      version_source:
+      upstream_version:
+        description: Upstream version.
         required: false
-        default: date
+        default: ''
         type: string
-    secrets:
-      CENTRAL_PASS:
-        required: false
-      CENTRAL_USER:
-        required: false
-      GPG_PASSPHRASE:
-        required: false
-      GPG_SIGNING_KEY:
-        required: false
-
 permissions: {}
 
 concurrency:
@@ -48,242 +35,83 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  plan:
+  build:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_java_build_common.yml
+    with:
+      ref: ${{ github.sha }}
+      semver_strategy: ${{ inputs.semver_strategy }}
+      upstream_version: ${{ inputs.upstream_version }}
+      upload_artifact: true
+
+  release:
+    needs:
+      - build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     outputs:
-      dry_run_central: ${{ steps.plan.outputs.dry_run_central }}
-      dry_run_github_packages: ${{ steps.plan.outputs.dry_run_github_packages }}
-      create_release: ${{ steps.plan.outputs.create_release }}
-      pre_release: ${{ steps.plan.outputs.pre_release }}
-      ref: ${{ steps.plan.outputs.ref }}
-      should_release: ${{ steps.plan.outputs.should_release }}
-      version: ${{ steps.plan.outputs.version }}
+      dry_run: ${{ steps.release_info.outputs.dry_run }}
     steps:
       - name: "🧑‍💻 Checkout"
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
-      - name: "🏷️ Read Latest Tag"
-        id: latest_tag
+      - name: "🏷️ Release"
+        id: release_info
         shell: sh
         run: |
           set -eu
-          git fetch --tags origin
-          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
-          printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
-          printf 'latest_tag=%s\n' "${latest_tag:-none}"
-
-      - name: "🔢 Read Semver"
-        id: semver_info
-        if: ${{ inputs.version_source == 'upstream' }}
-        uses: YunaBraska/semver-info-action@65ec2697ed91859f89abdacb28f7d7824b84ddf1 # v2.0.83
-        with:
-          semver-a: ${{ inputs.upstream_version }}
-          semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
-          fallBack-semver-b: 0.0.0
-
-      - name: "🏷️ Plan Release"
-        id: plan
-        shell: sh
-        run: |
-          set -eu
-          default_branch="${{ inputs.default_branch }}"
-          force="${{ inputs.force }}"
-          github_packages="${{ inputs.github_packages }}"
-          maven_central="${{ inputs.maven_central }}"
-          release_strategy="${{ inputs.release_strategy }}"
-          upstream_version="${{ inputs.upstream_version }}"
-          version_source="${{ inputs.version_source }}"
-          latest_tag="${{ steps.latest_tag.outputs.latest_tag }}"
-          is_valid_semver="${{ steps.semver_info.outputs.is_valid_semver_a }}"
-          clean_semver="${{ steps.semver_info.outputs.clean_semver_a }}"
-          next_rc="${{ steps.semver_info.outputs.next_rc }}"
-
-          if [ "${maven_central}" = "true" ] && [ "${GITHUB_REF}" != "refs/heads/${default_branch}" ]; then
-            echo "Maven Central publishing must run from ${default_branch}." >&2
-            exit 1
-          fi
-
-          has_material_changes=false
-          if [ -z "${latest_tag}" ]; then
-            has_material_changes=true
-          elif ! git diff --quiet "${latest_tag}"..HEAD -- pom.xml src; then
-            has_material_changes=true
-          fi
-
-          case "${version_source}" in
-            date)
-              base_version=$(git log -1 --format=%cs HEAD | tr '-' '.')
+          version="${{ needs.build.outputs.version }}"
+          case "${{ inputs.semver_strategy }}" in
+            snapshot)
+              dry_run=false
               ;;
-            upstream)
-              if [ "${is_valid_semver}" != "true" ]; then
-                echo "Invalid upstream version: ${upstream_version}" >&2
+            '')
+              dry_run=true
+              if [ "${{ inputs.force }}" = "true" ]; then
+                dry_run=false
+              elif [ -n "${{ inputs.upstream_version }}" ]; then
+                if ! git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                  dry_run=false
+                fi
+              else
+                latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+                if [ -z "${latest_tag}" ] || ! git diff --quiet "${latest_tag}"..HEAD -- pom.xml src; then
+                  dry_run=false
+                fi
+              fi
+              ;;
+            *)
+              if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                dry_run=true
+              else
+                dry_run=false
+              fi
+              ;;
+          esac
+
+          if [ "${GITHUB_REF}" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+            dry_run=true
+          fi
+
+          case "${version}" in
+            *-SNAPSHOT)
+              ;;
+            *)
+              if [ "${dry_run}" = "false" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+                echo "Release tag already exists: ${version}" >&2
                 exit 1
               fi
-              base_version="${clean_semver}"
-              ;;
-            *)
-              echo "Unsupported version source: ${version_source}" >&2
-              exit 1
               ;;
           esac
 
-          case "${release_strategy}" in
-            snapshot)
-              version="${base_version}-SNAPSHOT"
-              should_release=true
-              create_release=false
-              pre_release=false
-              ;;
-            rc)
-              version="${next_rc}"
-              test -n "${version}"
-              create_release=true
-              pre_release=true
-              if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                should_release=false
-              else
-                should_release=true
-              fi
-              ;;
-            release)
-              version="${base_version}"
-              create_release=true
-              pre_release=false
-              if [ "${version_source}" = "date" ]; then
-                version_changed="${has_material_changes}"
-              elif git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-                version_changed=false
-              else
-                version_changed=true
-              fi
-              should_release=false
-              if [ "${force}" = "true" ] || [ "${version_changed}" = "true" ]; then
-                should_release=true
-              fi
-              ;;
-            *)
-              echo "Unsupported release strategy: ${release_strategy}" >&2
-              exit 1
-              ;;
-          esac
-
-          if [ "${release_strategy}" != "snapshot" ] && [ "${should_release}" = "true" ] && git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
-            echo "Release tag already exists: ${version}" >&2
-            exit 1
-          fi
-
-          if [ "${maven_central}" = "true" ]; then
-            dry_run_central=false
-          else
-            dry_run_central=true
-          fi
-          if [ "${github_packages}" = "true" ]; then
-            dry_run_github_packages=false
-          else
-            dry_run_github_packages=true
-          fi
-
-          ref=$(git rev-parse HEAD)
           {
-            printf 'dry_run_central=%s\n' "${dry_run_central}"
-            printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
-            printf 'create_release=%s\n' "${create_release}"
-            printf 'pre_release=%s\n' "${pre_release}"
-            printf 'ref=%s\n' "${ref}"
-            printf 'should_release=%s\n' "${should_release}"
-            printf 'version=%s\n' "${version}"
+            printf 'dry_run=%s\n' "${dry_run}"
           } >> "${GITHUB_OUTPUT}"
-
-          printf 'dry_run_central=%s\n' "${dry_run_central}"
-          printf 'dry_run_github_packages=%s\n' "${dry_run_github_packages}"
-          printf 'create_release=%s\n' "${create_release}"
-          printf 'pre_release=%s\n' "${pre_release}"
-          printf 'ref=%s\n' "${ref}"
-          printf 'latest_tag=%s\n' "${latest_tag:-none}"
-          printf 'has_material_changes=%s\n' "${has_material_changes}"
-          printf 'release_strategy=%s\n' "${release_strategy}"
-          printf 'version_source=%s\n' "${version_source}"
+          printf 'dry_run=%s\n' "${dry_run}"
+          printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
           printf 'version=%s\n' "${version}"
-          printf 'should_release=%s\n' "${should_release}"
-
-  build:
-    needs:
-      - plan
-    if: ${{ always() && needs.plan.outputs.should_release == 'true' }}
-    permissions:
-      contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_build_common.yml@09dc05d4a245632f92374ae36d53577b17211b74
-    with:
-      ref: ${{ needs.plan.outputs.ref }}
-      release: true
-      version: ${{ needs.plan.outputs.version }}
-
-  publish-central:
-    needs:
-      - plan
-      - build
-    if: ${{ always() && !cancelled() && needs.build.result == 'success' }}
-    permissions:
-      actions: read
-      contents: read
-      deployments: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@09dc05d4a245632f92374ae36d53577b17211b74
-    with:
-      dry_run: ${{ needs.plan.outputs.dry_run_central == 'true' }}
-    secrets:
-      CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
-      CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
-      GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
-      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-
-  publish-github-packages:
-    needs:
-      - plan
-      - build
-    if: ${{ always() && !cancelled() && needs.build.result == 'success' }}
-    permissions:
-      actions: read
-      contents: read
-      deployments: write
-      packages: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@09dc05d4a245632f92374ae36d53577b17211b74
-    with:
-      dry_run: ${{ needs.plan.outputs.dry_run_github_packages == 'true' }}
-
-  create-release:
-    needs:
-      - plan
-      - build
-      - publish-central
-      - publish-github-packages
-    if: ${{ always() && !cancelled() && needs.plan.outputs.create_release == 'true' && needs.build.result == 'success' && needs.publish-central.result == 'success' && needs.publish-github-packages.result == 'success' }}
-    permissions:
-      actions: read
-      contents: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@09dc05d4a245632f92374ae36d53577b17211b74
-    with:
-      commit_sha: ${{ needs.build.outputs.commit_sha }}
-      version: ${{ needs.plan.outputs.version }}
-
-  mark-pre-release:
-    needs:
-      - plan
-      - create-release
-    if: ${{ always() && !cancelled() && needs.plan.outputs.pre_release == 'true' && needs.create-release.result == 'success' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: "🏷️ Mark RC"
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: sh
-        run: |
-          set -eu
-          gh release edit "${{ needs.plan.outputs.version }}" --repo "${{ github.repository }}" --prerelease

@@ -4,13 +4,16 @@ on:
   workflow_call:
     inputs:
       run_id:
+        description: Build run.
         required: false
         default: ''
         type: string
       commit_sha:
+        description: Build commit.
         required: true
         type: string
       version:
+        description: Release version.
         required: true
         type: string
 
@@ -46,14 +49,19 @@ jobs:
           test -n "$(find "${assets_dir}" -maxdepth 1 -type f -name '*.jar' -print -quit)"
 
       - name: "🏷️ GitHub Release [${{ inputs.version }}]"
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: sh
         run: |
           set -eu
-          if gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+          if GH_TOKEN="${{ github.token }}" gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "GitHub release already exists for ${{ inputs.version }}"
           else
-            gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes
+            case "${{ inputs.version }}" in
+              *-*)
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --prerelease --latest=false
+                ;;
+              *)
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --latest
+                ;;
+            esac
           fi
-          gh release upload "${{ inputs.version }}" "${RUNNER_TEMP}/release-assets"/* --repo "${{ github.repository }}" --clobber
+          GH_TOKEN="${{ github.token }}" gh release upload "${{ inputs.version }}" "${RUNNER_TEMP}/release-assets"/* --repo "${{ github.repository }}" --clobber
