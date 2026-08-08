@@ -44,7 +44,6 @@ jobs:
           assets_dir="${RUNNER_TEMP}/release-assets"
           rm -rf "${assets_dir}"
           mkdir -p "${assets_dir}"
-          cp pom.xml "${assets_dir}/${artifact_id}-${{ inputs.version }}.pom"
           find target -maxdepth 1 -type f -name "*-${{ inputs.version }}*.jar" -exec cp {} "${assets_dir}/" \;
           test -n "$(find "${assets_dir}" -maxdepth 1 -type f -name '*.jar' -print -quit)"
 
