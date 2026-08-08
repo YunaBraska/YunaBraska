@@ -15,6 +15,15 @@ flowchart LR
 
 Build resolves one version, writes it only to its workspace POM, and tests it. With `dry_run: true`, it resolves `next_snapshot`. It never reads `project.version` to decide a release.
 
+## POM migration baseline
+
+- Use `<version>1.0.0</version>` and define `project.build.outputTimestamp`.
+- Keep version properties in one block, grouped as project, test, and build.
+- Set `maven-jar-plugin` `outputTimestamp` from that property; the build replaces it with the commit timestamp.
+- Use `maven-compiler-plugin` `<release>`, not `<source>` / `<target>`.
+- Attach source and Javadoc jars in the normal build.
+- Keep profile `central` for GPG and `central-publishing-maven-plugin`, with `autoPublish` and `waitUntil` set to `published`.
+
 ## Full GitHub + Maven + Homebrew release
 
 Replace `my-tool` and `YunaBraska/homebrew-tap`. Omit any publisher the repository does not use.
