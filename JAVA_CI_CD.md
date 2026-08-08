@@ -51,7 +51,7 @@ jobs:
   release:
     permissions:
       contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@457393356a0872b3e7ad6557f744466082e574bc
     with:
       force: ${{ inputs.force }}
       dry_run: ${{ inputs.maven_central != true || inputs.github_packages != true || inputs.homebrew != true }}
@@ -63,7 +63,7 @@ jobs:
       actions: read
       contents: read
       deployments: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@457393356a0872b3e7ad6557f744466082e574bc
     secrets:
       CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
       CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
@@ -78,7 +78,7 @@ jobs:
       contents: read
       deployments: write
       packages: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@457393356a0872b3e7ad6557f744466082e574bc
 
   github:
     needs: [release, central, packages]
@@ -86,7 +86,7 @@ jobs:
     permissions:
       actions: read
       contents: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@457393356a0872b3e7ad6557f744466082e574bc
     with:
       commit_sha: ${{ needs.release.outputs.commit_sha }}
       version: ${{ needs.release.outputs.version }}
@@ -96,7 +96,7 @@ jobs:
     if: ${{ always() && !cancelled() && needs.release.result == 'success' && (needs.github.result == 'success' || needs.release.outputs.dry_run == 'true') }}
     permissions:
       contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@c7dc8697c1a1f473efa814cb7718aa7d45795ba8
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@457393356a0872b3e7ad6557f744466082e574bc
     with:
       formula_path: Formula/my-tool.rb
       tap_repository: YunaBraska/homebrew-tap
@@ -111,7 +111,7 @@ jobs:
 
 | Source / Semver strategy | Version |
 | --- | --- |
-| no `upstream_version` / empty | Commit date: `YYYY.M.D` |
+| no `upstream_version` / empty | Release date: `YYYY.M.D` |
 | `upstream_version` / empty | Exact upstream version |
 | either / `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
 
@@ -123,6 +123,37 @@ A GitHub version with a hyphen is a pre-release.
 
 Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening.
 
+## Maven Wrapper
+
+Dependabot does not support Maven Wrapper files. Run this weekly workflow; it opens a tested `bot/maintenance-*` PR, which weekly maintenance merges when green.
+
+```yml
+name: 🛠️ CI · Maintenance
+
+on:
+  schedule:
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run.
+        required: true
+        default: true
+        type: boolean
+
+permissions: {}
+
+jobs:
+  maven_wrapper:
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_update_maven_wrapper.yml@457393356a0872b3e7ad6557f744466082e574bc
+    with:
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+```
+
 ## Building blocks
 
 | Workflow | Purpose |
@@ -133,3 +164,4 @@ Weekly release discovery requires exactly one `# yuna-release: true` marker and 
 | `wc_java_publish_github_packages.yml` | Deploy the build workspace to GitHub Packages. |
 | `wc_java_create_github_release.yml` | Create/update a GitHub release and upload its assets. |
 | `wc_java_publish_homebrew.yml` | Download a release asset, update a formula, and open a tap PR. |
+| `wc_java_update_maven_wrapper.yml` | Update Maven Wrapper and open a maintenance PR. |
