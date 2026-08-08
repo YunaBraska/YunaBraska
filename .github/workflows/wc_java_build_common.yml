@@ -156,6 +156,7 @@ jobs:
             mvnw
             mvnw.cmd
             pom.xml
+            src
             target
             !target/site
             !target/site/**
