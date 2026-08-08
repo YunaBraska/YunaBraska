@@ -101,7 +101,7 @@ jobs:
             fi
             version="${{ steps.semver_info.outputs.clean_semver_a }}"
           else
-            version=$(git log -1 --format=%cs HEAD | awk -F- '{printf "%d.%d.%d\n", $1, $2, $3}')
+            version=$(date -u '+%Y.%m.%d' | sed -E 's/\.0+([0-9])/\.\1/g')
           fi
 
           if [ "${{ inputs.dry_run }}" = "true" ]; then
