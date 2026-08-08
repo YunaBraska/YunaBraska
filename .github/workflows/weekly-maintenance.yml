@@ -1,0 +1,71 @@
+name: 🤖 CD · Weekly Maintenance
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run.
+        required: true
+        default: true
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: weekly-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+    steps:
+      - name: "🤖 Merge"
+        shell: sh
+        run: |
+          set -eu
+          dry_run="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}"
+          repositories_file="${RUNNER_TEMP}/repositories.tsv"
+          failures=0
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "BOT_TOKEN is not configured; weekly maintenance is disabled."
+            exit 0
+          fi
+
+          gh repo list "${GITHUB_REPOSITORY_OWNER}" --limit 1000 --json nameWithOwner,isArchived,isFork,defaultBranchRef \
+            --jq '.[] | select(.isArchived == false and .isFork == false and .defaultBranchRef != null) | [.nameWithOwner, .defaultBranchRef.name] | @tsv' \
+            > "${repositories_file}"
+
+          merge_ready_prs() {
+            repository=$1
+            base_branch=$2
+            prs=$(gh pr list --repo "${repository}" --base "${base_branch}" --state open --json number,headRefName,isDraft,mergeStateStatus \
+              --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN") | select(.headRefName | test("^(dependabot/|bot/maintenance-)")) | .number')
+            for pr in ${prs}; do
+              if ! gh pr checks "${pr}" --repo "${repository}" >/dev/null 2>&1; then
+                echo "${repository}#${pr} is not green; leaving it open."
+                continue
+              fi
+              if [ "${dry_run}" = "true" ]; then
+                echo "Would merge ${repository}#${pr}."
+              elif gh pr merge "${pr}" --repo "${repository}" --squash --delete-branch; then
+                echo "Merged ${repository}#${pr}."
+              else
+                echo "Could not merge ${repository}#${pr}." >&2
+                failures=$((failures + 1))
+              fi
+            done
+          }
+
+          while IFS="$(printf '\t')" read -r repository default_branch; do
+            merge_ready_prs "${repository}" "${default_branch}"
+          done < "${repositories_file}"
+
+          test "${failures}" -eq 0

@@ -44,7 +44,7 @@ on:
         default: false
         type: boolean
 
-# yuna-java-release: true
+# yuna-release: true
 name: 🏷️ CD · Release
 
 jobs:
@@ -121,7 +121,7 @@ Common build defaults to `snapshot`. The Semver base is the latest tag or upstre
 
 A GitHub version with a hyphen is a pre-release.
 
-Weekly release discovery requires exactly one `# yuna-java-release: true` marker.
+Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening.
 
 ## Building blocks
 
