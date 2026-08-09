@@ -81,9 +81,10 @@ jobs:
         shell: sh
         run: |
           set -eu
+          chmod +x ./mvnw
           build_output_timestamp=$(git log -1 --format=%cI HEAD)
-          ${{ steps.java_info.outputs.cmd }} -B versions:set -DnewVersion="${{ inputs.version }}" -DgenerateBackupPoms=false
-          ${{ steps.java_info.outputs.cmd }} -B versions:set-property -Dproperty=project.build.outputTimestamp -DnewVersion="${build_output_timestamp}" -DgenerateBackupPoms=false
+          ./mvnw -B versions:set -DnewVersion="${{ inputs.version }}" -DgenerateBackupPoms=false
+          ./mvnw -B versions:set-property -Dproperty=project.build.outputTimestamp -DnewVersion="${build_output_timestamp}" -DgenerateBackupPoms=false
           printf 'build_output_timestamp=%s\n' "${build_output_timestamp}"
           printf 'version=%s\n' "${{ inputs.version }}"
 
@@ -111,7 +112,7 @@ jobs:
         run: |
           set -eu
           chmod +x ./mvnw
-          ${{ steps.java_info.outputs.cmd }} -B -P${{ inputs.native_profile }} -DskipTests package
+          ./mvnw -B -P${{ inputs.native_profile }} -DskipTests package
 
       - name: "📦 Prepare Native Asset [${{ matrix.name }}]"
         shell: sh
