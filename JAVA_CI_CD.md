@@ -138,7 +138,7 @@ jobs:
 
 Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
 
-A date that is not newer than the latest tag resolves `next_snapshot`; it cannot create a lower stable Maven version.
+A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning.
 
 Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Homebrew audits its formula without an update. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. A release opens a `bot/maintenance-homebrew-<repository>-<version>` tap PR; the next weekly run merges it when green.
 

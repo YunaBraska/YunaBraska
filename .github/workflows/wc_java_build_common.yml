@@ -89,8 +89,12 @@ jobs:
         run: |
           set -eu
           latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
-          latest_tag=$(printf '%s\n' "${latest_tag}" | sed -E 's/^0+([0-9])/\1/; s/\.0+([0-9])/\.\1/g')
-          printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
+          date_tag=$(printf '%s\n' "${latest_tag}" | sed -nE '/^[0-9]{4}\.([1-9]|1[0-2])\.([1-9]|[12][0-9]|3[01])$/p')
+          {
+            printf 'date_tag=%s\n' "${date_tag}"
+            printf 'latest_tag=%s\n' "${latest_tag}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'date_tag=%s\n' "${date_tag:-none}"
           printf 'latest_tag=%s\n' "${latest_tag:-none}"
 
       - name: "🔢 Resolve Semver"
@@ -98,7 +102,7 @@ jobs:
         uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
         with:
           semver-a: ${{ inputs.upstream_version || steps.date_info.outputs.date_version }}
-          semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
+          semver-b: ${{ inputs.upstream_version && steps.latest_tag.outputs.latest_tag || steps.latest_tag.outputs.date_tag }}
           fallBack-semver-a: 0.0.1
           fallBack-semver-b: 0.0.1
 
@@ -135,6 +139,7 @@ jobs:
             printf 'version=%s\n' "${version}"
           } >> "${GITHUB_OUTPUT}"
           printf 'date_version=%s\n' "${{ steps.date_info.outputs.date_version }}"
+          printf 'date_tag=%s\n' "${{ steps.latest_tag.outputs.date_tag || 'none' }}"
           printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
           printf 'dry_run=%s\n' "${dry_run}"
           printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
