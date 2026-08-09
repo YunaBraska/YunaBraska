@@ -8,9 +8,12 @@ flowchart LR
   B --> C[Release: deploy or dry run]
   C --> D[Maven Central]
   C --> E[GitHub Packages]
+  C --> N[Native matrix]
   D --> F[GitHub release]
   E --> F
+  N --> F
   F --> G[Homebrew]
+  F --> H[Docker]
 ```
 
 Build resolves one version, writes it only to its workspace POM, and tests it. With `dry_run: true`, it resolves `next_snapshot`. It never reads `project.version` to decide a release. Date versions use UTC.
@@ -27,9 +30,9 @@ Build resolves one version, writes it only to its workspace POM, and tests it. W
 ## Migration
 
 1. Create one CI-only PR from the POM baseline and the four standard workflows: pull request, snapshot, release, and maintenance.
-2. Add Central and GitHub Packages. Add Homebrew only for a formula. Keep every provider call on the same full commit SHA.
-3. Run the PR build, squash merge it, and verify the real snapshot jobs in Central and GitHub Packages.
-4. Dispatch one forced stable release only when a new UTC date version is available. Verify Central, Packages, tag, GitHub Release, JAR, sources, and Javadocs.
+2. Add Central and GitHub Packages. Add Homebrew, native, or Docker only when the project ships them. Keep every provider call on the same full commit SHA.
+3. Run the PR build, squash merge it, and verify the real snapshot jobs in Central and GitHub Packages. Native projects also verify their one-day matrix artifacts.
+4. Dispatch one forced stable release only when a new UTC date version is available. Verify Central, Packages, tag, GitHub Release, JAR, sources, Javadocs, and every enabled native asset or image.
 
 Replace `<FULL_COMMIT_SHA>` below with one full immutable commit SHA from `YunaBraska/YunaBraska`.
 
@@ -184,8 +187,14 @@ jobs:
 | `wc_java_publish_github_packages.yml` | Deploy the build workspace to GitHub Packages. |
 | `wc_java_create_github_release.yml` | Create/update a GitHub release and upload its assets. |
 | `wc_java_publish_homebrew.yml` | Download a release asset, update a formula, and open a tap PR. |
+| `wc_java_build_native.yml` | Build Linux amd64/arm64, macOS arm64, and Windows x64 native assets from the resolved version. |
+| `wc_java_publish_docker.yml` | Build and publish a versioned multi-platform GHCR image. |
 | `wc_java_update_maven_wrapper.yml` | Update Maven Wrapper and open a maintenance PR. |
+
+## Native
+
+Native projects add `native` after the resolved Java build. Maven Central and GitHub Packages wait for it, so a native failure cannot leave a successful Maven release without a complete GitHub release. Snapshots keep the matrix outputs for one day; stable releases attach them to the GitHub release.
 
 ## Docker
 
-**Planned.** The first Docker migration adds `wc_java_publish_docker.yml` as another optional publisher. It receives the resolved version and dry-run state, and runs after the GitHub release. Maven, image build, and registry details stay separate.
+Docker projects add `docker` after a stable GitHub release or after snapshot publishers. `wc_java_publish_docker.yml` builds the checked-out resolved version and pushes `ghcr.io/<owner>/<repository>:<version>` for every run. Versions with a hyphen—including snapshots—never move `latest`; a stable version also updates `latest`.
