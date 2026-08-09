@@ -8,7 +8,7 @@ on:
         value: ${{ jobs.build.outputs.commit_sha }}
       dry_run:
         description: Publish a snapshot instead of a release.
-        value: ${{ jobs.mode.outputs.dry_run }}
+        value: ${{ jobs.build.outputs.dry_run }}
       version:
         description: Resolved release version.
         value: ${{ jobs.build.outputs.version }}
