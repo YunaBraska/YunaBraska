@@ -33,6 +33,11 @@ on:
         required: false
         default: ''
         type: string
+      submodules:
+        description: Checkout submodules.
+        required: false
+        default: false
+        type: boolean
 permissions: {}
 
 concurrency:
@@ -101,6 +106,7 @@ jobs:
     uses: ./.github/workflows/wc_java_build_common.yml
     with:
       ref: ${{ github.sha }}
+      submodules: ${{ inputs.submodules }}
       semver_strategy: ${{ inputs.semver_strategy }}
       upstream_version: ${{ inputs.upstream_version }}
       dry_run: ${{ needs.mode.outputs.dry_run == 'true' }}
