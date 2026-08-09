@@ -8,11 +8,6 @@ on:
         required: false
         default: ''
         type: string
-      submodules:
-        description: Checkout submodules.
-        required: false
-        default: false
-        type: boolean
       semver_strategy:
         description: Semver next strategy.
         required: false
@@ -62,7 +57,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref || github.sha }}
-          submodules: ${{ inputs.submodules }}
+          submodules: recursive
 
       - name: "🧾 Read Commit"
         id: commit_info
@@ -195,6 +190,8 @@ jobs:
             mvnw
             mvnw.cmd
             pom.xml
+            release-assets
+            release-assets/**
             src
             target
             !target/site

@@ -16,11 +16,6 @@ on:
         description: Release version.
         required: true
         type: string
-      native_assets:
-        description: Upload native assets.
-        required: false
-        default: false
-        type: boolean
 
 permissions: {}
 
@@ -44,31 +39,28 @@ jobs:
         shell: sh
         run: |
           set -eu
-          artifact_id=$(awk -F '[<>]' '/^[[:space:]]*<artifactId>/ { print $3; exit }' pom.xml)
-          test -n "${artifact_id}"
           assets_dir="${RUNNER_TEMP}/release-assets"
-          rm -rf "${assets_dir}"
           mkdir -p "${assets_dir}"
+          if [ -d release-assets ]; then
+            find release-assets -maxdepth 1 -type f -exec cp {} "${assets_dir}/" \;
+          fi
           find target -maxdepth 1 -type f -name "*-${{ inputs.version }}*.jar" -exec cp {} "${assets_dir}/" \;
           test -n "$(find "${assets_dir}" -maxdepth 1 -type f -name '*.jar' -print -quit)"
 
-      - name: "📥 Download Native Assets"
-        if: inputs.native_assets == true
+      - name: "📥 Download Release Assets"
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          pattern: native-*
+          pattern: release-assets-*
           path: ${{ runner.temp }}/release-assets
           merge-multiple: true
           github-token: ${{ github.token }}
           run-id: ${{ inputs.run_id || github.run_id }}
 
-      - name: "🧩 Prepare Native Assets"
-        if: inputs.native_assets == true
+      - name: "🧩 Prepare Executable Assets"
         shell: sh
         run: |
           set -eu
           assets_dir="${RUNNER_TEMP}/release-assets"
-          test -n "$(find "${assets_dir}" -maxdepth 1 -type f \( -name '*.native' -o -name '*.exe' \) -print -quit)"
           find "${assets_dir}" -maxdepth 1 -type f \( -name '*.native' -o -name '*.exe' \) -exec chmod +x {} \;
 
       - name: "🏷️ GitHub Release [${{ inputs.version }}]"

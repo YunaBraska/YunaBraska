@@ -11,16 +11,6 @@ on:
         description: Resolved version.
         required: true
         type: string
-      native_profile:
-        description: Maven native profile.
-        required: false
-        default: native
-        type: string
-      linux_dockerfile:
-        description: Linux native Dockerfile.
-        required: false
-        default: Dockerfile_Native
-        type: string
 
 permissions: {}
 
@@ -65,6 +55,7 @@ jobs:
         with:
           fetch-depth: 1
           ref: ${{ inputs.ref }}
+          submodules: recursive
 
       - name: "🔍 Read Java Info"
         id: java_info
@@ -105,7 +96,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
-          file: ${{ inputs.linux_dockerfile }}
+          file: Dockerfile_Native
           target: export
           outputs: type=local,dest=target
           platforms: ${{ matrix.platform }}
@@ -116,7 +107,7 @@ jobs:
         run: |
           set -eu
           chmod +x ./mvnw
-          ./mvnw -B -P${{ inputs.native_profile }} -DskipTests package
+          ./mvnw -B -Pnative -DskipTests package
 
       - name: "📦 Prepare Native Asset [${{ matrix.name }}]"
         shell: sh
@@ -137,16 +128,16 @@ jobs:
           esac
           test -f "${source}"
           asset="${artifact_id}-${{ matrix.name }}-${{ inputs.version }}${{ matrix.extension }}"
-          mkdir -p native
-          cp "${source}" "native/${asset}"
-          chmod +x "native/${asset}"
+          mkdir -p release-assets
+          cp "${source}" "release-assets/${asset}"
+          chmod +x "release-assets/${asset}"
           printf 'asset=%s\n' "${asset}"
           printf 'source=%s\n' "${source}"
 
-      - name: "📤 Upload Native Asset [${{ matrix.name }}]"
+      - name: "📤 Upload Release Asset [${{ matrix.name }}]"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: native-${{ matrix.name }}
-          path: native/*
+          name: release-assets-${{ matrix.name }}
+          path: release-assets/*
           if-no-files-found: error
           retention-days: 1
