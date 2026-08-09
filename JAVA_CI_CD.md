@@ -30,7 +30,7 @@ Build resolves one version, writes it only to its workspace POM, and tests it. W
 ## Migration
 
 1. Create one CI-only PR from the POM baseline and the four standard workflows: pull request, snapshot, release, and maintenance.
-2. Add Central and GitHub Packages. Add Homebrew, native, Docker, or `submodules: true` only when needed. Keep every provider call on the same full commit SHA.
+2. Add Central and GitHub Packages. Add Homebrew, native, or Docker only when needed. Keep every provider call on the same full commit SHA.
 3. Run the PR build, squash merge it, and verify the real snapshot jobs in Central and GitHub Packages. Native projects also verify their one-day matrix artifacts.
 4. Dispatch one forced stable release only when a new UTC date version is available. Verify Central, Packages, tag, GitHub Release, JAR, sources, Javadocs, and every enabled native asset or image.
 
@@ -181,11 +181,11 @@ jobs:
 
 | Workflow | Purpose |
 | --- | --- |
-| `wc_java_build_common.yml` | Resolve, build, test, and optionally upload `build-workspace`; supports submodules and Playwright. |
+| `wc_java_build_common.yml` | Resolve, build, test, and optionally upload `build-workspace`; always checks out submodules and supports Playwright. |
 | `wc_java_release.yml` | Build and decide deploy versus dry run. Outputs `commit_sha`, `dry_run`, and `version`. |
 | `wc_java_publish_central.yml` | Deploy the build workspace to Maven Central. |
 | `wc_java_publish_github_packages.yml` | Deploy the build workspace to GitHub Packages. |
-| `wc_java_create_github_release.yml` | Create/update a GitHub release and upload its assets. |
+| `wc_java_create_github_release.yml` | Create/update a GitHub release and upload build plus `release-assets-*` assets. |
 | `wc_java_publish_homebrew.yml` | Download a release asset, update a formula, and open a tap PR. |
 | `wc_java_build_native.yml` | Build Linux amd64/arm64, macOS arm64, and Windows x64 native assets from the resolved version. |
 | `wc_java_publish_docker.yml` | Build and publish a versioned multi-platform GHCR image. |
@@ -193,8 +193,16 @@ jobs:
 
 ## Native
 
-Native projects add `native` after the resolved Java build. Maven Central and GitHub Packages wait for it, so a native failure cannot leave a successful Maven release without a complete GitHub release. Snapshots keep the matrix outputs for one day; stable releases attach them to the GitHub release.
+Native projects add `native` after the resolved Java build. Maven Central and GitHub Packages wait for it, so a native failure cannot leave a successful Maven release without a complete GitHub release. The native workflow always uses Maven profile `native` and `Dockerfile_Native`, then uploads each matrix file as `release-assets-*`. Snapshots keep those assets for one day; stable releases attach them to the GitHub release.
+
+Any workflow can add release files by uploading a `release-assets-*` artifact. A repository can also commit static files in `release-assets/`; the build workspace carries them to the GitHub release. No release input is needed.
+
+```yml
+with:
+  name: release-assets-my-files
+  path: release-assets/*
+```
 
 ## Docker
 
-Docker projects add `docker` after a stable GitHub release or after snapshot publishers. `wc_java_publish_docker.yml` builds the checked-out resolved version and pushes `ghcr.io/<owner>/<repository>:<version>` for every run. Versions with a hyphen—including snapshots—never move `latest`; a stable version also updates `latest`.
+Docker projects add `docker` after a stable GitHub release or after snapshot publishers. `wc_java_publish_docker.yml` builds `Dockerfile_Native` at the checked-out resolved version and pushes `ghcr.io/<owner>/<repository>:<version>` for every run. Versions with a hyphen—including snapshots—never move `latest`; a stable version also updates `latest`.
