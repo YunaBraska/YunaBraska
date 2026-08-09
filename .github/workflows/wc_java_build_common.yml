@@ -8,6 +8,11 @@ on:
         required: false
         default: ''
         type: string
+      submodules:
+        description: Checkout submodules.
+        required: false
+        default: false
+        type: boolean
       semver_strategy:
         description: Semver next strategy.
         required: false
@@ -57,6 +62,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref || github.sha }}
+          submodules: ${{ inputs.submodules }}
 
       - name: "🧾 Read Commit"
         id: commit_info
@@ -163,6 +169,14 @@ jobs:
           set -eu
           ${{ steps.java_info.outputs.cmd }} -B versions:set -DnewVersion="${{ steps.version_info.outputs.version }}" -DgenerateBackupPoms=false
           ${{ steps.java_info.outputs.cmd }} -B versions:set-property -Dproperty=project.build.outputTimestamp -DnewVersion="${{ steps.commit_info.outputs.build_output_timestamp }}" -DgenerateBackupPoms=false
+
+      - name: "🎭 Setup Playwright"
+        shell: sh
+        run: |
+          set -eu
+          if grep -q '<groupId>com.microsoft.playwright</groupId>' pom.xml; then
+            ${{ steps.java_info.outputs.cmd }} -B exec:java -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args='install --with-deps'
+          fi
 
       - name: "🧪 Build and Verify"
         shell: sh
