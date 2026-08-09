@@ -77,6 +77,10 @@ jobs:
           java-version: ${{ steps.java_info.outputs.java_version }}
           cache: maven
 
+      - name: "🛠️ Setup MSVC"
+        if: matrix.name == 'windows-x64'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+
       - name: "🏷️ Set Project Version [${{ inputs.version }}]"
         shell: sh
         run: |
