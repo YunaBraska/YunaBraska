@@ -35,6 +35,9 @@ on:
       version:
         description: Resolved version.
         value: ${{ jobs.test.outputs.version }}
+      dry_run:
+        description: Publish a snapshot instead of a release.
+        value: ${{ jobs.test.outputs.dry_run }}
 
 permissions: {}
 
@@ -46,6 +49,7 @@ jobs:
       contents: read
     outputs:
       commit_sha: ${{ steps.commit_info.outputs.commit_sha }}
+      dry_run: ${{ steps.version_info.outputs.dry_run }}
       version: ${{ steps.version_info.outputs.version }}
     steps:
       - name: "🧑‍💻 Checkout [${{ inputs.ref }}]"
@@ -68,9 +72,19 @@ jobs:
             printf 'build_output_timestamp=%s\n' "${build_output_timestamp}"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: "📅 Read UTC Date"
+        id: date_info
+        shell: sh
+        run: |
+          set -eu
+          date_version=$(date -u '+%Y.%m.%d' | sed -E 's/\.0+([0-9])/\.\1/g')
+          {
+            printf 'date_version=%s\n' "${date_version}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'date_version=%s\n' "${date_version}"
+
       - name: "🏷️ Read Latest Tag"
         id: latest_tag
-        if: ${{ inputs.dry_run == true || inputs.semver_strategy != '' }}
         shell: sh
         run: |
           set -eu
@@ -81,10 +95,9 @@ jobs:
 
       - name: "🔢 Resolve Semver"
         id: semver_info
-        if: ${{ inputs.dry_run == true || inputs.upstream_version != '' || inputs.semver_strategy != '' }}
         uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
         with:
-          semver-a: ${{ inputs.upstream_version }}
+          semver-a: ${{ inputs.upstream_version || steps.date_info.outputs.date_version }}
           semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
           fallBack-semver-a: 0.0.1
           fallBack-semver-b: 0.0.1
@@ -94,6 +107,7 @@ jobs:
         shell: sh
         run: |
           set -eu
+          dry_run="${{ inputs.dry_run }}"
           if [ -n "${{ inputs.upstream_version }}" ]; then
             if [ "${{ steps.semver_info.outputs.is_valid_semver_a }}" != "true" ]; then
               echo "Invalid upstream version: ${{ inputs.upstream_version }}" >&2
@@ -101,22 +115,28 @@ jobs:
             fi
             version="${{ steps.semver_info.outputs.clean_semver_a }}"
           else
-            version=$(date -u '+%Y.%m.%d' | sed -E 's/\.0+([0-9])/\.\1/g')
+            version="${{ steps.date_info.outputs.date_version }}"
           fi
 
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "${dry_run}" = "true" ]; then
             version="${{ steps.semver_info.outputs.next_snapshot }}"
             test -n "${version}"
           elif [ -n "${{ inputs.semver_strategy }}" ]; then
             version="${{ steps.semver_info.outputs[format('next_{0}', inputs.semver_strategy)] }}"
             test -n "${version}"
+          elif [ -z "${{ inputs.upstream_version }}" ] && [ "${{ steps.semver_info.outputs.is_greater_a }}" != "true" ]; then
+            dry_run=true
+            version="${{ steps.semver_info.outputs.next_snapshot }}"
+            test -n "${version}"
           fi
 
           {
+            printf 'dry_run=%s\n' "${dry_run}"
             printf 'version=%s\n' "${version}"
           } >> "${GITHUB_OUTPUT}"
+          printf 'date_version=%s\n' "${{ steps.date_info.outputs.date_version }}"
           printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
-          printf 'dry_run=%s\n' "${{ inputs.dry_run }}"
+          printf 'dry_run=%s\n' "${dry_run}"
           printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
           printf 'version=%s\n' "${version}"
           printf 'upstream_version=%s\n' "${{ inputs.upstream_version }}"
