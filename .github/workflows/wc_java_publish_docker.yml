@@ -1,0 +1,107 @@
+name: 🐳 CD · Publish Docker
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Build commit.
+        required: true
+        type: string
+      version:
+        description: Resolved version.
+        required: true
+        type: string
+      dockerfile:
+        description: Dockerfile.
+        required: false
+        default: Dockerfile
+        type: string
+      platforms:
+        description: Image platforms.
+        required: false
+        default: linux/amd64,linux/arm64
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    environment:
+      name: github-container-registry
+      url: ${{ format('https://github.com/{0}/pkgs/container/{1}', github.repository_owner, github.event.repository.name) }}
+    steps:
+      - name: "🧑‍💻 Checkout [${{ inputs.ref }}]"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.ref }}
+
+      - name: "🔍 Read Java Info"
+        id: java_info
+        uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          cache: maven
+
+      - name: "🏷️ Set Project Version [${{ inputs.version }}]"
+        shell: sh
+        run: |
+          set -eu
+          build_output_timestamp=$(git log -1 --format=%cI HEAD)
+          ${{ steps.java_info.outputs.cmd }} -B versions:set -DnewVersion="${{ inputs.version }}" -DgenerateBackupPoms=false
+          ${{ steps.java_info.outputs.cmd }} -B versions:set-property -Dproperty=project.build.outputTimestamp -DnewVersion="${build_output_timestamp}" -DgenerateBackupPoms=false
+          printf 'build_output_timestamp=%s\n' "${build_output_timestamp}"
+          printf 'version=%s\n' "${{ inputs.version }}"
+
+      - name: "🕹️ Setup QEMU"
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - name: "🐳 Setup Buildx"
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: "🔐 Login GHCR"
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: "🏷️ Resolve Image Tags"
+        id: image
+        shell: sh
+        run: |
+          set -eu
+          image=$(printf '%s\n' "ghcr.io/${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          case "${{ inputs.version }}" in
+            *-*)
+              tags="${image}:${{ inputs.version }}"
+              ;;
+            *)
+              tags="${image}:${{ inputs.version }}
+          ${image}:latest"
+              ;;
+          esac
+          {
+            printf 'image=%s\n' "${image}"
+            printf 'tags<<EOF\n%s\nEOF\n' "${tags}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'image=%s\n' "${image}"
+          printf 'tags=%s\n' "${tags}"
+
+      - name: "🐳 Build and Publish"
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
