@@ -13,7 +13,7 @@ flowchart LR
   F --> G[Homebrew]
 ```
 
-Build resolves one version, writes it only to its workspace POM, and tests it. With `dry_run: true`, it resolves `next_snapshot`. It never reads `project.version` to decide a release.
+Build resolves one version, writes it only to its workspace POM, and tests it. With `dry_run: true`, it resolves `next_snapshot`. It never reads `project.version` to decide a release. Date versions use UTC.
 
 ## POM migration baseline
 
@@ -23,6 +23,15 @@ Build resolves one version, writes it only to its workspace POM, and tests it. W
 - Use `maven-compiler-plugin` `<release>`, not `<source>` / `<target>`.
 - Attach source and Javadoc jars in the normal build.
 - Keep profile `central` for GPG and `central-publishing-maven-plugin`, with `autoPublish` and `waitUntil` set to `published`.
+
+## Migration
+
+1. Create one CI-only PR from the POM baseline and the four standard workflows: pull request, snapshot, release, and maintenance.
+2. Add Central and GitHub Packages. Add Homebrew only for a formula. Keep every provider call on the same full commit SHA.
+3. Run the PR build, squash merge it, and verify the real snapshot jobs in Central and GitHub Packages.
+4. Dispatch one forced stable release only when a new UTC date version is available. Verify Central, Packages, tag, GitHub Release, JAR, sources, and Javadocs.
+
+Replace `<FULL_COMMIT_SHA>` below with one full immutable commit SHA from `YunaBraska/YunaBraska`.
 
 ## Full GitHub + Maven + Homebrew release
 
@@ -60,7 +69,7 @@ jobs:
   release:
     permissions:
       contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@566f0d53a73c79d36616be7dcf6e05d9828d380b
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@<FULL_COMMIT_SHA>
     with:
       force: ${{ inputs.force }}
       dry_run: ${{ inputs.maven_central != true || inputs.github_packages != true || inputs.homebrew != true }}
@@ -72,7 +81,7 @@ jobs:
       actions: read
       contents: read
       deployments: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@566f0d53a73c79d36616be7dcf6e05d9828d380b
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_central.yml@<FULL_COMMIT_SHA>
     secrets:
       CENTRAL_USER: ${{ secrets.CENTRAL_USER }}
       CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
@@ -87,7 +96,7 @@ jobs:
       contents: read
       deployments: write
       packages: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@566f0d53a73c79d36616be7dcf6e05d9828d380b
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_github_packages.yml@<FULL_COMMIT_SHA>
 
   github:
     needs: [release, central, packages]
@@ -95,7 +104,7 @@ jobs:
     permissions:
       actions: read
       contents: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@566f0d53a73c79d36616be7dcf6e05d9828d380b
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_create_github_release.yml@<FULL_COMMIT_SHA>
     with:
       commit_sha: ${{ needs.release.outputs.commit_sha }}
       version: ${{ needs.release.outputs.version }}
@@ -105,7 +114,7 @@ jobs:
     if: ${{ always() && !cancelled() && needs.release.result == 'success' && (needs.github.result == 'success' || needs.release.outputs.dry_run == 'true') }}
     permissions:
       contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@566f0d53a73c79d36616be7dcf6e05d9828d380b
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@<FULL_COMMIT_SHA>
     with:
       formula_path: Formula/my-tool.rb
       tap_repository: YunaBraska/homebrew-tap
@@ -120,13 +129,13 @@ jobs:
 
 | Source / Semver strategy | Version |
 | --- | --- |
-| no `upstream_version` / empty | Release date: `YYYY.M.D` |
+| no `upstream_version` / empty | UTC release date: `YYYY.M.D` |
 | `upstream_version` / empty | Exact upstream version |
 | either / `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
 
 Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
 
-`false` selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Homebrew audits its formula without an update. An unchanged release or non-default branch also uses dry runs. GitHub releases are real and created only for a new non-snapshot version. A release opens a `bot/maintenance-homebrew-<repository>-<version>` tap PR; the next weekly run merges it when green.
+Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Homebrew audits its formula without an update. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. A release opens a `bot/maintenance-homebrew-<repository>-<version>` tap PR; the next weekly run merges it when green.
 
 A GitHub version with a hyphen is a pre-release.
 
@@ -158,7 +167,7 @@ jobs:
       actions: write
       contents: write
       pull-requests: write
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_update_maven_wrapper.yml@566f0d53a73c79d36616be7dcf6e05d9828d380b
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_update_maven_wrapper.yml@<FULL_COMMIT_SHA>
     with:
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
 ```
@@ -174,3 +183,7 @@ jobs:
 | `wc_java_create_github_release.yml` | Create/update a GitHub release and upload its assets. |
 | `wc_java_publish_homebrew.yml` | Download a release asset, update a formula, and open a tap PR. |
 | `wc_java_update_maven_wrapper.yml` | Update Maven Wrapper and open a maintenance PR. |
+
+## Docker
+
+**Planned.** The first Docker migration adds `wc_java_publish_docker.yml` as another optional publisher. It receives the resolved version and dry-run state, and runs after the GitHub release. Maven, image build, and registry details stay separate.
