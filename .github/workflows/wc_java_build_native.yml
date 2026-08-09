@@ -125,7 +125,10 @@ jobs:
               source=target/app.native
               ;;
             host)
-              source="target/${artifact_id}.native${{ matrix.extension }}"
+              source="target/${artifact_id}.native"
+              if [ "${{ matrix.extension }}" = '.exe' ]; then
+                source="${source}.exe"
+              fi
               ;;
           esac
           test -f "${source}"
