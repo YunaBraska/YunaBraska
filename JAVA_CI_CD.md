@@ -5,15 +5,15 @@ Reusable Java workflows use POSIX `sh`. External calls use a full commit SHA; an
 ```mermaid
 flowchart LR
   A[Trigger] --> B[Build: resolve version]
-  B --> C[Release: deploy or dry run]
-  C --> D[Maven Central]
-  C --> E[GitHub Packages]
-  C --> N[Native matrix]
+  B --> N[Native matrix]
+  N --> D[Maven Central]
+  N --> E[GitHub Packages]
+  N --> H[Docker]
   D --> F[GitHub release]
   E --> F
-  N --> F
-  F --> G[Homebrew]
-  F --> H[Docker]
+  H --> F
+  F -.-> G[Tap updater]
+  G --> I[Homebrew PR]
 ```
 
 Build resolves one version, writes it only to its workspace POM, and tests it. With `dry_run: true`, it resolves `next_snapshot`. It never reads `project.version` to decide a release. Date versions use UTC.
@@ -36,9 +36,9 @@ Build resolves one version, writes it only to its workspace POM, and tests it. W
 
 Replace `<FULL_COMMIT_SHA>` below with one full immutable commit SHA from `YunaBraska/YunaBraska`.
 
-## Full GitHub + Maven + Homebrew release
+## Full GitHub + Maven release
 
-Replace `my-tool` and `YunaBraska/homebrew-tap`. Omit any publisher the repository does not use.
+Omit any publisher the repository does not use.
 
 ```yml
 on:
@@ -51,11 +51,6 @@ on:
         type: boolean
       github_packages:
         description: GitHub Packages.
-        required: true
-        default: true
-        type: boolean
-      homebrew:
-        description: Homebrew.
         required: true
         default: true
         type: boolean
@@ -75,7 +70,7 @@ jobs:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@<FULL_COMMIT_SHA>
     with:
       force: ${{ inputs.force }}
-      dry_run: ${{ inputs.maven_central != true || inputs.github_packages != true || inputs.homebrew != true }}
+      dry_run: ${{ inputs.maven_central != true || inputs.github_packages != true }}
 
   central:
     needs: release
@@ -112,21 +107,24 @@ jobs:
       commit_sha: ${{ needs.release.outputs.commit_sha }}
       version: ${{ needs.release.outputs.version }}
 
-  homebrew:
-    needs: [release, github]
-    if: ${{ always() && !cancelled() && needs.release.result == 'success' && (needs.github.result == 'success' || needs.release.outputs.dry_run == 'true') }}
-    permissions:
-      contents: read
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_homebrew.yml@<FULL_COMMIT_SHA>
-    with:
-      formula_path: Formula/my-tool.rb
-      tap_repository: YunaBraska/homebrew-tap
-      version: ${{ needs.release.outputs.version }}
-      asset_name: my-tool-${{ needs.release.outputs.version }}.jar
-      dry_run: ${{ needs.release.outputs.dry_run == 'true' }}
-    secrets:
-      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 ```
+
+## Homebrew tap
+
+The tap watches public stable GitHub releases with its own `GITHUB_TOKEN`; release
+repositories need no Homebrew token. A Cask or formula declares one source and one
+or more assets:
+
+```rb
+# yuna-release: YunaBraska/my-tool
+# yuna-release-asset: my-tool-macos-arm64-{version}.native
+url "..."
+sha256 "..."
+```
+
+The formula's `on_macos`, `on_linux`, and CPU conditions define supported targets.
+The updater downloads each declared asset, updates its version, URL, and SHA-256,
+then opens one `bot/maintenance-homebrew` PR.
 
 ## Version resolution
 
@@ -140,7 +138,7 @@ Common build defaults to `snapshot`. The Semver base is the latest tag or upstre
 
 A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning.
 
-Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Homebrew audits its formula without an update. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. A release opens a `bot/maintenance-homebrew-<repository>-<version>` tap PR; the next weekly run merges it when green.
+Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap's daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
 A GitHub version with a hyphen is a pre-release.
 
@@ -186,7 +184,6 @@ jobs:
 | `wc_java_publish_central.yml` | Deploy the build workspace to Maven Central. |
 | `wc_java_publish_github_packages.yml` | Deploy the build workspace to GitHub Packages. |
 | `wc_java_create_github_release.yml` | Create/update a GitHub release and upload build plus `release-assets-*` assets. |
-| `wc_java_publish_homebrew.yml` | Download a release asset, update a formula, and open a tap PR. |
 | `wc_java_build_native.yml` | Build Linux amd64/arm64, macOS arm64, and Windows x64 native assets from the resolved version. |
 | `wc_java_publish_docker.yml` | Build and publish a versioned multi-platform GHCR image. |
 | `wc_java_update_maven_wrapper.yml` | Update Maven Wrapper and open a maintenance PR. |
