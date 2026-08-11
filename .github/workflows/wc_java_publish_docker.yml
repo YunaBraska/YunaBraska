@@ -3,10 +3,6 @@ name: 🐳 CD · Publish Docker
 on:
   workflow_call:
     inputs:
-      ref:
-        description: Build commit.
-        required: true
-        type: string
       version:
         description: Resolved version.
         required: true
@@ -24,42 +20,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
-      contents: read
+      actions: read
       packages: write
     environment:
       name: github-container-registry
       url: ${{ format('https://github.com/{0}/pkgs/container/{1}', github.repository_owner, github.event.repository.name) }}
     steps:
-      - name: "🧑‍💻 Checkout [${{ inputs.ref }}]"
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: "📥 Download Native Assets"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          fetch-depth: 1
-          ref: ${{ inputs.ref }}
-          submodules: recursive
+          pattern: release-assets-linux-*
+          path: ${{ runner.temp }}/release-assets
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
 
-      - name: "🔍 Read Java Info"
-        id: java_info
-        uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
-
-      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
-        with:
-          distribution: temurin
-          java-version: ${{ steps.java_info.outputs.java_version }}
-          cache: maven
-
-      - name: "🏷️ Set Project Version [${{ inputs.version }}]"
+      - name: "📦 Prepare Image"
         shell: sh
         run: |
           set -eu
-          build_output_timestamp=$(git log -1 --format=%cI HEAD)
-          ${{ steps.java_info.outputs.cmd }} -B versions:set -DnewVersion="${{ inputs.version }}" -DgenerateBackupPoms=false
-          ${{ steps.java_info.outputs.cmd }} -B versions:set-property -Dproperty=project.build.outputTimestamp -DnewVersion="${build_output_timestamp}" -DgenerateBackupPoms=false
-          printf 'build_output_timestamp=%s\n' "${build_output_timestamp}"
-          printf 'version=%s\n' "${{ inputs.version }}"
-
-      - name: "🕹️ Setup QEMU"
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+          context_dir="${RUNNER_TEMP}/docker-context"
+          mkdir -p "${context_dir}/native/amd64" "${context_dir}/native/arm64"
+          for architecture in amd64 arm64; do
+            assets=$(find "${RUNNER_TEMP}/release-assets" -maxdepth 1 -type f -name "*-linux-${architecture}-${{ inputs.version }}.native")
+            test "$(printf '%s\n' "${assets}" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1
+            cp "${assets}" "${context_dir}/native/${architecture}/app.native"
+            chmod +x "${context_dir}/native/${architecture}/app.native"
+            printf 'native_%s=%s\n' "${architecture}" "${assets}"
+          done
+          printf '%s\n' \
+            'FROM debian:bookworm-slim' \
+            'ARG TARGETARCH' \
+            "COPY native/\${TARGETARCH}/app.native /app.native" \
+            'ENTRYPOINT ["/app.native"]' \
+            > "${context_dir}/Dockerfile"
 
       - name: "🐳 Setup Buildx"
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -96,8 +90,7 @@ jobs:
       - name: "🐳 Build and Publish"
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
-          context: .
-          file: Dockerfile_Native
+          context: ${{ runner.temp }}/docker-context
           platforms: ${{ inputs.platforms }}
           push: true
           tags: ${{ steps.image.outputs.tags }}
