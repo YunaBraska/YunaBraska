@@ -33,6 +33,9 @@ on:
         required: false
         default: ''
         type: string
+    secrets:
+      CI_TOKEN:
+        required: false
 permissions: {}
 
 concurrency:
@@ -193,3 +196,5 @@ jobs:
       upstream_version: ${{ needs.version.outputs.upstream_version }}
       dry_run: ${{ needs.mode.outputs.dry_run == 'true' }}
       upload_artifact: true
+    secrets:
+      CI_TOKEN: ${{ secrets.CI_TOKEN }}
