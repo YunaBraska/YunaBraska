@@ -47,6 +47,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      packages: read
     outputs:
       commit_sha: ${{ steps.commit_info.outputs.commit_sha }}
       dry_run: ${{ steps.version_info.outputs.dry_run }}
@@ -157,6 +158,11 @@ jobs:
           distribution: temurin
           java-version: ${{ steps.java_info.outputs.java_version }}
           cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: "🏷️ Set Project Version [${{ steps.version_info.outputs.version }}]"
         shell: sh

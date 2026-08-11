@@ -179,7 +179,7 @@ jobs:
 
 | Workflow | Purpose |
 | --- | --- |
-| `wc_java_build_common.yml` | Resolve, build, test, and optionally upload `build-workspace`; always checks out submodules and supports Playwright. |
+| `wc_java_build_common.yml` | Resolve, build, test, and optionally upload `build-workspace`; always checks out submodules, reads GitHub Packages, and supports Playwright. |
 | `wc_java_release.yml` | Build and decide deploy versus dry run. Outputs `commit_sha`, `dry_run`, and `version`. |
 | `wc_java_publish_central.yml` | Deploy the build workspace to Maven Central. |
 | `wc_java_publish_github_packages.yml` | Deploy the build workspace to GitHub Packages. |
