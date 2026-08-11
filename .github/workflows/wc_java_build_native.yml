@@ -61,11 +61,11 @@ jobs:
         id: java_info
         uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
 
-      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
+      - name: "☕ Setup Java [${{ matrix.kind == 'host' && '25' || steps.java_info.outputs.java_version }}]"
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: ${{ matrix.distribution }}
-          java-version: ${{ steps.java_info.outputs.java_version }}
+          java-version: ${{ matrix.kind == 'host' && '25' || steps.java_info.outputs.java_version }}
           cache: maven
 
       - name: "🛠️ Setup MSVC"
