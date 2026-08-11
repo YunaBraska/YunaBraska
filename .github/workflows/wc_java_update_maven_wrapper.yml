@@ -51,9 +51,9 @@ jobs:
           git config user.name 'Kira Bot'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -c "${branch}"
-          git add -A -- .mvn/wrapper mvnw
+          git add -- .mvn/wrapper mvnw
           if [ -e mvnw.cmd ]; then
-            git add -A -- mvnw.cmd
+            git add -- mvnw.cmd
           fi
           git commit -m 'build: update Maven Wrapper'
           git push origin "${branch}"

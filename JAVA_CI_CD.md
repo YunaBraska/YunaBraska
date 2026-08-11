@@ -130,19 +130,19 @@ then opens one `bot/maintenance-homebrew` PR.
 
 | Source / Semver strategy | Version |
 | --- | --- |
-| no `upstream_version` / empty | UTC release date: `YYYY.M.D` |
-| `upstream_version` / empty | Exact upstream version |
-| either / `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
+| no `upstream_repository` | UTC release date: `YYYY.M.D` |
+| newer upstream release | Exact upstream version |
+| `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
 
 Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
 
-A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning.
+A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. A newer upstream release wins; otherwise the declared strategy applies. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the latest local tag.
 
 Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap's daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
 A GitHub version with a hyphen is a pre-release.
 
-Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening.
+Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening. `# yuna-java-upstream: owner/repository` in one maintenance workflow lets the central job run Maven's updater, then open one tested `bot/maintenance-upstream` PR only when tracked files changed.
 
 ## Maven Wrapper
 
