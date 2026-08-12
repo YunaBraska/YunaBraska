@@ -5,7 +5,7 @@ Reusable Java workflows use POSIX `sh`. External calls use a full commit SHA; an
 ```mermaid
 flowchart LR
   A[Trigger] --> B[Build: resolve version]
-  B --> N[Native matrix]
+  B --> N[Native matrix: optional]
   N --> D[Maven Central]
   N --> E[GitHub Packages]
   N --> H[Docker]
@@ -186,13 +186,39 @@ jobs:
 | `wc_java_publish_central.yml` | Deploy the build workspace to Maven Central. |
 | `wc_java_publish_github_packages.yml` | Deploy the build workspace to GitHub Packages. |
 | `wc_java_create_github_release.yml` | Create/update a GitHub release and upload build plus `release-assets-*` assets. |
-| `wc_java_build_native.yml` | Build Linux amd64/arm64, macOS x64/arm64, and Windows x64 native assets from the resolved version. |
-| `wc_java_publish_docker.yml` | Build and publish a versioned multi-platform GHCR image. |
+| `wc_java_build_native.yml` | Build five native assets on their target architecture; no QEMU. |
+| `wc_java_publish_docker.yml` | Publish a multi-platform GHCR image from the Linux native assets; no native recompilation. |
 | `wc_java_update_maven_wrapper.yml` | Update Maven Wrapper and open a maintenance PR. |
 
 ## Native
 
-Native projects add `native` after the resolved Java build. Maven Central and GitHub Packages wait for it, so a native failure cannot leave a successful Maven release without a complete GitHub release. The native workflow always uses Maven profile `native` and `Dockerfile_Native`, then uploads each matrix file as `release-assets-*`. Snapshots keep those assets for one day; stable releases attach them to the GitHub release.
+Native projects add `native` after the resolved Java build. Maven Central and GitHub Packages wait for it, so a native failure stops every publisher before publication. The native workflow always uses Maven profile `native` and `Dockerfile_Native`, then uploads each matrix file as `release-assets-*`. Snapshots keep those assets for one day; stable releases attach them to the GitHub release.
+
+### Runner matrix
+
+| Asset | Runner | Build route | Decision |
+| --- | --- | --- | --- |
+| Linux AMD64 | `ubuntu-latest` | `Dockerfile_Native` | Standard Linux target. |
+| Linux ARM64 | `ubuntu-24.04-arm` | `Dockerfile_Native` | Native ARM runner; avoids QEMU. |
+| macOS Intel | `macos-15-intel` | Maven `-Pnative` | Supports Intel Macs. |
+| macOS Apple Silicon | `macos-latest` | Maven `-Pnative` | Supports Apple Silicon Macs. |
+| Windows x64 | `windows-latest` | Maven `-Pnative` + MSVC | Supported Windows release target. |
+
+The matrix has `fail-fast: false` so every platform reports its result. Linux still uses Buildx to run its project Dockerfile, but the target runner matches the image architecture and the workflow does not configure QEMU. Windows ARM64 is not enabled: its hosted runner remains preview and no current release needs that extra artifact.
+
+For native projects, `central`, `packages`, and `docker` all need both `release` and `native`. The Docker caller must also grant `actions: read`; it downloads the current run's Linux assets.
+
+```yml
+  docker:
+    needs: [release, native]
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_publish_docker.yml@<FULL_COMMIT_SHA>
+    with:
+      version: ${{ needs.release.outputs.version }}
+```
 
 Any workflow can add release files by uploading a `release-assets-*` artifact. A repository can also commit static files in `release-assets/`; the build workspace carries them to the GitHub release. No release input is needed.
 
@@ -204,4 +230,6 @@ with:
 
 ## Docker
 
-Docker projects add `docker` after a stable GitHub release or after snapshot publishers. `wc_java_publish_docker.yml` builds `Dockerfile_Native` at the checked-out resolved version and pushes `ghcr.io/<owner>/<repository>:<version>` for every run. Versions with a hyphen—including snapshots—never move `latest`; a stable version also updates `latest`.
+Docker projects add `docker` after `native`. `wc_java_publish_docker.yml` downloads exactly one Linux AMD64 and one Linux ARM64 asset from the current run, creates a minimal architecture-selected image, and pushes `ghcr.io/<owner>/<repository>:<version>`. It does not check out source, run `Dockerfile_Native`, compile a native image, or configure QEMU. Buildx only assembles the two-image manifest from the already-built binaries.
+
+This keeps Docker consistent with the GitHub release assets, removes the duplicate ARM64 compilation, and makes Docker publish independent of the Maven publishers once the native matrix succeeds. Versions with a hyphen—including snapshots—never move `latest`; a stable version also updates `latest`.
