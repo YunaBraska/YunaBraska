@@ -19,9 +19,9 @@ flowchart LR
 - A GitHub Action releases from its committed `dist`; it does not publish to npm.
 - The build runs `npm ci`, `npm test`, then rejects any tracked generated-file
   change. A release therefore always tags tested source and tested `dist`.
-- Releases use the latest reachable tag and Semver action's selected
-  `next_<semver_strategy>`. Tags are exact immutable SemVer versions; no moving
-  major alias is created.
+- Releases use the newest reachable full SemVer tag by creation time and
+  Semver action's selected `next_<semver_strategy>`. Moving major aliases such
+  as `3` are ignored. Tags are exact immutable SemVer versions.
 - The weekly release dispatcher requires exactly one `# yuna-release: true`
   marker. It only dispatches when `action.yml`, `package.json`,
   `package-lock.json`, `src`, `dist`, or `licenses.csv` changed since the latest
