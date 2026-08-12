@@ -1,0 +1,123 @@
+name: 🏷️ CD · Node Release
+
+on:
+  workflow_call:
+    inputs:
+      force:
+        description: Release unchanged source.
+        required: false
+        default: false
+        type: boolean
+      semver_strategy:
+        description: Semver next strategy.
+        required: false
+        default: patch
+        type: string
+    outputs:
+      commit_sha:
+        description: Build commit.
+        value: ${{ jobs.build.outputs.commit_sha }}
+      release:
+        description: Create the GitHub release.
+        value: ${{ jobs.mode.outputs.release }}
+      version:
+        description: Resolved release version.
+        value: ${{ jobs.version.outputs.version }}
+
+permissions: {}
+
+concurrency:
+  group: node-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      latest_tag: ${{ steps.latest_tag.outputs.latest_tag }}
+      version: ${{ steps.version_info.outputs.version }}
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: "🏷️ Read Latest Tag"
+        id: latest_tag
+        shell: sh
+        run: |
+          set -eu
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          printf 'latest_tag=%s\n' "${latest_tag:-none}"
+          printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: "🔢 Resolve Semver"
+        id: semver_info
+        if: steps.latest_tag.outputs.latest_tag != ''
+        uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
+        with:
+          semver-a: ${{ steps.latest_tag.outputs.latest_tag }}
+          semver-b: ${{ steps.latest_tag.outputs.latest_tag }}
+          fallBack-semver-a: 0.0.1
+          fallBack-semver-b: 0.0.1
+
+      - name: "🏷️ Resolve Version"
+        id: version_info
+        shell: sh
+        run: |
+          set -eu
+          if [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
+            version='0.0.1'
+          else
+            test "${{ steps.semver_info.outputs.is_valid_semver_a }}" = 'true'
+            version="${{ steps.semver_info.outputs[format('next_{0}', inputs.semver_strategy)] }}"
+            test -n "${version}"
+          fi
+          printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
+          printf 'version=%s\n' "${version}"
+          printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
+
+  mode:
+    needs:
+      - version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.release_info.outputs.release }}
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: "🏷️ Release Mode"
+        id: release_info
+        shell: sh
+        run: |
+          set -eu
+          release=false
+          if [ "${{ inputs.force }}" = 'true' ] || [ -z "${{ needs.version.outputs.latest_tag }}" ]; then
+            release=true
+          elif ! git diff --quiet "${{ needs.version.outputs.latest_tag }}"..HEAD -- action.yml package.json package-lock.json src dist licenses.csv; then
+            release=true
+          fi
+          if [ "${GITHUB_REF}" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+            release=false
+          fi
+          printf 'latest_tag=%s\n' "${{ needs.version.outputs.latest_tag || 'none' }}"
+          printf 'release=%s\n' "${release}"
+          printf 'release=%s\n' "${release}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs:
+      - version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_node_build_common.yml
+    with:
+      ref: ${{ github.sha }}
