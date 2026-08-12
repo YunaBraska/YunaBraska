@@ -50,7 +50,7 @@ jobs:
         shell: sh
         run: |
           set -eu
-          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | awk '/^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/ { print; exit }')
           printf 'latest_tag=%s\n' "${latest_tag:-none}"
           printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
 
