@@ -1,0 +1,39 @@
+name: 🏷️ CD · Node GitHub Release
+
+on:
+  workflow_call:
+    inputs:
+      commit_sha:
+        description: Build commit.
+        required: true
+        type: string
+      version:
+        description: Release version.
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: "🏷️ GitHub Release [${{ inputs.version }}]"
+        shell: sh
+        run: |
+          set -eu
+          if GH_TOKEN="${{ github.token }}" gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "GitHub release already exists for ${{ inputs.version }}"
+          else
+            case "${{ inputs.version }}" in
+              *-*)
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --prerelease --latest=false
+                ;;
+              *)
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --latest
+                ;;
+            esac
+          fi
