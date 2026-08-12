@@ -186,7 +186,7 @@ jobs:
 | `wc_java_publish_central.yml` | Deploy the build workspace to Maven Central. |
 | `wc_java_publish_github_packages.yml` | Deploy the build workspace to GitHub Packages. |
 | `wc_java_create_github_release.yml` | Create/update a GitHub release and upload build plus `release-assets-*` assets. |
-| `wc_java_build_native.yml` | Build Linux amd64/arm64, macOS arm64, and Windows x64 native assets from the resolved version. |
+| `wc_java_build_native.yml` | Build Linux amd64/arm64, macOS x64/arm64, and Windows x64 native assets from the resolved version. |
 | `wc_java_publish_docker.yml` | Build and publish a versioned multi-platform GHCR image. |
 | `wc_java_update_maven_wrapper.yml` | Update Maven Wrapper and open a maintenance PR. |
 
