@@ -28,9 +28,6 @@ on:
         required: false
         default: false
         type: boolean
-    secrets:
-      CI_TOKEN:
-        required: false
     outputs:
       commit_sha:
         description: Commit SHA.
@@ -164,8 +161,6 @@ jobs:
           server-id: github
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
-        env:
-          GITHUB_TOKEN: ${{ secrets.CI_TOKEN || github.token }}
 
       - name: "🏷️ Set Project Version [${{ steps.version_info.outputs.version }}]"
         shell: sh
@@ -176,6 +171,8 @@ jobs:
 
       - name: "🎭 Setup Playwright"
         shell: sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -eu
           if grep -q '<groupId>com.microsoft.playwright</groupId>' pom.xml; then
@@ -184,6 +181,8 @@ jobs:
 
       - name: "🧪 Build and Verify"
         shell: sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: ${{ steps.java_info.outputs.cmd }} -B verify
 
       - name: "🧼 Check Sources"

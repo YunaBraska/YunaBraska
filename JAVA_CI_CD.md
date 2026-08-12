@@ -136,7 +136,7 @@ then opens one `bot/maintenance-homebrew` PR.
 
 Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
 
-Map `CI_TOKEN` only when a project reads a package from another private YunaBraska repository.
+The shared build gives Maven the scoped action token when it reads GitHub Packages.
 
 A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. A newer upstream release wins; otherwise the declared strategy applies. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the latest local tag.
 
