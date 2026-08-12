@@ -32,10 +32,16 @@ jobs:
             platform: linux/amd64
             extension: .native
           - name: linux-arm64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04-arm
             distribution: temurin
             kind: linux
             platform: linux/arm64
+            extension: .native
+          - name: macos-x64
+            runner: macos-15-intel
+            distribution: graalvm
+            kind: host
+            platform: ''
             extension: .native
           - name: macos-arm64
             runner: macos-latest
@@ -82,10 +88,6 @@ jobs:
           ./mvnw -B versions:set-property -Dproperty=project.build.outputTimestamp -DnewVersion="${build_output_timestamp}" -DgenerateBackupPoms=false
           printf 'build_output_timestamp=%s\n' "${build_output_timestamp}"
           printf 'version=%s\n' "${{ inputs.version }}"
-
-      - name: "🕹️ Setup QEMU"
-        if: matrix.kind == 'linux'
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: "🐳 Setup Buildx"
         if: matrix.kind == 'linux'
