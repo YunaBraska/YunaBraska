@@ -136,7 +136,7 @@ then opens one `bot/maintenance-homebrew` PR.
 
 Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
 
-The shared Java workflows give Maven the scoped action token when they read GitHub Packages.
+The shared Java workflows configure Maven's GitHub Packages server with the scoped action token; Central preserves both server entries.
 
 A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. A newer upstream release wins; otherwise the declared strategy applies. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the latest local tag.
 
