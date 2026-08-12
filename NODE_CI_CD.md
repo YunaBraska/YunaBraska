@@ -29,6 +29,8 @@ flowchart LR
 - Dependabot maintains GitHub Action references. `bot/maintenance-node` owns npm
   updates because each dependency update must rebuild and commit `dist` in the
   same PR. Weekly maintenance merges either green Dependabot or maintenance PR.
+- The legacy Node test and publish reusables are retired; every Node repository
+  uses the four building blocks below.
 
 ## Repository workflows
 
