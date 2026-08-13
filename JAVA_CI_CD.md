@@ -25,7 +25,7 @@ Build resolves one version, writes it only to its workspace POM, and tests it. W
 - Set `maven-jar-plugin` `outputTimestamp` from that property; the build replaces it with the commit timestamp.
 - Use `maven-compiler-plugin` `<release>`, not `<source>` / `<target>`.
 - Attach source and Javadoc jars in the normal build.
-- Keep profile `central` for GPG and `central-publishing-maven-plugin`, with `autoPublish` and `waitUntil` set to `published`.
+- Keep profile `central` for GPG and `central-publishing-maven-plugin` `0.11.0`, with `autoPublish` and `waitUntil` set to `published`. Version `0.7.0` rejects Sonatype's `warnings` response field; waiting for `published` keeps tags and GitHub releases behind public Central coordinates.
 
 ## Migration
 
