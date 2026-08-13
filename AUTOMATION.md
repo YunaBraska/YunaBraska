@@ -31,6 +31,13 @@ release assets, and opens one `bot/maintenance-homebrew` PR. It does not wait
 for CI; Monday maintenance merges that PR only after the tap's normal PR check
 is green.
 
+The central fine-grained token needs `Contents` and `Pull requests` read/write
+for every repository it maintains. `Actions` read/write is also required where
+central automation dispatches another repository's workflow. The Homebrew job
+uses the first two permissions for `YunaBraska/homebrew-tap`; no token is stored
+in that repository. If PR creation fails after creating a new maintenance
+branch, the job deletes that branch before failing.
+
 ## Homebrew asset contract
 
 Each Cask or formula declares the release and every downloaded asset:
