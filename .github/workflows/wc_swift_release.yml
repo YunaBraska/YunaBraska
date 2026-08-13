@@ -1,0 +1,108 @@
+name: 🏷️ CD · Release
+
+on:
+  workflow_call:
+    inputs:
+      force:
+        description: Release unchanged source.
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      MACOS_SIGNING_CERTIFICATE:
+        required: false
+      MACOS_SIGNING_CERTIFICATE_PASSWORD:
+        required: false
+      MACOS_NOTARY_KEY:
+        required: false
+      MACOS_NOTARY_KEY_ID:
+        required: false
+      MACOS_NOTARY_ISSUER_ID:
+        required: false
+    outputs:
+      commit_sha:
+        description: Build commit.
+        value: ${{ jobs.build.outputs.commit_sha }}
+      dry_run:
+        description: Built a snapshot instead of a release.
+        value: ${{ jobs.build.outputs.dry_run }}
+      version:
+        description: Resolved version.
+        value: ${{ jobs.build.outputs.version }}
+
+permissions: {}
+
+concurrency:
+  group: swift-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  mode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      dry_run: ${{ steps.release_info.outputs.dry_run }}
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: "🏷️ Read Latest Tag"
+        id: latest_tag
+        shell: sh
+        run: |
+          set -eu
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          {
+            printf 'latest_tag=%s\n' "${latest_tag}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'latest_tag=%s\n' "${latest_tag:-none}"
+
+      - name: "🏷️ Release Mode"
+        id: release_info
+        shell: sh
+        run: |
+          set -eu
+          dry_run=true
+          if [ "${{ inputs.force }}" = 'true' ] || [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
+            dry_run=false
+          elif git diff --name-only "${{ steps.latest_tag.outputs.latest_tag }}"..HEAD | while IFS= read -r path; do
+            case "${path}" in
+              README*|*/README*|docs/*|*/docs/*|*.md|.github/*|.editorconfig|.gitignore|LICENSE*|*/LICENSE*|\
+              test/*|tests/*|spec/*|specs/*|Tests/*|*/test/*|*/tests/*|*/spec/*|*/specs/*|\
+              example/*|examples/*|benchmark/*|benchmarks/*|*/example/*|*/examples/*|*/benchmark/*|*/benchmarks/*)
+                ;;
+              *)
+                exit 1
+                ;;
+            esac
+          done; then
+            :
+          else
+            dry_run=false
+          fi
+          {
+            printf 'dry_run=%s\n' "${dry_run}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'dry_run=%s\n' "${dry_run}"
+
+  build:
+    needs: mode
+    uses: ./.github/workflows/wc_swift_build_common.yml
+    with:
+      ref: ${{ github.sha }}
+      dry_run: ${{ needs.mode.outputs.dry_run == 'true' }}
+      upload_artifact: true
+    secrets: inherit
+
+  release:
+    needs: build
+    if: needs.build.outputs.dry_run == 'false'
+    uses: ./.github/workflows/wc_swift_create_github_release.yml
+    with:
+      run_id: ${{ github.run_id }}
+      commit_sha: ${{ needs.build.outputs.commit_sha }}
+      version: ${{ needs.build.outputs.version }}
