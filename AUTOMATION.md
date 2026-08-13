@@ -25,9 +25,9 @@ flowchart LR
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.
 It then dispatches `🍺 CI · Formula` for that exact branch commit. GitHub can
-require approval for the automatic pull-request run created by `GITHUB_TOKEN`,
-so Monday maintenance recognizes that successful explicit formula run before it
-merges. The updater does not wait for CI.
+mark the automatic pull-request run created by `GITHUB_TOKEN` as `UNKNOWN` or
+`UNSTABLE`; Monday maintenance instead recognizes that successful explicit
+formula run before it merges. The updater does not wait for CI.
 
 The central `BOT_TOKEN` uses its existing Contents write access to merge the
 green Homebrew PR on Monday. It is never used to create Homebrew branches or

@@ -53,7 +53,7 @@ jobs:
             repository=$1
             base_branch=$2
             prs=$(gh pr list --repo "${repository}" --base "${base_branch}" --state open --json number,headRefName,headRefOid,isDraft,mergeStateStatus \
-              --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN" or (.headRefName == "bot/maintenance-homebrew" and .mergeStateStatus == "UNKNOWN")) | select(.headRefName | test("^(dependabot/|bot/maintenance-)")) | [.number, .headRefName, .headRefOid] | @tsv')
+              --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN" or (.headRefName == "bot/maintenance-homebrew" and (.mergeStateStatus == "UNKNOWN" or .mergeStateStatus == "UNSTABLE"))) | select(.headRefName | test("^(dependabot/|bot/maintenance-)")) | [.number, .headRefName, .headRefOid] | @tsv')
             while IFS="$(printf '\t')" read -r pr branch commit_sha; do
               if [ -z "${pr}" ]; then
                 continue
