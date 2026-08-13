@@ -6,7 +6,7 @@ flowchart LR
   M[Merge] --> S[Snapshot build]
   W[Weekly or manual release] --> R[Release build]
   R --> G[GitHub release]
-  G --> H[Central tap updater]
+  G --> H[Tap updater]
   H --> P[Homebrew PR]
 ```
 
@@ -88,4 +88,4 @@ The app repository never writes the tap. Add these two markers to its cask or fo
 # yuna-release-asset: Example-{version}.zip
 ```
 
-The central daily updater reads the latest stable GitHub release, verifies the asset checksum, and opens one `bot/maintenance-homebrew` PR. Weekly maintenance merges that green PR. See [automation ownership](AUTOMATION.md).
+The tap daily updater reads the latest stable GitHub release, verifies the asset checksum, and opens one `bot/maintenance-homebrew` PR. Weekly maintenance merges that green PR. See [automation ownership](AUTOMATION.md).

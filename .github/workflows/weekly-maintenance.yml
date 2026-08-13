@@ -52,12 +52,23 @@ jobs:
           merge_ready_prs() {
             repository=$1
             base_branch=$2
-            prs=$(gh pr list --repo "${repository}" --base "${base_branch}" --state open --json number,headRefName,isDraft,mergeStateStatus \
-              --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN") | select(.headRefName | test("^(dependabot/|bot/maintenance-)")) | .number')
-            for pr in ${prs}; do
-              if ! gh pr checks "${pr}" --repo "${repository}" >/dev/null 2>&1; then
-                echo "${repository}#${pr} is not green; leaving it open."
+            prs=$(gh pr list --repo "${repository}" --base "${base_branch}" --state open --json number,headRefName,headRefOid,isDraft,mergeStateStatus \
+              --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN" or (.headRefName == "bot/maintenance-homebrew" and .mergeStateStatus == "UNKNOWN")) | select(.headRefName | test("^(dependabot/|bot/maintenance-)")) | [.number, .headRefName, .headRefOid] | @tsv')
+            while IFS="$(printf '\t')" read -r pr branch commit_sha; do
+              if [ -z "${pr}" ]; then
                 continue
+              fi
+              if ! gh pr checks "${pr}" --repo "${repository}" >/dev/null 2>&1; then
+                formula_check=''
+                if [ "${repository}" = "${GITHUB_REPOSITORY_OWNER}/homebrew-tap" ] && [ "${branch}" = 'bot/maintenance-homebrew' ]; then
+                  formula_check=$(gh run list --repo "${repository}" --workflow build-pr.yml --commit "${commit_sha}" --event workflow_dispatch --status completed --limit 1 --json conclusion --jq '.[0].conclusion // empty')
+                fi
+                if [ "${formula_check}" = 'success' ]; then
+                  echo "${repository}#${pr} has a green formula check."
+                else
+                  echo "${repository}#${pr} is not green; leaving it open."
+                  continue
+                fi
               fi
               if [ "${dry_run}" = "true" ]; then
                 echo "Would merge ${repository}#${pr}."
@@ -67,7 +78,9 @@ jobs:
                 echo "Could not merge ${repository}#${pr}." >&2
                 failures=$((failures + 1))
               fi
-            done
+            done <<EOF
+          ${prs}
+          EOF
           }
 
           maintain_upstream() {
@@ -89,6 +102,11 @@ jobs:
 
             if git -C "${checkout}" diff --quiet; then
               echo "${repository}: ${upstream_repository} is current."
+              rm -rf "${checkout}"
+              return
+            fi
+            if [ "${dry_run}" = "true" ]; then
+              echo "Would open ${repository}:${branch}."
               rm -rf "${checkout}"
               return
             fi
