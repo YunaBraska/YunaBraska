@@ -1,0 +1,219 @@
+name: 🧩 CI · Common Build
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Checkout ref.
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: Resolve a snapshot.
+        required: false
+        default: true
+        type: boolean
+      upload_artifact:
+        description: Upload release files.
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      MACOS_SIGNING_CERTIFICATE:
+        required: false
+      MACOS_SIGNING_CERTIFICATE_PASSWORD:
+        required: false
+      MACOS_NOTARY_KEY:
+        required: false
+      MACOS_NOTARY_KEY_ID:
+        required: false
+      MACOS_NOTARY_ISSUER_ID:
+        required: false
+    outputs:
+      commit_sha:
+        description: Commit SHA.
+        value: ${{ jobs.build.outputs.commit_sha }}
+      dry_run:
+        description: Resolved snapshot.
+        value: ${{ jobs.build.outputs.dry_run }}
+      version:
+        description: Resolved version.
+        value: ${{ jobs.build.outputs.version }}
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      commit_sha: ${{ steps.commit_info.outputs.commit_sha }}
+      dry_run: ${{ steps.version_info.outputs.dry_run }}
+      version: ${{ steps.version_info.outputs.version }}
+    steps:
+      - name: "🧑‍💻 Checkout [${{ inputs.ref }}]"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+          submodules: recursive
+
+      - name: "🧾 Read Commit"
+        id: commit_info
+        shell: sh
+        run: |
+          set -eu
+          commit_sha=$(git rev-parse HEAD)
+          {
+            printf 'commit_sha=%s\n' "${commit_sha}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'commit_sha=%s\n' "${commit_sha}"
+
+      - name: "🏷️ Read Latest Tag"
+        id: latest_tag
+        shell: sh
+        run: |
+          set -eu
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          {
+            printf 'latest_tag=%s\n' "${latest_tag}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'latest_tag=%s\n' "${latest_tag:-none}"
+
+      - name: "📅 Read UTC Date"
+        id: date_info
+        shell: sh
+        run: |
+          set -eu
+          date_version=$(date -u '+%Y.%m.%d' | sed -E 's/\.0+([0-9])/\.\1/g')
+          {
+            printf 'date_version=%s\n' "${date_version}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'date_version=%s\n' "${date_version}"
+
+      - name: "🔢 Read Semver"
+        id: semver_info
+        uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
+        with:
+          semver-a: ${{ steps.latest_tag.outputs.latest_tag }}
+          semver-b: 0.0.1
+          fallBack-semver-a: 0.0.1
+          fallBack-semver-b: 0.0.1
+
+      - name: "🏷️ Resolve Version"
+        id: version_info
+        shell: sh
+        run: |
+          set -eu
+          if [ "${{ inputs.dry_run }}" = 'true' ]; then
+            version="${{ steps.semver_info.outputs.next_snapshot }}"
+          else
+            version="${{ steps.date_info.outputs.date_version }}"
+          fi
+          test -n "${version}"
+          {
+            printf 'dry_run=%s\n' "${{ inputs.dry_run }}"
+            printf 'version=%s\n' "${version}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'dry_run=%s\n' "${{ inputs.dry_run }}"
+          printf 'version=%s\n' "${version}"
+
+      - name: "🍎 Read Xcode"
+        shell: sh
+        run: |
+          set -eu
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
+          swift --version
+
+      - name: "🔐 Setup Signing"
+        id: signing
+        shell: sh
+        env:
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_SIGNING_CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
+          MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          set -eu
+          identity='-'
+          notary_profile=''
+
+          if [ -n "${MACOS_SIGNING_CERTIFICATE}" ] || [ -n "${MACOS_SIGNING_CERTIFICATE_PASSWORD}" ]; then
+            test -n "${MACOS_SIGNING_CERTIFICATE}"
+            test -n "${MACOS_SIGNING_CERTIFICATE_PASSWORD}"
+            keychain="${RUNNER_TEMP}/swift-release.keychain-db"
+            certificate="${RUNNER_TEMP}/swift-release.p12"
+            keychain_password=$(uuidgen)
+            printf '%s' "${MACOS_SIGNING_CERTIFICATE}" | base64 -D > "${certificate}"
+            security create-keychain -p "${keychain_password}" "${keychain}"
+            security set-keychain-settings -lut 21600 "${keychain}"
+            security unlock-keychain -p "${keychain_password}" "${keychain}"
+            security default-keychain -d user -s "${keychain}"
+            security import "${certificate}" -k "${keychain}" -P "${MACOS_SIGNING_CERTIFICATE_PASSWORD}" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: -s -k "${keychain_password}" "${keychain}"
+            identity=$(security find-identity -v -p codesigning "${keychain}" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | sed -n '1p')
+            test -n "${identity}"
+
+            if [ -n "${MACOS_NOTARY_KEY}" ] || [ -n "${MACOS_NOTARY_KEY_ID}" ] || [ -n "${MACOS_NOTARY_ISSUER_ID}" ]; then
+              test -n "${MACOS_NOTARY_KEY}"
+              test -n "${MACOS_NOTARY_KEY_ID}"
+              test -n "${MACOS_NOTARY_ISSUER_ID}"
+              notary_key="${RUNNER_TEMP}/swift-release-notary.p8"
+              printf '%s' "${MACOS_NOTARY_KEY}" | base64 -D > "${notary_key}"
+              xcrun notarytool store-credentials yuna-notary --key "${notary_key}" --key-id "${MACOS_NOTARY_KEY_ID}" --issuer "${MACOS_NOTARY_ISSUER_ID}"
+              notary_profile='yuna-notary'
+            fi
+          elif [ -n "${MACOS_NOTARY_KEY}" ] || [ -n "${MACOS_NOTARY_KEY_ID}" ] || [ -n "${MACOS_NOTARY_ISSUER_ID}" ]; then
+            echo 'Notarization requires a Developer ID certificate.' >&2
+            exit 1
+          fi
+
+          {
+            printf 'identity=%s\n' "${identity}"
+            printf 'notary_profile=%s\n' "${notary_profile}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'identity=%s\n' "${identity}"
+          printf 'notary_profile=%s\n' "${notary_profile:-none}"
+
+      - name: "🧪 Test"
+        shell: sh
+        run: sh scripts/check.sh
+
+      - name: "🧼 Check Sources"
+        shell: sh
+        run: git diff --exit-code
+
+      - name: "📦 Package [${{ steps.version_info.outputs.version }}]"
+        shell: sh
+        env:
+          MACOS_NOTARY_PROFILE: ${{ steps.signing.outputs.notary_profile }}
+          MACOS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+        run: sh scripts/package.sh "${{ steps.version_info.outputs.version }}"
+
+      - name: "🔍 Check Packages"
+        shell: sh
+        run: |
+          set -eu
+          test -n "$(find dist -maxdepth 1 -type f -name '*.zip' -print -quit)"
+          test -n "$(find dist -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+
+      - name: "📦 Upload Build Artifact"
+        if: inputs.upload_artifact == true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: build-workspace
+          if-no-files-found: error
+          retention-days: 1
+          path: dist
+
+      - name: "🧹 Clean Signing"
+        if: always()
+        shell: sh
+        run: |
+          set -eu
+          rm -f "${RUNNER_TEMP}/swift-release.p12" "${RUNNER_TEMP}/swift-release-notary.p8"
+          security delete-keychain "${RUNNER_TEMP}/swift-release.keychain-db" >/dev/null 2>&1 || true
