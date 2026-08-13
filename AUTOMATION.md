@@ -60,7 +60,6 @@ Every scheduled workflow supports a manual dry run. A dry run may read, build,
 test, style, and print its intended mutation; it never creates a branch, pull
 request, tag, release, deployment, or package.
 
-Upstream maintenance uses the central token for Maven Wrapper retrieval, then
-removes `GITHUB_TOKEN` before running the upstream test suite. Project tests
-that query public GitHub APIs therefore use anonymous access rather than the
-central token's organisation-scoped permissions.
+Upstream maintenance maps the existing central `GH_TOKEN` only to Maven's
+`github` server. Project tests never receive `GITHUB_TOKEN`, so tests that query
+public GitHub APIs use anonymous access while Maven can resolve private packages.

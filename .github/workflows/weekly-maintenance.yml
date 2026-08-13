@@ -31,6 +31,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GH_TOKEN
 
       - name: "🤖 Merge"
         shell: sh
@@ -99,8 +102,7 @@ jobs:
             git clone --quiet --depth=1 --branch "${default_branch}" "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${checkout}"
             (
               cd "${checkout}"
-              GITHUB_TOKEN="${GH_TOKEN}" ./mvnw -B -N wrapper:wrapper
-              unset GITHUB_TOKEN
+              ./mvnw -B -N wrapper:wrapper
               ./mvnw -B verify
             )
 
