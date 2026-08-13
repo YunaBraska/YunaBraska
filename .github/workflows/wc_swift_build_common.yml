@@ -40,7 +40,8 @@ on:
         description: Resolved version.
         value: ${{ jobs.build.outputs.version }}
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   build:

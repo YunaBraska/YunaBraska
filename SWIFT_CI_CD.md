@@ -20,6 +20,8 @@ Every build checks out one commit, resolves one version, tests it, creates a uni
 
 Release detection ignores documentation, tests, examples, and `.github`. It releases for every other changed tracked file. A version with a hyphen is a GitHub pre-release.
 
+Reusable workflows declare the smallest permission ceiling needed by their nested jobs: `contents: read` for the build, and `actions: read` plus `contents: write` for the release. A caller may reduce that ceiling but cannot raise it; this is required for reusable workflows that call another reusable workflow.
+
 ## Reuse
 
 ```yaml

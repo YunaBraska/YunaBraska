@@ -30,7 +30,9 @@ on:
         description: Resolved version.
         value: ${{ jobs.build.outputs.version }}
 
-permissions: {}
+permissions:
+  actions: read
+  contents: write
 
 concurrency:
   group: swift-release-${{ github.repository }}
