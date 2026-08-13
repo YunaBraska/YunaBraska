@@ -100,7 +100,8 @@ jobs:
             (
               cd "${checkout}"
               GITHUB_TOKEN="${GH_TOKEN}" ./mvnw -B -N wrapper:wrapper
-              GITHUB_TOKEN="${GH_TOKEN}" ./mvnw -B verify
+              unset GITHUB_TOKEN
+              ./mvnw -B verify
             )
 
             if git -C "${checkout}" diff --quiet; then
