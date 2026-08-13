@@ -12,7 +12,7 @@ flowchart LR
   D --> F[GitHub release]
   E --> F
   H --> F
-  F -.-> G[Central tap updater]
+  F -.-> G[Tap updater]
   G --> I[Homebrew PR]
 ```
 
@@ -111,9 +111,9 @@ jobs:
 
 ## Homebrew tap
 
-The central Homebrew updater watches public stable GitHub releases; release
-repositories and the tap need no Homebrew token. A Cask or formula declares one
-source and one or more assets:
+The tap updater watches public stable GitHub releases; release repositories and
+the tap need no Homebrew token. A Cask or formula declares one source and one or
+more assets:
 
 ```rb
 # yuna-release: YunaBraska/my-tool
@@ -140,7 +140,7 @@ The shared Java workflows configure Maven's GitHub Packages server with the scop
 
 A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. A newer upstream release wins; otherwise the declared strategy applies. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the latest local tag.
 
-Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The central daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
+Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
 A GitHub version with a hyphen is a pre-release.
 
