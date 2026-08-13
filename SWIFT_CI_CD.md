@@ -24,6 +24,9 @@ Release detection ignores documentation, tests, examples, and `.github`. It rele
 
 ```yaml
 # build-pr.yml
+permissions:
+  contents: read
+
 jobs:
   build:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_swift_build_common.yml@<FULL_COMMIT_SHA>
@@ -34,6 +37,9 @@ jobs:
 
 ```yaml
 # build-merge.yml
+permissions:
+  contents: read
+
 jobs:
   build:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_swift_build_common.yml@<FULL_COMMIT_SHA>
@@ -47,6 +53,10 @@ jobs:
 ```yaml
 # release.yml
 # yuna-release: true
+permissions:
+  actions: read
+  contents: write
+
 jobs:
   release:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_swift_release.yml@<FULL_COMMIT_SHA>
