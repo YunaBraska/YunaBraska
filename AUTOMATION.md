@@ -33,6 +33,21 @@ The central `BOT_TOKEN` uses its existing Contents write access to merge the
 green Homebrew PR on Monday. It is never used to create Homebrew branches or
 PRs, and no tap secret is needed.
 
+## Homebrew decision — Done
+
+Keep `🍺 CD · Update` in `YunaBraska/homebrew-tap`. Never centralize this
+writer or give the tap a `BOT_TOKEN`.
+
+- The marker comments, changed Casks/formulae, branch, and PR all belong to the
+  tap, so its scoped `GITHUB_TOKEN` is sufficient.
+- The updater explicitly dispatches `🍺 CI · Formula` for the new commit. That
+  run—not GitHub's approval-gated automatic pull-request event—is the merge
+  gate.
+- Central weekly maintenance discovers the green `bot/maintenance-homebrew` PR
+  and merges it. It does not update Homebrew files or wait for formula CI.
+
+This was proven by the [tap update](https://github.com/YunaBraska/homebrew-tap/actions/runs/31743370326), its [formula run](https://github.com/YunaBraska/homebrew-tap/actions/runs/31743414534), and the [central dry run](https://github.com/YunaBraska/YunaBraska/actions/runs/31744529948).
+
 ## Homebrew asset contract
 
 Each Cask or formula declares the release and every downloaded asset:
