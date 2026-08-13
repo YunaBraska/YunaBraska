@@ -43,6 +43,7 @@ jobs:
           dry_run="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}"
           tap_repository='YunaBraska/homebrew-tap'
           branch='bot/maintenance-homebrew'
+          created_branch=false
           changed_files="${RUNNER_TEMP}/homebrew-changed-files"
           assets_dir="${RUNNER_TEMP}/homebrew-assets"
           : > "${changed_files}"
@@ -59,6 +60,7 @@ jobs:
               git switch --track -c "${branch}" "origin/${branch}"
             else
               git switch -c "${branch}"
+              created_branch=true
             fi
             git config user.name 'Kira Bot'
             git config user.email 'kira@noreply.github.com'
@@ -174,6 +176,9 @@ jobs:
           pr=$(gh pr list --repo "${tap_repository}" --base main --head "${branch}" --state open --json number --jq '.[0].number')
           if [ -n "${pr}" ]; then
             printf 'pr=%s\n' "${pr}"
-          else
-            gh pr create --repo "${tap_repository}" --base main --head "${branch}" --title 'brew: update releases' --body ''
+          elif ! gh pr create --repo "${tap_repository}" --base main --head "${branch}" --title 'brew: update releases' --body ''; then
+            if [ "${created_branch}" = 'true' ]; then
+              git push origin --delete "${branch}"
+            fi
+            exit 1
           fi
