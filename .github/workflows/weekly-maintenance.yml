@@ -97,8 +97,11 @@ jobs:
             fi
 
             git clone --quiet --depth=1 --branch "${default_branch}" "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${checkout}"
-            GITHUB_TOKEN="${GH_TOKEN}" "${checkout}/mvnw" -B -N wrapper:wrapper
-            GITHUB_TOKEN="${GH_TOKEN}" "${checkout}/mvnw" -B verify
+            (
+              cd "${checkout}"
+              GITHUB_TOKEN="${GH_TOKEN}" ./mvnw -B -N wrapper:wrapper
+              GITHUB_TOKEN="${GH_TOKEN}" ./mvnw -B verify
+            )
 
             if git -C "${checkout}" diff --quiet; then
               echo "${repository}: ${upstream_repository} is current."
