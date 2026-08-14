@@ -1,0 +1,122 @@
+name: 🧩 CI · .NET Build
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Checkout ref.
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: Resolve a snapshot.
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      commit_sha:
+        description: Build commit.
+        value: ${{ jobs.build.outputs.commit_sha }}
+      dry_run:
+        description: Built a snapshot.
+        value: ${{ jobs.build.outputs.dry_run }}
+      version:
+        description: Resolved version.
+        value: ${{ jobs.build.outputs.version }}
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      commit_sha: ${{ steps.commit_info.outputs.commit_sha }}
+      dry_run: ${{ steps.version_info.outputs.dry_run }}
+      version: ${{ steps.version_info.outputs.version }}
+    steps:
+      - name: "🧑‍💻 Checkout [${{ inputs.ref }}]"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+          submodules: recursive
+
+      - name: "🧾 Read Commit"
+        id: commit_info
+        shell: sh
+        run: |
+          set -eu
+          commit_sha=$(git rev-parse HEAD)
+          printf 'commit_sha=%s\n' "${commit_sha}"
+          printf 'commit_sha=%s\n' "${commit_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: "🏷️ Read Latest Tag"
+        id: latest_tag
+        shell: sh
+        run: |
+          set -eu
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          printf 'latest_tag=%s\n' "${latest_tag:-none}"
+          printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: "📅 Read UTC Date"
+        id: date_info
+        shell: sh
+        run: |
+          set -eu
+          date_version=$(date -u '+%Y.%m.%d' | sed -E 's/\.0+([0-9])/\.\1/g')
+          printf 'date_version=%s\n' "${date_version}"
+          printf 'date_version=%s\n' "${date_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: "🔢 Read Semver"
+        id: semver_info
+        uses: YunaBraska/semver-info-action@180ebf79b3c81785c50cf1f198ee236fc5591504 # v3.0.4
+        with:
+          semver-a: ${{ steps.latest_tag.outputs.latest_tag }}
+          semver-b: 0.0.1
+          fallBack-semver-a: 0.0.1
+          fallBack-semver-b: 0.0.1
+
+      - name: "🏷️ Resolve Version"
+        id: version_info
+        shell: sh
+        run: |
+          set -eu
+          if [ "${{ inputs.dry_run }}" = 'true' ]; then
+            version="${{ steps.semver_info.outputs.next_snapshot }}"
+          else
+            version="${{ steps.date_info.outputs.date_version }}"
+          fi
+          test -n "${version}"
+          printf 'dry_run=%s\n' "${{ inputs.dry_run }}"
+          printf 'version=%s\n' "${version}"
+          {
+            printf 'dry_run=%s\n' "${{ inputs.dry_run }}"
+            printf 'version=%s\n' "${version}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: "🟣 Setup .NET"
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: "🔍 Read .NET"
+        shell: sh
+        run: dotnet --info
+
+      - name: "🧪 Test"
+        shell: sh
+        run: |
+          set -eu
+          if [ -f scripts/test.sh ]; then
+            VERSION="${{ steps.version_info.outputs.version }}" sh scripts/test.sh
+          else
+            dotnet test --configuration Release -p:Version="${{ steps.version_info.outputs.version }}"
+          fi
+
+      - name: "🧼 Check Sources"
+        shell: sh
+        run: git diff --exit-code
