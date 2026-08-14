@@ -112,7 +112,10 @@ jobs:
           }
 
           if [ "${package}" = 'app-zip' ] && [ -f scripts/build-macos-app.sh ]; then
-            bundle=$(VERSION='${{ inputs.version }}' CODESIGN_IDENTITY='-' sh scripts/build-macos-app.sh "${rid}" | tail -n '1p')
+            package_log="${RUNNER_TEMP}/dotnet-macos-package.log"
+            VERSION='${{ inputs.version }}' CODESIGN_IDENTITY='-' sh scripts/build-macos-app.sh "${rid}" > "${package_log}"
+            bundle=$(sed -n '$p' "${package_log}")
+            cat "${package_log}"
             test -d "${bundle}"
             ditto -c -k --sequesterRsrc --keepParent "${bundle}" "${assets_dir}/${repository}-${asset}.zip"
           else
