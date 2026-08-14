@@ -18,6 +18,12 @@ flowchart LR
 
 Build resolves one version, writes it only to its workspace POM, and tests it. With `dry_run: true`, it resolves `next_snapshot`. It never reads `project.version` to decide a release. Date versions use UTC.
 
+## External-process tests
+
+- Let a server choose a random port unless the test is specifically proving a configured port.
+- Never delete or replace a running server executable: its shutdown path needs that executable to stop the child process.
+- A test suite must leave no process for the next repository in the same maintenance runner.
+
 ## POM migration baseline
 
 - Use `<version>1.0.0</version>` and define `project.build.outputTimestamp`.
