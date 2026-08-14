@@ -1,0 +1,148 @@
+name: 🧩 CI · .NET Native Build
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Build version.
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  build:
+    name: "📦 ${{ matrix.asset }}"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - asset: linux-x64
+            rid: linux-x64
+            os: ubuntu-24.04
+            package: tar.gz
+          - asset: linux-arm64
+            rid: linux-arm64
+            os: ubuntu-24.04
+            package: tar.gz
+          - asset: linux-arm
+            rid: linux-arm
+            os: ubuntu-24.04
+            package: tar.gz
+          - asset: linux-musl-x64
+            rid: linux-musl-x64
+            os: ubuntu-24.04
+            package: tar.gz
+          - asset: linux-musl-arm64
+            rid: linux-musl-arm64
+            os: ubuntu-24.04
+            package: tar.gz
+          - asset: linux-musl-arm
+            rid: linux-musl-arm
+            os: ubuntu-24.04
+            package: tar.gz
+          - asset: win-x64
+            rid: win-x64
+            os: ubuntu-24.04
+            package: zip
+          - asset: win-x86
+            rid: win-x86
+            os: ubuntu-24.04
+            package: zip
+          - asset: win-arm64
+            rid: win-arm64
+            os: ubuntu-24.04
+            package: zip
+          - asset: macos-arm64
+            rid: osx-arm64
+            os: macos-14
+            package: app-zip
+          - asset: macos-x64
+            rid: osx-x64
+            os: macos-15-intel
+            package: app-zip
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: "🟣 Setup .NET"
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: "📦 Package [${{ inputs.version }}]"
+        shell: sh
+        run: |
+          set -eu
+          repository=${GITHUB_REPOSITORY#*/}
+          asset='${{ matrix.asset }}'
+          rid='${{ matrix.rid }}'
+          package='${{ matrix.package }}'
+          assets_dir='release-assets'
+          archive_dir=$(mktemp -d "${RUNNER_TEMP}/dotnet-package.XXXXXX")
+          trap 'rm -rf "${archive_dir}"' EXIT INT TERM
+          mkdir -p "${assets_dir}"
+
+          publish() {
+            output_dir=$1
+            if [ -f scripts/publish.sh ]; then
+              VERSION='${{ inputs.version }}' sh scripts/publish.sh "${rid}"
+            else
+              project=$(find . -type f -name '*.csproj' ! -path './test/*' ! -path './tests/*' | while IFS= read -r candidate; do
+                if grep -Eq '<OutputType>(Exe|WinExe)</OutputType>' "${candidate}"; then
+                  printf '%s\n' "${candidate}"
+                fi
+              done | sed -n '1p')
+              if [ -z "${project}" ]; then
+                project=$(find . -type f -name '*.csproj' ! -path './test/*' ! -path './tests/*' | sed -n '1p')
+              fi
+              test -n "${project}"
+              dotnet publish "${project}" --configuration Release --runtime "${rid}" --self-contained true \
+                -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+                -p:DebugType=none -p:DebugSymbols=false -p:Version='${{ inputs.version }}' \
+                --output "${output_dir}"
+            fi
+          }
+
+          if [ "${package}" = 'app-zip' ] && [ -f scripts/build-macos-app.sh ]; then
+            bundle=$(VERSION='${{ inputs.version }}' CODESIGN_IDENTITY='-' sh scripts/build-macos-app.sh "${rid}" | tail -n '1p')
+            test -d "${bundle}"
+            ditto -c -k --sequesterRsrc --keepParent "${bundle}" "${assets_dir}/${repository}-${asset}.zip"
+          else
+            output_dir="out/${repository}-${asset}"
+            publish "${output_dir}"
+            test -d "${output_dir}"
+            mkdir -p "${archive_dir}/${repository}"
+            cp -R "${output_dir}/." "${archive_dir}/${repository}/"
+            case "${package}" in
+              tar.gz)
+                tar -C "${archive_dir}" -czf "${assets_dir}/${repository}-${asset}.tar.gz" "${repository}"
+                ;;
+              zip|app-zip)
+                (
+                  cd "${archive_dir}"
+                  zip -qr "${GITHUB_WORKSPACE}/${assets_dir}/${repository}-${asset}.zip" "${repository}"
+                )
+                ;;
+              *)
+                echo "Unsupported package: ${package}" >&2
+                exit 1
+                ;;
+            esac
+          fi
+          test -n "$(find "${assets_dir}" -maxdepth 1 -type f -print -quit)"
+
+      - name: "📦 Upload Release Assets"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-assets-${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 1
+          path: release-assets

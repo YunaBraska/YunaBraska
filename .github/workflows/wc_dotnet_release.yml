@@ -1,0 +1,138 @@
+name: 🏷️ CD · .NET Release
+
+on:
+  workflow_call:
+    inputs:
+      force:
+        description: Release unchanged source.
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      commit_sha:
+        description: Build commit.
+        value: ${{ jobs.build.outputs.commit_sha }}
+      dry_run:
+        description: Built a snapshot instead of a release.
+        value: ${{ jobs.build.outputs.dry_run }}
+      version:
+        description: Resolved version.
+        value: ${{ jobs.build.outputs.version }}
+
+permissions: {}
+
+concurrency:
+  group: dotnet-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  mode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      dry_run: ${{ steps.release_info.outputs.dry_run }}
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: "🏷️ Read Latest Tag"
+        id: latest_tag
+        shell: sh
+        run: |
+          set -eu
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          printf 'latest_tag=%s\n' "${latest_tag:-none}"
+          printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: "🏷️ Release Mode"
+        id: release_info
+        shell: sh
+        run: |
+          set -eu
+          dry_run=true
+          if [ "${{ inputs.force }}" = 'true' ] || [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
+            dry_run=false
+          elif git diff --name-only "${{ steps.latest_tag.outputs.latest_tag }}"..HEAD | while IFS= read -r path; do
+            case "${path}" in
+              README*|*/README*|docs/*|*/docs/*|*.md|.github/*|.editorconfig|.gitignore|LICENSE*|*/LICENSE*|\
+              test/*|tests/*|spec/*|specs/*|*/test/*|*/tests/*|*/spec/*|*/specs/*|\
+              example/*|examples/*|benchmark/*|benchmarks/*|*/example/*|*/examples/*|*/benchmark/*|*/benchmarks/*)
+                ;;
+              *)
+                exit 1
+                ;;
+            esac
+          done; then
+            :
+          else
+            dry_run=false
+          fi
+          printf 'dry_run=%s\n' "${dry_run}"
+          printf 'dry_run=%s\n' "${dry_run}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: mode
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_dotnet_build_common.yml
+    with:
+      ref: ${{ github.sha }}
+      dry_run: ${{ needs.mode.outputs.dry_run == 'true' }}
+
+  native:
+    needs: build
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_dotnet_build_native.yml
+    with:
+      version: ${{ needs.build.outputs.version }}
+
+  release:
+    needs:
+      - build
+      - native
+    if: needs.build.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: "📥 Download Release Assets"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: release-assets-*
+          path: release-assets
+          merge-multiple: true
+          github-token: ${{ github.token }}
+
+      - name: "🔐 Create Checksums"
+        shell: sh
+        run: |
+          set -eu
+          test -n "$(find release-assets -maxdepth 1 -type f -print -quit)"
+          find release-assets -maxdepth 1 -type f -print | sort | while IFS= read -r asset; do
+            sha256sum "${asset}" | sed 's#  release-assets/#  #'
+          done > release-assets/SHA256SUMS
+
+      - name: "🏷️ GitHub Release [${{ needs.build.outputs.version }}]"
+        shell: sh
+        run: |
+          set -eu
+          if GH_TOKEN="${{ github.token }}" gh release view "${{ needs.build.outputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "GitHub release already exists for ${{ needs.build.outputs.version }}"
+          else
+            case "${{ needs.build.outputs.version }}" in
+              *-*)
+                GH_TOKEN="${{ github.token }}" gh release create "${{ needs.build.outputs.version }}" --repo "${{ github.repository }}" --target "${{ needs.build.outputs.commit_sha }}" --generate-notes --prerelease --latest=false
+                ;;
+              *)
+                GH_TOKEN="${{ github.token }}" gh release create "${{ needs.build.outputs.version }}" --repo "${{ github.repository }}" --target "${{ needs.build.outputs.commit_sha }}" --generate-notes --latest
+                ;;
+            esac
+          fi
+          GH_TOKEN="${{ github.token }}" gh release upload "${{ needs.build.outputs.version }}" release-assets/* --repo "${{ github.repository }}" --clobber
