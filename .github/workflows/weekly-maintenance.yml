@@ -131,7 +131,6 @@ jobs:
 
           while IFS="$(printf '\t')" read -r repository default_branch; do
             merge_ready_prs "${repository}" "${default_branch}"
-
             if ! workflow_paths=$(gh api "repos/${repository}/contents/.github/workflows?ref=${default_branch}" --jq '.[] | select(.type == "file") | select((.name | endswith(".yml")) or (.name | endswith(".yaml"))) | .path' 2>/dev/null); then
               continue
             fi
