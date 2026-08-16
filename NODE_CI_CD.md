@@ -8,7 +8,7 @@ and maintenance.
 flowchart LR
   A[Pull request] --> B[Build and test]
   C[Merge] --> D[Main build]
-  E[Monday maintenance] --> F[bot/maintenance-node PR]
+  E[Sunday dependency update] --> F[bot/maintenance-node PR]
   F --> G[Monday merge]
   G --> H[Monday release check]
   H --> I[Exact SemVer tag and GitHub release]
@@ -28,8 +28,10 @@ flowchart LR
   release.
 - Dependabot maintains GitHub Action references. `bot/maintenance-node` owns npm
   updates because each dependency update must rebuild and commit `dist` in the
-  same PR. Its current caller-owned writer is the remaining centralisation
-  migration; do not copy it. See [automation ownership](AUTOMATION.md).
+  same change. Its repository must enable **Allow GitHub Actions to create and
+  approve pull requests** so the scoped `GITHUB_TOKEN` can open that PR; central
+  weekly maintenance merges it on Monday when repository CI is green. See
+  [automation ownership](AUTOMATION.md).
 - The legacy Node test and publish reusables are retired; every Node repository
   uses the four building blocks below.
 
@@ -108,7 +110,6 @@ permissions: {}
 jobs:
   node:
     permissions:
-      actions: write
       contents: write
       pull-requests: write
     uses: YunaBraska/YunaBraska/.github/workflows/wc_node_update_dependencies.yml@<FULL_COMMIT_SHA>

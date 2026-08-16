@@ -16,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      actions: write
       contents: write
       pull-requests: write
     steps:
@@ -42,6 +41,14 @@ jobs:
           branch='bot/maintenance-node'
           if gh pr list --repo "${GITHUB_REPOSITORY}" --head "${branch}" --state open --json number --jq '.[0].number // empty' | grep -q .; then
             echo "${branch} already has an open pull request."
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+            if [ "${{ inputs.dry_run }}" = 'true' ]; then
+              echo "Would open ${branch}."
+            else
+              gh pr create --repo "${GITHUB_REPOSITORY}" --base "${{ github.event.repository.default_branch }}" --head "${branch}" --title 'build: update Node dependencies' --body 'Updates Node dependencies and generated output.'
+            fi
             exit 0
           fi
           npm update

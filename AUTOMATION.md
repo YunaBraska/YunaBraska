@@ -6,6 +6,7 @@ the green maintenance pull requests it discovers in other repositories.
 ```mermaid
 flowchart LR
   C[YunaBraska/YunaBraska] -->|BOT_TOKEN| R[Repository maintenance PR]
+  N[Repository Node maintenance] -->|GITHUB_TOKEN| R
   T[Homebrew tap updater] -->|GITHUB_TOKEN| P[Homebrew PR]
   R -->|pull_request| V[Repository CI]
   P -->|workflow dispatch| H[Tap CI]
@@ -16,6 +17,7 @@ flowchart LR
 
 | Work | Runs in | Writer | Reason |
 | --- | --- | --- | --- |
+| Update Node dependencies | Source repository | Its scoped `GITHUB_TOKEN` | It rebuilds and tests that repository's `dist`, then opens `bot/maintenance-node`. |
 | Merge green Dependabot and maintenance PRs | `YunaBraska/YunaBraska` | `BOT_TOKEN` | One authority across the organisation. |
 | Dispatch releases | `YunaBraska/YunaBraska` | `BOT_TOKEN` | Discovery and scheduling are central. |
 | Create tags, GitHub releases, packages, and Central coordinates | Source repository | Its scoped `GITHUB_TOKEN` | The release owns its own artifacts. |
@@ -65,11 +67,11 @@ architectures with Homebrew's normal conditions.
 ## Audit boundary
 
 Central release discovery, upstream maintenance, and weekly merging follow this
-model. Homebrew intentionally writes locally from the tap. The legacy Maven
-Wrapper and Node dependency reusables still write from their caller repositories
-with `GITHUB_TOKEN`; do not copy that pattern. They are the remaining
-centralisation migration because they can have the same approval-gated PR
-behaviour that Homebrew has explicitly handled.
+model. Homebrew, Maven Wrapper, and Node dependency maintenance intentionally
+open their own narrow pull requests with `GITHUB_TOKEN`; their repositories must
+enable **Allow GitHub Actions to create and approve pull requests**. Node
+maintenance runs at 06:00 UTC Sunday, central merges green PRs at 06:00 UTC
+Monday, and the release dispatcher runs at 16:00 UTC Monday.
 
 Every scheduled workflow supports a manual dry run. A dry run may read, build,
 test, style, and print its intended mutation; it never creates a branch, pull
