@@ -5,24 +5,27 @@ the green maintenance pull requests it discovers in other repositories.
 
 ```mermaid
 flowchart LR
-  C[YunaBraska/YunaBraska] -->|BOT_TOKEN| R[Repository maintenance PR]
-  N[Repository Node maintenance] -->|GITHUB_TOKEN| R
+  N[Repository Node maintenance] -->|GITHUB_TOKEN| R[bot/maintenance-node PR]
+  N -->|dispatch exact branch| V[Repository CI]
+  V -->|green| M[Central weekly merge]
   T[Homebrew tap updater] -->|GITHUB_TOKEN| P[Homebrew PR]
-  R -->|pull_request| V[Repository CI]
-  P -->|workflow dispatch| H[Tap CI]
-  C -->|BOT_TOKEN, green PR| M[Weekly merge]
+  T -->|dispatch exact branch| H[Tap CI]
+  H -->|green| M
+  C[YunaBraska/YunaBraska] -->|BOT_TOKEN| M
   C -->|BOT_TOKEN| D[Release dispatch]
   D --> L[Repository release and publish]
 ```
 
 | Work | Runs in | Writer | Reason |
 | --- | --- | --- | --- |
-| Update Node dependencies | Source repository | Its scoped `GITHUB_TOKEN` | It rebuilds and tests that repository's `dist`, then opens `bot/maintenance-node`. |
+| Update Node dependencies | Source repository | Its scoped `GITHUB_TOKEN` | It rebuilds and tests that repository's `dist`, opens or recovers `bot/maintenance-node`, then dispatches its exact branch to `build-pr.yml`. |
 | Merge green Dependabot and maintenance PRs | `YunaBraska/YunaBraska` | `BOT_TOKEN` | One authority across the organisation. |
 | Dispatch releases | `YunaBraska/YunaBraska` | `BOT_TOKEN` | Discovery and scheduling are central. |
 | Create tags, GitHub releases, packages, and Central coordinates | Source repository | Its scoped `GITHUB_TOKEN` | The release owns its own artifacts. |
 | Update Homebrew casks and formulae | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater and tap are the same repository. |
 | Validate a Homebrew PR | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater dispatches the formula workflow for its exact commit. |
+
+Node maintenance follows the same explicit-check pattern as Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches `🧪 CI · Pull Request` for the exact maintenance branch. Central weekly maintenance merges it only after that check is green.
 
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.
