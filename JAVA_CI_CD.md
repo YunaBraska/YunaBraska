@@ -150,7 +150,7 @@ Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Ce
 
 A GitHub version with a hyphen is a pre-release.
 
-Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. It ignores the retired root `version.txt`; real version sources such as POMs, package manifests, and upstream releases still trigger a release. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening. `# yuna-java-upstream: owner/repository` in one maintenance workflow lets the central job run Maven's updater, then open one tested `bot/maintenance-upstream` PR only when tracked files changed.
+Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Real version sources such as POMs, package manifests, and upstream releases trigger a release. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening. `# yuna-java-upstream: owner/repository` in one maintenance workflow lets the central job run Maven's updater, then open one tested `bot/maintenance-upstream` PR only when tracked files changed.
 
 ## Maven Wrapper
 
