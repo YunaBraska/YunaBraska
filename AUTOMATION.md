@@ -23,16 +23,16 @@ flowchart LR
 | Dispatch releases | `YunaBraska/YunaBraska` | `BOT_TOKEN` | Discovery and scheduling are central. |
 | Create tags, GitHub releases, packages, and Central coordinates | Source repository | Its scoped `GITHUB_TOKEN` | The release owns its own artifacts. |
 | Update Homebrew casks and formulae | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater and tap are the same repository. |
-| Validate a Homebrew PR | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater dispatches the formula workflow for its exact commit. |
+| Validate a maintenance PR | Source repository | Its `GITHUB_TOKEN` | The updater dispatches its existing PR-build workflow for the exact commit. |
 
-Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance merges only after the check is green.
+Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance recognizes a successful dispatched `build-pr.yml` run for the exact `bot/maintenance-*` commit as its green check; ordinary PR checks remain the gate for Dependabot and human PRs.
 
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.
-It then dispatches `🍺 CI · Formula` for that exact branch commit. GitHub can
+It then dispatches its PR build for that exact branch commit. GitHub can
 mark the automatic pull-request run created by `GITHUB_TOKEN` as `UNKNOWN` or
 `UNSTABLE`; Monday maintenance instead recognizes that successful explicit
-formula run before it merges. The updater does not wait for CI.
+build run before it merges. The updater does not wait for CI.
 
 The central `BOT_TOKEN` uses its existing Contents write access to merge the
 green Homebrew PR on Monday. It is never used to create Homebrew branches or
