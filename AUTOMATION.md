@@ -25,7 +25,7 @@ flowchart LR
 | Update Homebrew casks and formulae | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater and tap are the same repository. |
 | Validate a Homebrew PR | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater dispatches the formula workflow for its exact commit. |
 
-Node maintenance follows the same explicit-check pattern as Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches `🧪 CI · Pull Request` for the exact maintenance branch. Central weekly maintenance merges it only after that check is green.
+Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance merges only after the check is green.
 
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.

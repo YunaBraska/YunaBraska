@@ -98,7 +98,7 @@ jobs:
               while IFS= read -r path; do
                 case "${path}" in
                   README*|*/README*|docs/*|*/docs/*|*.md|.github/*|.editorconfig|.gitignore|LICENSE*|*/LICENSE*|\
-                  .mvn/*|mvnw|mvnw.cmd|gradle/wrapper/*|gradlew|gradlew.bat|.nvmrc|.tool-versions|global.json|version.txt|\
+                  .mvn/*|mvnw|mvnw.cmd|gradle/wrapper/*|gradlew|gradlew.bat|.nvmrc|.tool-versions|global.json|\
                   test/*|tests/*|spec/*|specs/*|*/test/*|*/tests/*|*/spec/*|*/specs/*|\
                   example/*|examples/*|benchmark/*|benchmarks/*|*/example/*|*/examples/*|*/benchmark/*|*/benchmarks/*)
                     ;;
