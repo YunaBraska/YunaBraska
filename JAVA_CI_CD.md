@@ -208,7 +208,7 @@ Native projects add `native` after the resolved Java build. Maven Central and Gi
 | Linux ARM64 | `ubuntu-24.04-arm` | `Dockerfile_Native` | Native ARM runner; avoids QEMU. |
 | macOS Intel | `macos-15-intel` | Maven `-Pnative` | Supports Intel Macs. |
 | macOS Apple Silicon | `macos-latest` | Maven `-Pnative` | Supports Apple Silicon Macs. |
-| Windows x64 | `windows-latest` | Maven `-Pnative` + MSVC | Supported Windows release target. |
+| Windows x64 | `windows-latest` | Maven `-Pnative` + runner MSVC | `vswhere` discovers the hosted Visual Studio toolchain; no setup action. |
 
 The matrix has `fail-fast: false` so every platform reports its result. Linux still uses Buildx to run its project Dockerfile, but the target runner matches the image architecture and the workflow does not configure QEMU. Windows ARM64 is not enabled: its hosted runner remains preview and no current release needs that extra artifact.
 
