@@ -74,10 +74,6 @@ jobs:
           java-version: ${{ matrix.kind == 'host' && '25' || steps.java_info.outputs.java_version }}
           cache: maven
 
-      - name: "🛠️ Setup MSVC"
-        if: matrix.name == 'windows-x64'
-        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
-
       - name: "🏷️ Set Project Version [${{ inputs.version }}]"
         shell: sh
         run: |
@@ -104,12 +100,24 @@ jobs:
           platforms: ${{ matrix.platform }}
 
       - name: "🧩 Build Native [${{ matrix.name }}]"
-        if: matrix.kind == 'host'
+        if: matrix.kind == 'host' && matrix.name != 'windows-x64'
         shell: sh
         run: |
           set -eu
           chmod +x ./mvnw
           ./mvnw -B -Pnative -DskipTests package
+
+      - name: "🧩 Build Native [${{ matrix.name }}]"
+        if: matrix.name == 'windows-x64'
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "vs_path=%%i"
+          if not defined vs_path (
+            echo MSVC installation not found. 1>&2
+            exit /b 1
+          )
+          call "%vs_path%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          call mvnw.cmd -B -Pnative -DskipTests package
 
       - name: "📦 Prepare Native Asset [${{ matrix.name }}]"
         shell: sh
