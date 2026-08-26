@@ -19,6 +19,7 @@ flowchart LR
 | Work | Runs in | Writer | Reason |
 | --- | --- | --- | --- |
 | Update Node dependencies | Source repository | Its scoped `GITHUB_TOKEN` | It rebuilds and tests that repository's `dist`, opens or recovers `bot/maintenance-node`, then dispatches its exact branch to `build-pr.yml`. |
+| Sync an upstream Maven property | `YunaBraska/YunaBraska` | `BOT_TOKEN` | An optional `# yuna-java-upstream-property` marker selects one property. Central reads the latest stable upstream SemVer release, sets it, runs `mvn verify`, opens `bot/maintenance-upstream`, and dispatches its exact branch to `build-pr.yml`. |
 | Merge green Dependabot and maintenance PRs | `YunaBraska/YunaBraska` | `BOT_TOKEN` | One authority across the organisation. |
 | Dispatch releases | `YunaBraska/YunaBraska` | `BOT_TOKEN` | Discovery and scheduling are central. |
 | Create tags, GitHub releases, packages, and Central coordinates | Source repository | Its scoped `GITHUB_TOKEN` | The release owns its own artifacts. |
