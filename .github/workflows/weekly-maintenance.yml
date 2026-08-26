@@ -90,6 +90,7 @@ jobs:
             repository=$1
             default_branch=$2
             upstream_repository=$3
+            upstream_property=$4
             branch='bot/maintenance-upstream'
             checkout=$(mktemp -d "${RUNNER_TEMP}/maintenance.XXXXXX")
 
@@ -99,9 +100,23 @@ jobs:
               return
             fi
 
+            upstream_version=''
+            if [ -n "${upstream_property}" ]; then
+              upstream_tag=$(gh api "repos/${upstream_repository}/releases/latest" --jq '.tag_name')
+              upstream_version=${upstream_tag#v}
+              if ! printf '%s\n' "${upstream_version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "${repository}: ${upstream_repository} latest release is not stable SemVer; skipping."
+                rm -rf "${checkout}"
+                return
+              fi
+            fi
+
             git clone --quiet --depth=1 --branch "${default_branch}" "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${checkout}"
             (
               cd "${checkout}"
+              if [ -n "${upstream_property}" ]; then
+                ./mvnw -B -N versions:set-property -Dproperty="${upstream_property}" -DnewVersion="${upstream_version}" -DgenerateBackupPoms=false
+              fi
               ./mvnw -B -N wrapper:wrapper
               ./mvnw -B verify
             )
@@ -126,6 +141,7 @@ jobs:
             git -C "${checkout}" commit -m 'build: update upstream sources'
             git -C "${checkout}" push origin "${branch}"
             gh pr create --repo "${repository}" --base "${default_branch}" --head "${branch}" --title 'build: update upstream sources' --body "Updates ${upstream_repository}."
+            gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${branch}"
             rm -rf "${checkout}"
           }
 
@@ -136,6 +152,8 @@ jobs:
             fi
             upstream_repository=''
             upstream_markers=0
+            upstream_property=''
+            upstream_property_markers=0
             for workflow_path in ${workflow_paths}; do
               workflow_file="${RUNNER_TEMP}/workflow.yml"
               if ! gh api -H 'Accept: application/vnd.github.raw+json' "repos/${repository}/contents/${workflow_path}?ref=${default_branch}" > "${workflow_file}" 2>/dev/null; then
@@ -147,11 +165,18 @@ jobs:
               fi
               upstream_markers=$((upstream_markers + 1))
               upstream_repository="${marker}"
+              property_marker=$(sed -nE 's/^[[:space:]]*# yuna-java-upstream-property:[[:space:]]*([A-Za-z0-9_.-]+)[[:space:]]*$/\1/p' "${workflow_file}")
+              if [ -n "${property_marker}" ]; then
+                upstream_property_markers=$((upstream_property_markers + 1))
+                upstream_property="${property_marker}"
+              fi
             done
-            if [ "${upstream_markers}" -eq 1 ]; then
-              maintain_upstream "${repository}" "${default_branch}" "${upstream_repository}"
+            if [ "${upstream_markers}" -eq 1 ] && [ "${upstream_property_markers}" -le 1 ]; then
+              maintain_upstream "${repository}" "${default_branch}" "${upstream_repository}" "${upstream_property}"
             elif [ "${upstream_markers}" -gt 1 ]; then
               echo "${repository}: multiple yuna-java-upstream markers; skipping."
+            else
+              echo "${repository}: multiple yuna-java-upstream-property markers; skipping."
             fi
           done < "${repositories_file}"
 
