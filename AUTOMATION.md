@@ -26,7 +26,7 @@ flowchart LR
 | Update Homebrew casks and formulae | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater and tap are the same repository. |
 | Validate a maintenance PR | Source repository | Its `GITHUB_TOKEN` | The updater dispatches its existing PR-build workflow for the exact commit. |
 
-Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance recognizes a successful dispatched `build-pr.yml` run for the exact `bot/maintenance-*` commit as its green check; ordinary PR checks remain the gate for Dependabot and human PRs.
+Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance recognizes a successful dispatched `build-pr.yml` run for the exact `bot/maintenance-*` commit as its green check; ordinary PR checks remain the gate for Dependabot and human PRs. Dependabot checks Sunday at 00:00 UTC, so its grouped PRs have time to complete before Monday maintenance.
 
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.
