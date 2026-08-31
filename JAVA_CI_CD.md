@@ -104,7 +104,7 @@ jobs:
 
   github:
     needs: [release, central, packages]
-    if: ${{ always() && !cancelled() && needs.release.outputs.dry_run == 'false' && !endsWith(needs.release.outputs.version, '-SNAPSHOT') && needs.release.result == 'success' && needs.central.result == 'success' && needs.packages.result == 'success' }}
+    if: ${{ always() && !cancelled() && needs.release.outputs.version != '' && !endsWith(needs.release.outputs.version, '-SNAPSHOT') && needs.release.result == 'success' && needs.central.result == 'success' && needs.packages.result == 'success' }}
     permissions:
       actions: read
       contents: write
@@ -144,7 +144,7 @@ Common build defaults to `snapshot`. The Semver base is the latest tag or upstre
 
 The shared Java workflows configure Maven's GitHub Packages server with the scoped action token; Central preserves both server entries.
 
-A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. A newer upstream release wins; otherwise the declared strategy applies. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the latest local tag.
+A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. Its optional `v` prefix is removed before comparison, tagging, and build resolution. A newer upstream release wins; otherwise the declared strategy applies. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the latest local tag.
 
 Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
