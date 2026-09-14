@@ -1,0 +1,138 @@
+name: 🛠️ CI · Upstream
+
+on:
+  workflow_call:
+    inputs:
+      upstream_repository:
+        description: Upstream GitHub repository.
+        required: true
+        type: string
+      upstream_property:
+        description: Maven property following the stable upstream release.
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: Dry run.
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: write
+      contents: write
+      packages: read
+      pull-requests: write
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: "🔍 Read Java Info"
+        id: java_info
+        uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
+
+      - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ steps.java_info.outputs.java_version }}
+          cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: MAVEN_GITHUB_TOKEN
+
+      - name: "🏷️ Read Upstream"
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: sh
+        run: |
+          set -eu
+          upstream_version=''
+          if [ -n "${{ inputs.upstream_property }}" ]; then
+            upstream_tag=$(gh api "repos/${{ inputs.upstream_repository }}/releases/latest" --jq '.tag_name')
+            upstream_version=${upstream_tag#v}
+            if ! printf '%s\n' "${upstream_version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "${{ inputs.upstream_repository }} latest release is not stable SemVer: ${upstream_tag}" >&2
+              exit 1
+            fi
+          fi
+          printf 'upstream_version=%s\n' "${upstream_version}" >> "${GITHUB_OUTPUT}"
+          printf 'upstream_repository=%s\n' "${{ inputs.upstream_repository }}"
+          printf 'upstream_version=%s\n' "${upstream_version:-none}"
+
+      - name: "🧾 Read Maintenance"
+        id: maintenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: sh
+        run: |
+          set -eu
+          branch='bot/maintenance-upstream'
+          open=false
+          if gh pr list --repo "${GITHUB_REPOSITORY}" --head "${branch}" --state open --json number --jq '.[0].number // empty' | grep -q .; then
+            open=true
+          fi
+          branch_sha=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" --jq '.object.sha' 2>/dev/null || true)
+          {
+            printf 'branch=%s\n' "${branch}"
+            printf 'branch_sha=%s\n' "${branch_sha}"
+            printf 'open=%s\n' "${open}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'branch=%s\n' "${branch}"
+          printf 'branch_sha=%s\n' "${branch_sha:-none}"
+          printf 'open=%s\n' "${open}"
+
+      - name: "🛠️ Update"
+        id: update
+        if: steps.maintenance.outputs.open != 'true'
+        env:
+          MAVEN_GITHUB_TOKEN: ${{ github.token }}
+        shell: sh
+        run: |
+          set -eu
+          if [ -n "${{ inputs.upstream_property }}" ]; then
+            ${{ steps.java_info.outputs.cmd }} -B -N versions:set-property -Dproperty="${{ inputs.upstream_property }}" -DnewVersion="${{ steps.upstream.outputs.upstream_version }}" -DgenerateBackupPoms=false
+          fi
+          ${{ steps.java_info.outputs.cmd }} -B test
+          current=false
+          if git diff --quiet; then
+            current=true
+          fi
+          printf 'current=%s\n' "${current}" >> "${GITHUB_OUTPUT}"
+          printf 'current=%s\n' "${current}"
+
+      - name: "🛠️ Create Pull Request"
+        if: inputs.dry_run != true && steps.maintenance.outputs.open != 'true' && steps.update.outputs.current != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: sh
+        run: |
+          set -eu
+          git config user.name 'Kira Bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "${{ steps.maintenance.outputs.branch }}"
+          git diff --name-only | while IFS= read -r file_name; do
+            git add -- "${file_name}"
+          done
+          git commit -m 'build: update upstream sources'
+          if [ -n "${{ steps.maintenance.outputs.branch_sha }}" ]; then
+            git push --force-with-lease="refs/heads/${{ steps.maintenance.outputs.branch }}:${{ steps.maintenance.outputs.branch_sha }}" origin "${{ steps.maintenance.outputs.branch }}"
+          else
+            git push origin "${{ steps.maintenance.outputs.branch }}"
+          fi
+          gh pr create --repo "${GITHUB_REPOSITORY}" --base "${{ github.event.repository.default_branch }}" --head "${{ steps.maintenance.outputs.branch }}" --title 'build: update upstream sources' --body 'Updates ${{ inputs.upstream_repository }}.'
+          gh workflow run build-pr.yml --repo "${GITHUB_REPOSITORY}" --ref "${{ steps.maintenance.outputs.branch }}" -f ref="${{ steps.maintenance.outputs.branch }}"
+
+      - name: "🧪 Dry Run"
+        if: inputs.dry_run == true && steps.maintenance.outputs.open != 'true' && steps.update.outputs.current != 'true'
+        shell: sh
+        run: printf 'Would create %s.\n' "${{ steps.maintenance.outputs.branch }}"
