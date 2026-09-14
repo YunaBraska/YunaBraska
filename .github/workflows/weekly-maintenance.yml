@@ -119,7 +119,6 @@ jobs:
                 ./mvnw -B -N versions:set-property -Dproperty="${upstream_property}" -DnewVersion="${upstream_version}" -DgenerateBackupPoms=false
               fi
               ./mvnw -B -N wrapper:wrapper
-              ./mvnw -B verify
             )
 
             if git -C "${checkout}" diff --quiet; then

@@ -152,7 +152,7 @@ A GitHub version with a hyphen is a pre-release.
 
 Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Real version sources such as POMs, package manifests, and upstream releases trigger a release. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening. `# yuna-java-upstream: owner/repository` in one maintenance workflow lets the central job run Maven's updater, then open one tested `bot/maintenance-upstream` PR only when tracked files changed.
 
-`# yuna-java-upstream-property: property.name` additionally makes the latest stable upstream `v?X.Y.Z` release the named Maven property. The updater strips an optional `v`, sets the property, runs `mvn verify`, and explicitly dispatches that PR's normal build. Generated files, including Spring configuration metadata, therefore arrive in the same tested PR. Dependabot must ignore the matching upstream dependency; it continues to manage every other Maven and GitHub Actions dependency.
+`# yuna-java-upstream-property: property.name` additionally makes the latest stable upstream `v?X.Y.Z` release the named Maven property. The updater strips an optional `v`, sets the property, and explicitly dispatches that PR's normal build. Generated files, including Spring configuration metadata, therefore arrive in the same tested PR. Dependabot must ignore the matching upstream dependency; it continues to manage every other Maven and GitHub Actions dependency.
 
 ## Maven Wrapper
 
