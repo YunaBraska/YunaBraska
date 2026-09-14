@@ -99,6 +99,7 @@ jobs:
               rm -rf "${checkout}"
               return
             fi
+            branch_sha=$(gh api "repos/${repository}/git/ref/heads/${branch}" --jq '.object.sha' 2>/dev/null || true)
 
             upstream_version=''
             if [ -n "${upstream_property}" ]; then
@@ -139,7 +140,11 @@ jobs:
               git -C "${checkout}" add -- "${path}"
             done
             git -C "${checkout}" commit -m 'build: update upstream sources'
-            git -C "${checkout}" push origin "${branch}"
+            if [ -n "${branch_sha}" ]; then
+              git -C "${checkout}" push --force-with-lease="refs/heads/${branch}:${branch_sha}" origin "${branch}"
+            else
+              git -C "${checkout}" push origin "${branch}"
+            fi
             gh pr create --repo "${repository}" --base "${default_branch}" --head "${branch}" --title 'build: update upstream sources' --body "Updates ${upstream_repository}."
             gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${branch}"
             rm -rf "${checkout}"
