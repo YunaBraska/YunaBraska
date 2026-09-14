@@ -150,9 +150,23 @@ Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Ce
 
 A GitHub version with a hyphen is a pre-release.
 
-Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Real version sources such as POMs, package manifests, and upstream releases trigger a release. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening. `# yuna-java-upstream: owner/repository` in one maintenance workflow lets the central job run Maven's updater, then open one tested `bot/maintenance-upstream` PR only when tracked files changed.
+Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Real version sources such as POMs, package manifests, and upstream releases trigger a release. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening.
 
-`# yuna-java-upstream-property: property.name` additionally makes the latest stable upstream `v?X.Y.Z` release the named Maven property. The updater strips an optional `v`, sets the property, and explicitly dispatches that PR's normal build. Generated files, including Spring configuration metadata, therefore arrive in the same tested PR. Dependabot must ignore the matching upstream dependency; it continues to manage every other Maven and GitHub Actions dependency.
+Upstream maintenance is repository-owned and calls `wc_java_update_upstream.yml`. Its optional `upstream_property` makes the latest stable upstream `v?X.Y.Z` release the named Maven property. It always runs `mvn test` before opening one tested `bot/maintenance-upstream` PR, so generated sources—including Spring configuration metadata and upstream enums—are committed with the dependency update. The normal PR build runs the same test and requires no generated-source diff. Dependabot must ignore a dependency managed by this workflow; it continues to manage every other Maven and GitHub Actions dependency.
+
+```yml
+  upstream:
+    permissions:
+      actions: write
+      contents: write
+      packages: read
+      pull-requests: write
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_update_upstream.yml@<FULL_COMMIT_SHA>
+    with:
+      upstream_repository: owner/project
+      upstream_property: project.version # omit when tests discover the upstream
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+```
 
 ## Maven Wrapper
 

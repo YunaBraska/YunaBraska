@@ -1,12 +1,15 @@
 # Automation ownership
 
 `YunaBraska/YunaBraska` owns organisation-wide scheduling. `BOT_TOKEN` merges
-the green maintenance pull requests it discovers in other repositories.
+the green maintenance pull requests it discovers in other repositories; each
+repository owns its own narrow writer with its scoped `GITHUB_TOKEN`.
 
 ```mermaid
 flowchart LR
   N[Repository Node maintenance] -->|GITHUB_TOKEN| R[bot/maintenance-node PR]
   N -->|dispatch exact branch| V[Repository CI]
+  U[Repository upstream maintenance] -->|GITHUB_TOKEN| UPR[bot/maintenance-upstream PR]
+  U -->|Maven test then dispatch exact branch| V
   V -->|green| M[Central weekly merge]
   T[Homebrew tap updater] -->|GITHUB_TOKEN| P[Homebrew PR]
   T -->|dispatch exact branch| H[Tap CI]
@@ -19,7 +22,7 @@ flowchart LR
 | Work | Runs in | Writer | Reason |
 | --- | --- | --- | --- |
 | Update Node dependencies | Source repository | Its scoped `GITHUB_TOKEN` | It rebuilds and tests that repository's `dist`, opens or recovers `bot/maintenance-node`, then dispatches its exact branch to `build-pr.yml`. |
-| Sync an upstream Maven property | `YunaBraska/YunaBraska` | `BOT_TOKEN` | An optional `# yuna-java-upstream-property` marker selects one property. Central reads the latest stable upstream SemVer release, sets it, safely recovers its one `bot/maintenance-upstream` branch when needed, and dispatches its exact branch to `build-pr.yml`. |
+| Sync an upstream Maven property or generated source | Source repository | Its scoped `GITHUB_TOKEN` | The shared upstream workflow reads a stable upstream release when a Maven property is configured, then always runs `mvn test` before it opens or safely recovers `bot/maintenance-upstream`. |
 | Merge green Dependabot and maintenance PRs | `YunaBraska/YunaBraska` | `BOT_TOKEN` | One authority across the organisation. |
 | Dispatch releases | `YunaBraska/YunaBraska` | `BOT_TOKEN` | Discovery and scheduling are central. |
 | Create tags, GitHub releases, packages, and Central coordinates | Source repository | Its scoped `GITHUB_TOKEN` | The release owns its own artifacts. |
@@ -70,8 +73,8 @@ architectures with Homebrew's normal conditions.
 
 ## Audit boundary
 
-Central release discovery, upstream maintenance, and weekly merging follow this
-model. Homebrew, Maven Wrapper, and Node dependency maintenance intentionally
+Central release discovery and weekly merging follow this model. Upstream,
+Homebrew, Maven Wrapper, and Node dependency maintenance intentionally
 open their own narrow pull requests with `GITHUB_TOKEN`; their repositories must
 enable **Allow GitHub Actions to create and approve pull requests**. Node
 maintenance runs at 06:00 UTC Sunday, central merges green PRs at 06:00 UTC
@@ -81,6 +84,6 @@ Every scheduled workflow supports a manual dry run. A dry run may read, build,
 test, style, and print its intended mutation; it never creates a branch, pull
 request, tag, release, deployment, or package.
 
-Upstream maintenance maps the existing central `GH_TOKEN` only to Maven's
-`github` server. Project tests never receive `GITHUB_TOKEN`, so tests that query
-public GitHub APIs use anonymous access while Maven can resolve private packages.
+Upstream maintenance does not pass its writer token to Maven or project tests.
+Maven resolves private packages through the scoped GitHub Packages server;
+tests querying public GitHub APIs remain anonymous.
