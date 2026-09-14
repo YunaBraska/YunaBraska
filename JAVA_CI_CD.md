@@ -154,6 +154,8 @@ Weekly release discovery requires exactly one `# yuna-release: true` marker and 
 
 Upstream maintenance is repository-owned and calls `wc_java_update_upstream.yml`. Its optional `upstream_property` makes the latest stable upstream `v?X.Y.Z` release the named Maven property. It always runs `mvn test` before opening one tested `bot/maintenance-upstream` PR, so generated sources—including Spring configuration metadata and upstream enums—are committed with the dependency update. The normal PR build runs the same test and requires no generated-source diff. Dependabot must ignore a dependency managed by this workflow; it continues to manage every other Maven and GitHub Actions dependency.
 
+Tests that query an external service must set finite connect and read timeouts. A stalled upstream then fails the maintenance build instead of occupying a runner indefinitely.
+
 ```yml
   upstream:
     permissions:
