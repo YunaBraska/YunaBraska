@@ -99,6 +99,13 @@ jobs:
         shell: sh
         run: |
           set -eu
+          case "${{ steps.java_info.outputs.project_version }}" in
+            *-SNAPSHOT)
+              # Snapshots use Central's Maven snapshot endpoint and have no deployment state.
+              ${{ steps.java_info.outputs.cmd }} -B -Pcentral -DskipTests -DcentralSnapshotsUrl=https://central.sonatype.com/repository/maven-snapshots/ deploy
+              exit 0
+              ;;
+          esac
           maven_log=$(mktemp)
           trap 'rm -f "${maven_log}"' EXIT
           # Maven returns after validation; Central is authoritative for publication.

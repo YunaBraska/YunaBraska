@@ -137,16 +137,16 @@ then opens one `bot/maintenance-homebrew` PR. See [automation ownership](AUTOMAT
 | Source / Semver strategy | Version |
 | --- | --- |
 | no `upstream_repository` | UTC release date: `YYYY.M.D` |
-| newer upstream release | Exact upstream version |
+| newer upstream release without a strategy | Exact upstream version |
 | `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
 
 Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
 
 The shared Java workflows configure Maven's GitHub Packages server with the scoped action token; Central preserves both server entries.
 
-A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. Its optional `v` prefix is removed before comparison, tagging, and build resolution. A newer upstream release wins; otherwise the declared strategy applies. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the latest local tag.
+A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. Its optional `v` prefix is removed before comparison, tagging, and build resolution. The declared strategy wins when present; otherwise a new upstream version is used exactly. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the upstream/latest local Semver base.
 
-Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
+Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Central snapshots use its dedicated Maven snapshot endpoint: Maven's successful upload is authoritative because snapshots have no stable deployment state and Central removes them after 90 days. Stable Central releases are polled until `PUBLISHED`. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
 A GitHub version with a hyphen is a pre-release.
 
