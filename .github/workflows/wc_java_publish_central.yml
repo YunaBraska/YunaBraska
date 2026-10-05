@@ -78,11 +78,15 @@ jobs:
           CENTRAL_PASS: ${{ secrets.CENTRAL_PASS }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: "🔐 Configure GitHub Packages"
+      - name: "🔐 Configure Maven Repositories"
         shell: sh
         run: |
           set -eu
-          sed "/<\\/servers>/i\\
+          # Maven 3.10 scopes credentials to known repository origins.
+          sed -e "/<id>central<\\/id>/a\\
+                <repositoryOrigins>\\
+                  <repositoryOrigin>https://central.sonatype.com</repositoryOrigin>\\
+                </repositoryOrigins>" -e "/<\\/servers>/i\\
               <server>\\
                 <id>github</id>\\
                 <username>\${env.GITHUB_ACTOR}</username>\\
