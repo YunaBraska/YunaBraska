@@ -31,7 +31,7 @@ Build resolves one version, writes it only to its workspace POM, and tests it. W
 - Set `maven-jar-plugin` `outputTimestamp` from that property; the build replaces it with the commit timestamp.
 - Use `maven-compiler-plugin` `<release>`, not `<source>` / `<target>`.
 - Attach source and Javadoc jars in the normal build.
-- Keep profile `central` for GPG and `central-publishing-maven-plugin` `0.11.0`, with `autoPublish` and `waitUntil` set to `published`. Version `0.7.0` rejects Sonatype's `warnings` response field; waiting for `published` keeps tags and GitHub releases behind public Central coordinates. If Maven loses Central's final status response after an accepted upload, the shared publisher polls that exact deployment for five minutes and succeeds only on `PUBLISHED`; it never uploads a second bundle.
+- Keep profile `central` for GPG and `central-publishing-maven-plugin` `0.11.0`, with `autoPublish` and `waitUntil` set to `validated`. Version `0.7.0` rejects Sonatype's `warnings` response field. Maven succeeds after Central has accepted and validated the deployment, then Central publishes it asynchronously. The shared publisher does not add a second status poll or upload.
 
 ## Migration
 
@@ -142,11 +142,11 @@ then opens one `bot/maintenance-homebrew` PR. See [automation ownership](AUTOMAT
 
 Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
 
-The shared Java workflows configure Maven's GitHub Packages server with the scoped action token; Central preserves both server entries.
+The shared Java publishers declare their exact Maven credential origins: `https://central.sonatype.com` for Central and `https://maven.pkg.github.com` for GitHub Packages. Maven 3.10 then never sends either credential to another host.
 
 A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. Its optional `v` prefix is removed before comparison, tagging, and build resolution. The declared strategy wins when present; otherwise a new upstream version is used exactly. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the upstream/latest local Semver base.
 
-Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Central snapshots use its dedicated Maven snapshot endpoint: Maven's successful upload is authoritative because snapshots have no stable deployment state and Central removes them after 90 days. Stable Central releases are polled until `PUBLISHED`. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
+Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Central snapshots use its dedicated Maven snapshot endpoint: Maven's successful upload is authoritative because snapshots have no stable deployment state and Central removes them after 90 days. Stable Central releases finish after Maven validates the deployment, then Central publishes asynchronously. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
 A GitHub version with a hyphen is a pre-release.
 
