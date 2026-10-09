@@ -82,7 +82,10 @@ jobs:
           if gh pr list --repo "${GITHUB_REPOSITORY}" --head "${branch}" --state open --json number --jq '.[0].number // empty' | grep -q .; then
             open=true
           fi
-          branch_sha=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" --jq '.object.sha' 2>/dev/null || true)
+          branch_sha=''
+          if gh api --silent "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+            branch_sha=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" --jq '.object.sha')
+          fi
           {
             printf 'branch=%s\n' "${branch}"
             printf 'branch_sha=%s\n' "${branch_sha}"
