@@ -142,7 +142,7 @@ then opens one `bot/maintenance-homebrew` PR. See [automation ownership](AUTOMAT
 
 Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
 
-The shared Java publishers declare their exact Maven credential origins: `https://central.sonatype.com` for Central and `https://maven.pkg.github.com` for GitHub Packages. Maven 3.10 then never sends either credential to another host.
+The shared Java publishers declare their exact Maven credential origins: `https://central.sonatype.com` for Central and `https://maven.pkg.github.com` for GitHub Packages. Maven 3.10 then never sends either credential to another host. The Central publisher alone uses Maven 3.9.16 because Central's `central-publishing-maven-plugin` 0.11.0 stages an invalid `maven-metadata-local.xml` bundle with Maven 3.10. The project wrapper remains current for ordinary builds.
 
 A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. Its optional `v` prefix is removed before comparison, tagging, and build resolution. The declared strategy wins when present; otherwise a new upstream version is used exactly. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the upstream/latest local Semver base.
 
