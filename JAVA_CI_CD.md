@@ -1,6 +1,6 @@
 # Java CI/CD
 
-Reusable Java workflows use POSIX `sh`. External calls use a full commit SHA; an internal call uses `./.github/workflows/` at the same commit.
+Reusable Java workflows use POSIX `sh`. External calls use a full commit SHA from the default branch after its PR is merged; an internal call uses `./.github/workflows/` at the same commit.
 
 ```mermaid
 flowchart LR
