@@ -71,13 +71,12 @@ jobs:
 
 ## Signing
 
-| Available secrets | Behavior | Reason |
+| Build | Behavior | Reason |
 | --- | --- | --- |
-| None | Ad-hoc signature | The app has a valid local signature and remains testable before an Apple Developer membership exists. |
-| `MACOS_SIGNING_CERTIFICATE`, `MACOS_SIGNING_CERTIFICATE_PASSWORD` | Developer ID signature with hardened runtime and timestamp | macOS can verify the publisher. |
-| The certificate pair plus `MACOS_NOTARY_KEY`, `MACOS_NOTARY_KEY_ID`, `MACOS_NOTARY_ISSUER_ID` | Developer ID signature, notarized and stapled DMG | Gatekeeper accepts the app without the first-launch override. |
+| Pull request or snapshot | Ad-hoc signature | Test builds do not use release credentials. |
+| Release | Developer ID signature and notarization | Requires `MACOS_SIGNING_CERTIFICATE`, `MACOS_SIGNING_CERTIFICATE_PASSWORD`, `MACOS_NOTARY_KEY`, `MACOS_NOTARY_KEY_ID`, and `MACOS_NOTARY_ISSUER_ID`. |
 
-Certificate and notary values are base64-encoded secrets. Partial signing or notarization configuration fails safely; no unsigned release is produced. The runner deletes its temporary keychain and credential files after every build.
+The certificate and notary key are base64-encoded secrets. Partial configuration fails. Releases require both signing and notarization credentials. Each app's packaging script must sign and notarize its app and DMG and staple the tickets before distributing them. The release build checks the signed app inside every ZIP and validates the tickets for the app and DMG. The runner deletes its temporary keychain and credential files after every build.
 
 ## Homebrew
 

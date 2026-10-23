@@ -46,7 +46,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       contents: read
     outputs:
@@ -131,6 +131,7 @@ jobs:
 
       - name: "🔐 Setup Signing"
         id: signing
+        if: inputs.dry_run == false
         shell: sh
         env:
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
@@ -180,6 +181,19 @@ jobs:
           printf 'identity=%s\n' "${identity}"
           printf 'notary_profile=%s\n' "${notary_profile:-none}"
 
+      - name: "🔐 Require Release Signing"
+        if: inputs.dry_run == false
+        shell: sh
+        env:
+          SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+          NOTARY_PROFILE: ${{ steps.signing.outputs.notary_profile }}
+        run: |
+          set -eu
+          if [ -z "${SIGNING_IDENTITY}" ] || [ "${SIGNING_IDENTITY}" = '-' ] || [ -z "${NOTARY_PROFILE}" ]; then
+            echo 'A Developer ID certificate and notarization credentials are required for a release.' >&2
+            exit 1
+          fi
+
       - name: "🧪 Test"
         shell: sh
         run: sh scripts/check.sh
@@ -201,6 +215,33 @@ jobs:
           set -eu
           test -n "$(find dist -maxdepth 1 -type f -name '*.zip' -print -quit)"
           test -n "$(find dist -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+
+      - name: "🔐 Check Release Signing"
+        if: inputs.dry_run == false
+        shell: sh
+        env:
+          SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+        run: |
+          set -eu
+          tmp=$(mktemp -d)
+          trap 'rm -rf "${tmp}"' 0 HUP INT TERM
+          for archive in dist/*.zip; do
+            extracted=$(mktemp -d "${tmp}/archive.XXXXXX")
+            ditto -x -k "${archive}" "${extracted}"
+            found=false
+            for app in "${extracted}"/*.app; do
+              [ -d "${app}" ] || continue
+              codesign --verify --deep --strict "${app}"
+              codesign -dv --verbose=4 "${app}" 2>&1 | grep -Fx "Authority=${SIGNING_IDENTITY}"
+              xcrun stapler validate "${app}"
+              spctl --assess --type execute "${app}"
+              found=true
+            done
+            [ "${found}" = true ]
+          done
+          for dmg in dist/*.dmg; do
+            xcrun stapler validate "${dmg}"
+          done
 
       - name: "📦 Upload Build Artifact"
         if: inputs.upload_artifact == true
