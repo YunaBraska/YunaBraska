@@ -8,6 +8,22 @@ on:
         required: false
         default: false
         type: boolean
+      notarize_macos:
+        description: Sign and notarize macOS app packages.
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      MACOS_NOTARY_ISSUER_ID:
+        required: false
+      MACOS_NOTARY_KEY:
+        required: false
+      MACOS_NOTARY_KEY_ID:
+        required: false
+      MACOS_SIGNING_CERTIFICATE:
+        required: false
+      MACOS_SIGNING_CERTIFICATE_PASSWORD:
+        required: false
     outputs:
       commit_sha:
         description: Build commit.
@@ -89,7 +105,10 @@ jobs:
       contents: read
     uses: ./.github/workflows/wc_dotnet_build_native.yml
     with:
+      dry_run: ${{ needs.build.outputs.dry_run == 'true' }}
+      notarize_macos: ${{ inputs.notarize_macos }}
       version: ${{ needs.build.outputs.version }}
+    secrets: inherit
 
   release:
     needs:
