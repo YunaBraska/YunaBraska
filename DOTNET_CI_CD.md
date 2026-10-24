@@ -27,6 +27,8 @@ The latest tag is the newest reachable tag by creation time. Release detection i
 
 Native archives use `scripts/publish.sh <rid>` when present. It must write `out/<repository>-<asset>`. Without that script, the workflow publishes the first executable project it finds. A `scripts/build-macos-app.sh <rid>` script creates a `.app` ZIP for macOS; otherwise macOS is a normal ZIP. No workflow input selects a project, profile, Dockerfile, or assets.
 
+Set `notarize_macos: true` only for a released macOS app. Snapshot builds retain their ad-hoc signature and never read Apple credentials. A released app imports the Developer ID certificate, signs with hardened runtime and timestamp, submits the ZIP to Apple, staples the app ticket, recreates the ZIP, and adds a DMG. It needs all five `MACOS_*` secrets. `MACOS_SIGNING_CERTIFICATE` is base64 PKCS#12. `MACOS_NOTARY_KEY` is raw `.p8` PEM text. The Apple silicon and Intel jobs run independently and use their respective real runners. There is no QEMU.
+
 | Assets | Runner | Reason |
 | --- | --- | --- |
 | Linux x64, ARM64, ARM, musl x64, musl ARM64, musl ARM | Ubuntu x64 | .NET publishes these targets without executing their binaries. |
@@ -80,6 +82,12 @@ jobs:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_dotnet_release.yml@<FULL_COMMIT_SHA>
     with:
       force: ${{ inputs.force }}
+      notarize_macos: true
+    secrets: inherit
 ```
 
 The app repository never writes Homebrew. Add the normal release and asset markers to the formula or cask; the tap daily updater opens one `bot/maintenance-homebrew` PR and weekly maintenance merges it when green. See [automation ownership](AUTOMATION.md).
+
+## App Store
+
+Direct distribution and the Mac App Store are separate channels. Direct releases use Developer ID notarization and may use an external updater. Store builds use App Store signing and its update channel. Apple requires Mac App Store apps to use Mac App Store update mechanisms: <https://developer.apple.com/app-store/review/guidelines/>.

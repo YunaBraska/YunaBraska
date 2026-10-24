@@ -1,0 +1,71 @@
+name: "📖 CI · Product Pages"
+
+on:
+  workflow_call:
+    inputs:
+      source:
+        description: Markdown source directory.
+        required: false
+        default: docs/Page
+        type: string
+      publish:
+        description: Deploy the built site.
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      url:
+        description: Published GitHub Pages URL.
+        value: ${{ jobs.deploy.outputs.url }}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: "📖 Configure Pages"
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: "📖 Build Pages"
+        uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1.0.13
+        with:
+          source: ${{ inputs.source }}
+          destination: _site
+          build_revision: ${{ github.sha }}
+          token: ${{ github.token }}
+
+      - name: "📦 Upload Pages"
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: "🚀 Deploy Pages"
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

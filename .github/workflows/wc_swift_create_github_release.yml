@@ -41,16 +41,45 @@ jobs:
         shell: sh
         run: |
           set -eu
+          created=false
+          tag_existed=false
+          cleanup() {
+            status=$?
+            if [ "${status}" -ne 0 ] && [ "${created}" = true ]; then
+              if [ "${tag_existed}" = true ]; then
+                GH_TOKEN="${{ github.token }}" gh release delete "${{ inputs.version }}" --repo "${{ github.repository }}" --yes || true
+              else
+                GH_TOKEN="${{ github.token }}" gh release delete "${{ inputs.version }}" --repo "${{ github.repository }}" --yes --cleanup-tag || true
+              fi
+            fi
+            exit "${status}"
+          }
+          trap cleanup 0
           if GH_TOKEN="${{ github.token }}" gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "GitHub release already exists for ${{ inputs.version }}"
           else
+            if GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/git/ref/tags/${{ inputs.version }}" >/dev/null 2>&1; then
+              tag_existed=true
+            fi
             case "${{ inputs.version }}" in
               *-*)
-                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --prerelease --latest=false
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft --prerelease --latest=false
                 ;;
               *)
-                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --latest
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft
                 ;;
             esac
+            created=true
           fi
-          GH_TOKEN="${{ github.token }}" gh release upload "${{ inputs.version }}" dist/*.zip dist/*.dmg --repo "${{ github.repository }}" --clobber
+          set --
+          for artifact in dist/*; do
+            [ -f "${artifact}" ] || continue
+            set -- "$@" "${artifact}"
+          done
+          test "$#" -gt 0
+          GH_TOKEN="${{ github.token }}" gh release upload "${{ inputs.version }}" "$@" --repo "${{ github.repository }}" --clobber
+          case "${{ inputs.version }}" in
+            *-*) GH_TOKEN="${{ github.token }}" gh release edit "${{ inputs.version }}" --repo "${{ github.repository }}" --draft=false --prerelease ;;
+            *) GH_TOKEN="${{ github.token }}" gh release edit "${{ inputs.version }}" --repo "${{ github.repository }}" --draft=false --latest ;;
+          esac
+          trap - 0

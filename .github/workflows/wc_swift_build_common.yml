@@ -18,6 +18,11 @@ on:
         required: false
         default: false
         type: boolean
+      macos_update_public_key:
+        description: Base64 Ed25519 public key for direct macOS updates.
+        required: false
+        default: ''
+        type: string
     secrets:
       MACOS_SIGNING_CERTIFICATE:
         required: false
@@ -28,6 +33,8 @@ on:
       MACOS_NOTARY_KEY_ID:
         required: false
       MACOS_NOTARY_ISSUER_ID:
+        required: false
+      MACOS_UPDATE_PRIVATE_KEY:
         required: false
     outputs:
       commit_sha:
@@ -46,7 +53,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 210
     permissions:
       contents: read
     outputs:
@@ -131,6 +138,7 @@ jobs:
 
       - name: "🔐 Setup Signing"
         id: signing
+        if: inputs.dry_run == false
         shell: sh
         env:
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
@@ -138,6 +146,8 @@ jobs:
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_SIGNING_CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
           MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          MACOS_UPDATE_PRIVATE_KEY: ${{ secrets.MACOS_UPDATE_PRIVATE_KEY }}
+          MACOS_UPDATE_PUBLIC_KEY: ${{ inputs.dry_run == false && inputs.macos_update_public_key || '' }}
         run: |
           set -eu
           identity='-'
@@ -164,7 +174,7 @@ jobs:
               test -n "${MACOS_NOTARY_KEY_ID}"
               test -n "${MACOS_NOTARY_ISSUER_ID}"
               notary_key="${RUNNER_TEMP}/swift-release-notary.p8"
-              printf '%s' "${MACOS_NOTARY_KEY}" | base64 -D > "${notary_key}"
+              printf '%s' "${MACOS_NOTARY_KEY}" > "${notary_key}"
               xcrun notarytool store-credentials yuna-notary --key "${notary_key}" --key-id "${MACOS_NOTARY_KEY_ID}" --issuer "${MACOS_NOTARY_ISSUER_ID}"
               notary_profile='yuna-notary'
             fi
@@ -173,12 +183,38 @@ jobs:
             exit 1
           fi
 
+          if [ -n "${MACOS_UPDATE_PUBLIC_KEY}" ] || [ -n "${MACOS_UPDATE_PRIVATE_KEY}" ]; then
+            test -n "${MACOS_UPDATE_PUBLIC_KEY}"
+            test -n "${MACOS_UPDATE_PRIVATE_KEY}"
+            update_key="${RUNNER_TEMP}/swift-update-key.der"
+            {
+              printf '\060\056\002\001\000\060\005\006\003\053\145\160\004\042\004\040'
+              printf '%s' "${MACOS_UPDATE_PRIVATE_KEY}" | base64 -D
+            } > "${update_key}"
+            test "$(wc -c < "${update_key}" | tr -d ' ')" = 48
+            derived_update_public_key=$(openssl pkey -inform DER -in "${update_key}" -pubout -outform DER | tail -c 32 | base64)
+            test "${derived_update_public_key}" = "${MACOS_UPDATE_PUBLIC_KEY}"
+          fi
+
           {
             printf 'identity=%s\n' "${identity}"
             printf 'notary_profile=%s\n' "${notary_profile}"
           } >> "${GITHUB_OUTPUT}"
           printf 'identity=%s\n' "${identity}"
           printf 'notary_profile=%s\n' "${notary_profile:-none}"
+
+      - name: "🔐 Require Release Signing"
+        if: inputs.dry_run == false
+        shell: sh
+        env:
+          SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+          NOTARY_PROFILE: ${{ steps.signing.outputs.notary_profile }}
+        run: |
+          set -eu
+          if [ -z "${SIGNING_IDENTITY}" ] || [ "${SIGNING_IDENTITY}" = '-' ] || [ -z "${NOTARY_PROFILE}" ]; then
+            echo 'A Developer ID certificate and notarization credentials are required for a release.' >&2
+            exit 1
+          fi
 
       - name: "🧪 Test"
         shell: sh
@@ -193,6 +229,8 @@ jobs:
         env:
           MACOS_NOTARY_PROFILE: ${{ steps.signing.outputs.notary_profile }}
           MACOS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+          MACOS_UPDATE_PRIVATE_KEY: ${{ inputs.dry_run == false && secrets.MACOS_UPDATE_PRIVATE_KEY || '' }}
+          MACOS_UPDATE_PUBLIC_KEY: ${{ inputs.dry_run == false && inputs.macos_update_public_key || '' }}
         run: sh scripts/package.sh "${{ steps.version_info.outputs.version }}"
 
       - name: "🔍 Check Packages"
@@ -201,6 +239,33 @@ jobs:
           set -eu
           test -n "$(find dist -maxdepth 1 -type f -name '*.zip' -print -quit)"
           test -n "$(find dist -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+
+      - name: "🔐 Check Release Signing"
+        if: inputs.dry_run == false
+        shell: sh
+        env:
+          SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+        run: |
+          set -eu
+          tmp=$(mktemp -d)
+          trap 'rm -rf "${tmp}"' 0 HUP INT TERM
+          for archive in dist/*.zip; do
+            extracted=$(mktemp -d "${tmp}/archive.XXXXXX")
+            ditto -x -k "${archive}" "${extracted}"
+            found=false
+            for app in "${extracted}"/*.app; do
+              [ -d "${app}" ] || continue
+              codesign --verify --deep --strict "${app}"
+              codesign -dv --verbose=4 "${app}" 2>&1 | grep -Fx "Authority=${SIGNING_IDENTITY}"
+              xcrun stapler validate "${app}"
+              spctl --assess --type execute "${app}"
+              found=true
+            done
+            [ "${found}" = true ]
+          done
+          for dmg in dist/*.dmg; do
+            xcrun stapler validate "${dmg}"
+          done
 
       - name: "📦 Upload Build Artifact"
         if: inputs.upload_artifact == true
@@ -216,5 +281,5 @@ jobs:
         shell: sh
         run: |
           set -eu
-          rm -f "${RUNNER_TEMP}/swift-release.p12" "${RUNNER_TEMP}/swift-release-notary.p8"
+          rm -f "${RUNNER_TEMP}/swift-release.p12" "${RUNNER_TEMP}/swift-release-notary.p8" "${RUNNER_TEMP}/swift-update-key.der"
           security delete-keychain "${RUNNER_TEMP}/swift-release.keychain-db" >/dev/null 2>&1 || true

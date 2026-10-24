@@ -3,10 +3,31 @@ name: 🧩 CI · .NET Native Build
 on:
   workflow_call:
     inputs:
+      dry_run:
+        description: Build a snapshot without signing or notarizing.
+        required: false
+        default: true
+        type: boolean
+      notarize_macos:
+        description: Sign and notarize macOS app packages.
+        required: false
+        default: false
+        type: boolean
       version:
         description: Build version.
         required: true
         type: string
+    secrets:
+      MACOS_NOTARY_ISSUER_ID:
+        required: false
+      MACOS_NOTARY_KEY:
+        required: false
+      MACOS_NOTARY_KEY_ID:
+        required: false
+      MACOS_SIGNING_CERTIFICATE:
+        required: false
+      MACOS_SIGNING_CERTIFICATE_PASSWORD:
+        required: false
 
 permissions: {}
 
@@ -14,7 +35,7 @@ jobs:
   build:
     name: "📦 ${{ matrix.asset }}"
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 150
     permissions:
       contents: read
     strategy:
@@ -77,6 +98,47 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: "🔐 Configure macOS Signing"
+        if: matrix.package == 'app-zip' && inputs.notarize_macos && inputs.dry_run == false
+        shell: sh
+        env:
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_SIGNING_CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
+          MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          set -eu
+          test -n "${MACOS_SIGNING_CERTIFICATE}"
+          test -n "${MACOS_SIGNING_CERTIFICATE_PASSWORD}"
+          test -n "${MACOS_NOTARY_KEY}"
+          test -n "${MACOS_NOTARY_KEY_ID}"
+          test -n "${MACOS_NOTARY_ISSUER_ID}"
+
+          credentials_dir=$(mktemp -d "${RUNNER_TEMP}/macos-signing.XXXXXX")
+          trap 'rm -rf "${credentials_dir}"' EXIT INT TERM
+          keychain_path="${RUNNER_TEMP}/macos-signing.keychain-db"
+          keychain_password=$(uuidgen)
+          certificate_path="${credentials_dir}/developer-id.p12"
+          notary_key_path="${credentials_dir}/AuthKey.p8"
+
+          printf '%s' "${MACOS_SIGNING_CERTIFICATE}" | base64 --decode > "${certificate_path}"
+          printf '%s' "${MACOS_NOTARY_KEY}" > "${notary_key_path}"
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${certificate_path}" -P "${MACOS_SIGNING_CERTIFICATE_PASSWORD}" -A -t cert -f pkcs12 -k "${keychain_path}"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keychain_password}" "${keychain_path}"
+          security list-keychains -d user -s "${keychain_path}"
+          security default-keychain -s "${keychain_path}"
+          xcrun notarytool store-credentials macos-notary \
+            --key "${notary_key_path}" \
+            --key-id "${MACOS_NOTARY_KEY_ID}" \
+            --issuer "${MACOS_NOTARY_ISSUER_ID}" \
+            --keychain "${keychain_path}"
+          mkdir -p "${RUNNER_TEMP}/macos-signing"
+          printf '%s\n' "${keychain_path}" > "${RUNNER_TEMP}/macos-signing/keychain-path"
+
       - name: "📦 Package [${{ inputs.version }}]"
         shell: sh
         run: |
@@ -87,7 +149,8 @@ jobs:
           package='${{ matrix.package }}'
           assets_dir='release-assets'
           archive_dir=$(mktemp -d "${RUNNER_TEMP}/dotnet-package.XXXXXX")
-          trap 'rm -rf "${archive_dir}"' EXIT INT TERM
+          dmg_stage=$(mktemp -d "${RUNNER_TEMP}/dotnet-dmg.XXXXXX")
+          trap 'rm -rf "${archive_dir}" "${dmg_stage}"' EXIT INT TERM
           mkdir -p "${assets_dir}"
 
           publish() {
@@ -113,11 +176,39 @@ jobs:
 
           if [ "${package}" = 'app-zip' ] && [ -f scripts/build-macos-app.sh ]; then
             package_log="${RUNNER_TEMP}/dotnet-macos-package.log"
-            VERSION='${{ inputs.version }}' CODESIGN_IDENTITY='-' sh scripts/build-macos-app.sh "${rid}" > "${package_log}"
+            signing_identity='-'
+            notary_profile=''
+            notary_keychain=''
+            if [ '${{ inputs.notarize_macos }}' = 'true' ] && [ '${{ inputs.dry_run }}' = 'false' ]; then
+              notary_keychain=$(cat "${RUNNER_TEMP}/macos-signing/keychain-path")
+              signing_identity=$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | sed -n '1p')
+              test -n "${signing_identity}"
+              notary_profile='macos-notary'
+            fi
+            VERSION='${{ inputs.version }}' CODESIGN_IDENTITY="${signing_identity}" sh scripts/build-macos-app.sh "${rid}" > "${package_log}"
             bundle=$(sed -n '$p' "${package_log}")
             cat "${package_log}"
             test -d "${bundle}"
-            ditto -c -k --sequesterRsrc --keepParent "${bundle}" "${assets_dir}/${repository}-${asset}.zip"
+            zip_path="${assets_dir}/${repository}-${asset}.zip"
+            ditto -c -k --sequesterRsrc --keepParent "${bundle}" "${zip_path}"
+
+            if [ -n "${notary_profile}" ]; then
+              xcrun notarytool submit "${zip_path}" \
+                --keychain-profile "${notary_profile}" \
+                --keychain "${notary_keychain}" \
+                --wait \
+                --timeout 90m
+              xcrun stapler staple "${bundle}"
+              xcrun stapler validate "${bundle}"
+              codesign --verify --deep --strict --verbose=2 "${bundle}"
+              rm -f "${zip_path}"
+              ditto -c -k --sequesterRsrc --keepParent "${bundle}" "${zip_path}"
+              ditto "${bundle}" "${dmg_stage}/${repository}.app"
+              ln -s /Applications "${dmg_stage}/Applications"
+              dmg_path="${assets_dir}/${repository}-${asset}.dmg"
+              hdiutil create -volname "${repository}" -srcfolder "${dmg_stage}" -ov -format UDZO "${dmg_path}" >/dev/null
+              hdiutil verify "${dmg_path}" >/dev/null
+            fi
           else
             output_dir="out/${repository}-${asset}"
             publish "${output_dir}"
