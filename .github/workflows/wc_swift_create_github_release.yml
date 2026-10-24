@@ -41,6 +41,15 @@ jobs:
         shell: sh
         run: |
           set -eu
+          created=false
+          cleanup() {
+            status=$?
+            if [ "${status}" -ne 0 ] && [ "${created}" = true ]; then
+              GH_TOKEN="${{ github.token }}" gh release delete "${{ inputs.version }}" --repo "${{ github.repository }}" --yes --cleanup-tag || true
+            fi
+            exit "${status}"
+          }
+          trap cleanup 0
           if GH_TOKEN="${{ github.token }}" gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "GitHub release already exists for ${{ inputs.version }}"
           else
@@ -52,6 +61,7 @@ jobs:
                 GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft
                 ;;
             esac
+            created=true
           fi
           set --
           for artifact in dist/*; do
@@ -64,3 +74,4 @@ jobs:
             *-*) GH_TOKEN="${{ github.token }}" gh release edit "${{ inputs.version }}" --repo "${{ github.repository }}" --draft=false --prerelease ;;
             *) GH_TOKEN="${{ github.token }}" gh release edit "${{ inputs.version }}" --repo "${{ github.repository }}" --draft=false --latest ;;
           esac
+          trap - 0

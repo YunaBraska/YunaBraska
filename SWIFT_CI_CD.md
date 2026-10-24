@@ -86,7 +86,7 @@ Set the repository variable `MACOS_UPDATE_PUBLIC_KEY` and the repository secret 
 
 The common build removes the private update key before snapshot packaging. Repository secrets may be inherited by a pull-request workflow, but an unsigned snapshot must not fail because that key has no matching public release key.
 
-The app package owns its Sparkle integration. It embeds the public key and feed URL, packages the Sparkle framework, writes a signed `appcast.xml` for the notarized DMG, and verifies that feed before upload. The common release workflow creates a draft, uploads every file in `dist`, then publishes it. The appcast and matching DMG therefore become visible together. This keeps product UI and package layout local while sharing key validation and publication.
+The app package owns its Sparkle integration. It embeds the public key and feed URL, packages the Sparkle framework, writes a signed `appcast.xml` for the notarized DMG, and verifies that feed before upload. The common release workflow creates a draft, uploads every file in `dist`, then publishes it. If that upload or publication fails, it deletes its own draft and tag. The appcast and matching DMG therefore become visible together. This keeps product UI and package layout local while sharing key validation and publication.
 
 ## Homebrew
 
