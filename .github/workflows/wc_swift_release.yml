@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      macos_update_public_key:
+        description: Base64 Ed25519 public key for direct macOS updates.
+        required: false
+        default: ''
+        type: string
     secrets:
       MACOS_SIGNING_CERTIFICATE:
         required: false
@@ -18,6 +23,8 @@ on:
       MACOS_NOTARY_KEY_ID:
         required: false
       MACOS_NOTARY_ISSUER_ID:
+        required: false
+      MACOS_UPDATE_PRIVATE_KEY:
         required: false
     outputs:
       commit_sha:
@@ -98,6 +105,7 @@ jobs:
       ref: ${{ github.sha }}
       dry_run: ${{ needs.mode.outputs.dry_run == 'true' }}
       upload_artifact: true
+      macos_update_public_key: ${{ inputs.macos_update_public_key }}
     secrets: inherit
 
   release:

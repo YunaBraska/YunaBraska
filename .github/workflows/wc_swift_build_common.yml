@@ -18,6 +18,11 @@ on:
         required: false
         default: false
         type: boolean
+      macos_update_public_key:
+        description: Base64 Ed25519 public key for direct macOS updates.
+        required: false
+        default: ''
+        type: string
     secrets:
       MACOS_SIGNING_CERTIFICATE:
         required: false
@@ -28,6 +33,8 @@ on:
       MACOS_NOTARY_KEY_ID:
         required: false
       MACOS_NOTARY_ISSUER_ID:
+        required: false
+      MACOS_UPDATE_PRIVATE_KEY:
         required: false
     outputs:
       commit_sha:
@@ -139,6 +146,8 @@ jobs:
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_SIGNING_CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
           MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          MACOS_UPDATE_PRIVATE_KEY: ${{ secrets.MACOS_UPDATE_PRIVATE_KEY }}
+          MACOS_UPDATE_PUBLIC_KEY: ${{ inputs.dry_run == false && inputs.macos_update_public_key || '' }}
         run: |
           set -eu
           identity='-'
@@ -174,6 +183,19 @@ jobs:
             exit 1
           fi
 
+          if [ -n "${MACOS_UPDATE_PUBLIC_KEY}" ] || [ -n "${MACOS_UPDATE_PRIVATE_KEY}" ]; then
+            test -n "${MACOS_UPDATE_PUBLIC_KEY}"
+            test -n "${MACOS_UPDATE_PRIVATE_KEY}"
+            update_key="${RUNNER_TEMP}/swift-update-key.der"
+            {
+              printf '\060\056\002\001\000\060\005\006\003\053\145\160\004\042\004\040'
+              printf '%s' "${MACOS_UPDATE_PRIVATE_KEY}" | base64 -D
+            } > "${update_key}"
+            test "$(wc -c < "${update_key}" | tr -d ' ')" = 48
+            derived_update_public_key=$(openssl pkey -inform DER -in "${update_key}" -pubout -outform DER | tail -c 32 | base64)
+            test "${derived_update_public_key}" = "${MACOS_UPDATE_PUBLIC_KEY}"
+          fi
+
           {
             printf 'identity=%s\n' "${identity}"
             printf 'notary_profile=%s\n' "${notary_profile}"
@@ -207,6 +229,8 @@ jobs:
         env:
           MACOS_NOTARY_PROFILE: ${{ steps.signing.outputs.notary_profile }}
           MACOS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+          MACOS_UPDATE_PRIVATE_KEY: ${{ secrets.MACOS_UPDATE_PRIVATE_KEY }}
+          MACOS_UPDATE_PUBLIC_KEY: ${{ inputs.dry_run == false && inputs.macos_update_public_key || '' }}
         run: sh scripts/package.sh "${{ steps.version_info.outputs.version }}"
 
       - name: "🔍 Check Packages"
@@ -257,5 +281,5 @@ jobs:
         shell: sh
         run: |
           set -eu
-          rm -f "${RUNNER_TEMP}/swift-release.p12" "${RUNNER_TEMP}/swift-release-notary.p8"
+          rm -f "${RUNNER_TEMP}/swift-release.p12" "${RUNNER_TEMP}/swift-release-notary.p8" "${RUNNER_TEMP}/swift-update-key.der"
           security delete-keychain "${RUNNER_TEMP}/swift-release.keychain-db" >/dev/null 2>&1 || true
