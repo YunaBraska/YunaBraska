@@ -144,14 +144,14 @@ jobs:
           set -eu
           if GH_TOKEN="${{ github.token }}" gh release view "${{ needs.build.outputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "GitHub release already exists for ${{ needs.build.outputs.version }}"
-          else
-            case "${{ needs.build.outputs.version }}" in
-              *-*)
-                GH_TOKEN="${{ github.token }}" gh release create "${{ needs.build.outputs.version }}" --repo "${{ github.repository }}" --target "${{ needs.build.outputs.commit_sha }}" --generate-notes --prerelease --latest=false
-                ;;
-              *)
-                GH_TOKEN="${{ github.token }}" gh release create "${{ needs.build.outputs.version }}" --repo "${{ github.repository }}" --target "${{ needs.build.outputs.commit_sha }}" --generate-notes --latest
-                ;;
-            esac
+            exit 0
           fi
+          case "${{ needs.build.outputs.version }}" in
+            *-*)
+              GH_TOKEN="${{ github.token }}" gh release create "${{ needs.build.outputs.version }}" --repo "${{ github.repository }}" --target "${{ needs.build.outputs.commit_sha }}" --generate-notes --prerelease --latest=false
+              ;;
+            *)
+              GH_TOKEN="${{ github.token }}" gh release create "${{ needs.build.outputs.version }}" --repo "${{ github.repository }}" --target "${{ needs.build.outputs.commit_sha }}" --generate-notes --latest
+              ;;
+          esac
           GH_TOKEN="${{ github.token }}" gh release upload "${{ needs.build.outputs.version }}" release-assets/* --repo "${{ github.repository }}" --clobber

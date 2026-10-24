@@ -57,20 +57,20 @@ jobs:
           trap cleanup 0
           if GH_TOKEN="${{ github.token }}" gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "GitHub release already exists for ${{ inputs.version }}"
-          else
-            if GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/git/ref/tags/${{ inputs.version }}" >/dev/null 2>&1; then
-              tag_existed=true
-            fi
-            case "${{ inputs.version }}" in
-              *-*)
-                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft --prerelease --latest=false
-                ;;
-              *)
-                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft
-                ;;
-            esac
-            created=true
+            exit 0
           fi
+          if GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/git/ref/tags/${{ inputs.version }}" >/dev/null 2>&1; then
+            tag_existed=true
+          fi
+          case "${{ inputs.version }}" in
+            *-*)
+              GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft --prerelease --latest=false
+              ;;
+            *)
+              GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft
+              ;;
+          esac
+          created=true
           set --
           for artifact in dist/*; do
             [ -f "${artifact}" ] || continue
