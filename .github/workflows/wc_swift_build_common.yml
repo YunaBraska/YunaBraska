@@ -229,7 +229,7 @@ jobs:
         env:
           MACOS_NOTARY_PROFILE: ${{ steps.signing.outputs.notary_profile }}
           MACOS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
-          MACOS_UPDATE_PRIVATE_KEY: ${{ secrets.MACOS_UPDATE_PRIVATE_KEY }}
+          MACOS_UPDATE_PRIVATE_KEY: ${{ inputs.dry_run == false && secrets.MACOS_UPDATE_PRIVATE_KEY || '' }}
           MACOS_UPDATE_PUBLIC_KEY: ${{ inputs.dry_run == false && inputs.macos_update_public_key || '' }}
         run: sh scripts/package.sh "${{ steps.version_info.outputs.version }}"
 
