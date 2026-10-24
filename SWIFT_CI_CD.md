@@ -76,7 +76,7 @@ jobs:
 | Pull request or snapshot | Ad-hoc signature | Test builds do not use release credentials. |
 | Release | Developer ID signature and notarization | Requires `MACOS_SIGNING_CERTIFICATE`, `MACOS_SIGNING_CERTIFICATE_PASSWORD`, `MACOS_NOTARY_KEY`, `MACOS_NOTARY_KEY_ID`, and `MACOS_NOTARY_ISSUER_ID`. |
 
-The certificate and notary key are base64-encoded secrets. Partial configuration fails. Releases require both signing and notarization credentials. Each app's packaging script must sign and notarize its app and DMG and staple the tickets before distributing them. The release build checks the signed app inside every ZIP and validates the tickets for the app and DMG. The runner deletes its temporary keychain and credential files after every build.
+`MACOS_SIGNING_CERTIFICATE` is a base64-encoded PKCS#12 file. `MACOS_NOTARY_KEY` is the raw `.p8` PEM text. Partial configuration fails. Releases require both signing and notarization credentials. Each app's packaging script must sign and notarize its app and DMG and staple the tickets before distributing them. The release build checks the signed app inside every ZIP and validates the tickets for the app and DMG. The runner deletes its temporary keychain and credential files after every build.
 
 ## Homebrew
 
@@ -88,3 +88,7 @@ The app repository never writes the tap. Add these two markers to its cask or fo
 ```
 
 The tap daily updater reads the latest stable GitHub release, verifies the asset checksum, and opens one `bot/maintenance-homebrew` PR. Weekly maintenance merges that green PR. See [automation ownership](AUTOMATION.md).
+
+## App Store
+
+Direct distribution and the Mac App Store are separate channels. Direct releases use Developer ID notarization and may use an external updater. Store builds use App Store signing and its update channel. Apple requires Mac App Store apps to use Mac App Store update mechanisms: <https://developer.apple.com/app-store/review/guidelines/>.
