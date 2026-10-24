@@ -84,7 +84,7 @@ jobs:
 
 Set the repository variable `MACOS_UPDATE_PUBLIC_KEY` and the repository secret `MACOS_UPDATE_PRIVATE_KEY` to one product-specific Ed25519 key pair. A release validates that the two keys match. Snapshot builds neither embed the public key nor use the private key.
 
-The app package owns its Sparkle integration. It embeds the public key and feed URL, packages the Sparkle framework, writes a signed `appcast.xml` for the notarized DMG, and verifies that feed before upload. The common release workflow uploads every file in `dist`, so the appcast and the matching DMG become one GitHub Release. This keeps product UI and package layout local while sharing key validation and publication.
+The app package owns its Sparkle integration. It embeds the public key and feed URL, packages the Sparkle framework, writes a signed `appcast.xml` for the notarized DMG, and verifies that feed before upload. The common release workflow creates a draft, uploads every file in `dist`, then publishes it. The appcast and matching DMG therefore become visible together. This keeps product UI and package layout local while sharing key validation and publication.
 
 ## Homebrew
 

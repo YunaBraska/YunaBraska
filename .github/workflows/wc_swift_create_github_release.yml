@@ -46,10 +46,10 @@ jobs:
           else
             case "${{ inputs.version }}" in
               *-*)
-                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --prerelease --latest=false
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft --prerelease --latest=false
                 ;;
               *)
-                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --latest
+                GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft
                 ;;
             esac
           fi
@@ -60,3 +60,7 @@ jobs:
           done
           test "$#" -gt 0
           GH_TOKEN="${{ github.token }}" gh release upload "${{ inputs.version }}" "$@" --repo "${{ github.repository }}" --clobber
+          case "${{ inputs.version }}" in
+            *-*) GH_TOKEN="${{ github.token }}" gh release edit "${{ inputs.version }}" --repo "${{ github.repository }}" --draft=false --prerelease ;;
+            *) GH_TOKEN="${{ github.token }}" gh release edit "${{ inputs.version }}" --repo "${{ github.repository }}" --draft=false --latest ;;
+          esac
