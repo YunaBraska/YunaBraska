@@ -6,6 +6,7 @@ flowchart LR
   M[Merge] --> S[Snapshot build]
   W[Weekly or manual release] --> R[Release build]
   R --> G[GitHub release]
+  G --> U[Signed direct-update feed]
   G --> H[Tap updater]
   H --> P[Homebrew PR]
 ```
@@ -64,6 +65,7 @@ jobs:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_swift_release.yml@<FULL_COMMIT_SHA>
     with:
       force: ${{ inputs.force }}
+      macos_update_public_key: ${{ vars.MACOS_UPDATE_PUBLIC_KEY }}
     secrets: inherit
 ```
 
@@ -78,6 +80,12 @@ jobs:
 
 `MACOS_SIGNING_CERTIFICATE` is a base64-encoded PKCS#12 file. `MACOS_NOTARY_KEY` is the raw `.p8` PEM text. Partial configuration fails. Releases require both signing and notarization credentials. Each app's packaging script must sign and notarize its app and DMG and staple the tickets before distributing them. The release build checks the signed app inside every ZIP and validates the tickets for the app and DMG. The runner deletes its temporary keychain and credential files after every build.
 
+## Direct updates
+
+Set the repository variable `MACOS_UPDATE_PUBLIC_KEY` and the repository secret `MACOS_UPDATE_PRIVATE_KEY` to one product-specific Ed25519 key pair. A release validates that the two keys match. Snapshot builds neither embed the public key nor use the private key.
+
+The app package owns its Sparkle integration. It embeds the public key and feed URL, packages the Sparkle framework, writes a signed `appcast.xml` for the notarized DMG, and verifies that feed before upload. The common release workflow uploads every file in `dist`, so the appcast and the matching DMG become one GitHub Release. This keeps product UI and package layout local while sharing key validation and publication.
+
 ## Homebrew
 
 The app repository never writes the tap. Add these two markers to its cask or formula:
@@ -91,4 +99,4 @@ The tap daily updater reads the latest stable GitHub release, verifies the asset
 
 ## App Store
 
-Direct distribution and the Mac App Store are separate channels. Direct releases use Developer ID notarization and may use an external updater. Store builds use App Store signing and its update channel. Apple requires Mac App Store apps to use Mac App Store update mechanisms: <https://developer.apple.com/app-store/review/guidelines/>.
+Direct distribution and the Mac App Store are separate channels. Direct releases use Developer ID notarization and may use Sparkle. Store builds omit Sparkle, use App Store signing and use the App Store update channel. Apple requires Mac App Store apps to use Mac App Store update mechanisms: <https://developer.apple.com/app-store/review/guidelines/>.
