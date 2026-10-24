@@ -165,7 +165,7 @@ jobs:
               test -n "${MACOS_NOTARY_KEY_ID}"
               test -n "${MACOS_NOTARY_ISSUER_ID}"
               notary_key="${RUNNER_TEMP}/swift-release-notary.p8"
-              printf '%s' "${MACOS_NOTARY_KEY}" | base64 -D > "${notary_key}"
+              printf '%s' "${MACOS_NOTARY_KEY}" > "${notary_key}"
               xcrun notarytool store-credentials yuna-notary --key "${notary_key}" --key-id "${MACOS_NOTARY_KEY_ID}" --issuer "${MACOS_NOTARY_ISSUER_ID}"
               notary_profile='yuna-notary'
             fi
