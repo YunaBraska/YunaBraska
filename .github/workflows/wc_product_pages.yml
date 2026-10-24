@@ -8,6 +8,11 @@ on:
         required: false
         default: docs/Page
         type: string
+      publish:
+        description: Deploy the built site.
+        required: false
+        default: true
+        type: boolean
     outputs:
       url:
         description: Published GitHub Pages URL.
@@ -49,6 +54,7 @@ jobs:
 
   deploy:
     needs: build
+    if: inputs.publish
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
