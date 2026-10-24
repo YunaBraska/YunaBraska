@@ -53,4 +53,10 @@ jobs:
                 ;;
             esac
           fi
-          GH_TOKEN="${{ github.token }}" gh release upload "${{ inputs.version }}" dist/*.zip dist/*.dmg --repo "${{ github.repository }}" --clobber
+          set --
+          for artifact in dist/*; do
+            [ -f "${artifact}" ] || continue
+            set -- "$@" "${artifact}"
+          done
+          test "$#" -gt 0
+          GH_TOKEN="${{ github.token }}" gh release upload "${{ inputs.version }}" "$@" --repo "${{ github.repository }}" --clobber
