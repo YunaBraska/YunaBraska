@@ -80,6 +80,15 @@ jobs:
             mkdir -p "$(dirname "${target}")"
             cp "${source_file}" "${target}"
           done
+          find "${site_source}/reference" -type f -name '*.md' -print |
+          while IFS= read -r markdown_file; do
+            rewritten_file="${markdown_file}.rewritten"
+            sed -E \
+              -e 's@(\]\([^):]*)\.md([#)])@\1.html\2@g' \
+              -e 's@(href="[^":]*)\.md([#"])@\1.html\2@g' \
+              "${markdown_file}" > "${rewritten_file}"
+            mv "${rewritten_file}" "${markdown_file}"
+          done
 
       - name: "📖 Build Pages"
         uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1.0.13
@@ -88,17 +97,6 @@ jobs:
           destination: _site
           build_revision: ${{ github.sha }}
           token: ${{ github.token }}
-
-      - name: "📖 Preserve documentation links"
-        shell: sh
-        run: |
-          set -eu
-          find _site -type f -name '*.html' -print |
-          while IFS= read -r html_file; do
-            rewritten_file="${html_file}.rewritten"
-            sed -E 's@(href="[^":]*)\.md([#"])@\1.html\2@g' "${html_file}" > "${rewritten_file}"
-            mv "${rewritten_file}" "${html_file}"
-          done
 
       - name: "📦 Upload Pages"
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
