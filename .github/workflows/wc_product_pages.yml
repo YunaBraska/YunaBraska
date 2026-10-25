@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       source:
-        description: Markdown source directory.
+        description: Jekyll source. Repository Markdown is rendered below reference/.
         required: false
         default: docs/Page
         type: string
@@ -39,6 +39,48 @@ jobs:
         id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
+      - name: "📖 Render repository documentation"
+        shell: sh
+        run: |
+          set -eu
+          site_source='${{ inputs.source }}'
+          case "${site_source}" in
+            ''|/*|*'..'*)
+              printf 'Invalid Pages source: %s\n' "${site_source}" >&2
+              exit 1
+              ;;
+          esac
+          test -d "${site_source}"
+          find . \
+            -path './.git' -prune -o \
+            -path './.github' -prune -o \
+            -path "./${site_source}" -prune -o \
+            -type f -name '*.md' -print |
+          while IFS= read -r source_file; do
+            relative_path=${source_file#./}
+            target="${site_source}/reference/${relative_path}"
+            mkdir -p "$(dirname "${target}")"
+            {
+              printf '%s\n' '---'
+              printf '%s\n' 'layout: default'
+              printf '%s\n' 'documentation: true'
+              printf '%s\n' 'title: Documentation'
+              printf '%s\n' '---'
+              cat "${source_file}"
+            } > "${target}"
+          done
+          find . \
+            -path './.git' -prune -o \
+            -path './.github' -prune -o \
+            -path "./${site_source}" -prune -o \
+            -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.gif' -o -name '*.svg' -o -name '*.webp' \) -print |
+          while IFS= read -r source_file; do
+            relative_path=${source_file#./}
+            target="${site_source}/reference/${relative_path}"
+            mkdir -p "$(dirname "${target}")"
+            cp "${source_file}" "${target}"
+          done
+
       - name: "📖 Build Pages"
         uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1.0.13
         with:
@@ -46,6 +88,17 @@ jobs:
           destination: _site
           build_revision: ${{ github.sha }}
           token: ${{ github.token }}
+
+      - name: "📖 Preserve documentation links"
+        shell: sh
+        run: |
+          set -eu
+          find _site -type f -name '*.html' -print |
+          while IFS= read -r html_file; do
+            rewritten_file="${html_file}.rewritten"
+            sed -E 's@(href="[^":]*)\.md([#"])@\1.html\2@g' "${html_file}" > "${rewritten_file}"
+            mv "${rewritten_file}" "${html_file}"
+          done
 
       - name: "📦 Upload Pages"
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
