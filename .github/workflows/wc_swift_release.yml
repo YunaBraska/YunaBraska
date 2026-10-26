@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      version:
+        description: Release version override.
+        required: false
+        default: ''
+        type: string
       macos_update_public_key:
         description: Base64 Ed25519 public key for direct macOS updates.
         required: false
@@ -73,10 +78,12 @@ jobs:
       - name: "🏷️ Release Mode"
         id: release_info
         shell: sh
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           set -eu
           dry_run=true
-          if [ "${{ inputs.force }}" = 'true' ] || [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
+          if [ -n "${VERSION}" ] || [ "${{ inputs.force }}" = 'true' ] || [ -z "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
             dry_run=false
           elif git diff --name-only "${{ steps.latest_tag.outputs.latest_tag }}"..HEAD | while IFS= read -r path; do
             case "${path}" in
@@ -105,6 +112,7 @@ jobs:
       ref: ${{ github.sha }}
       dry_run: ${{ needs.mode.outputs.dry_run == 'true' }}
       upload_artifact: true
+      version: ${{ inputs.version }}
       macos_update_public_key: ${{ inputs.macos_update_public_key }}
     secrets: inherit
 
