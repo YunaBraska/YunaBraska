@@ -18,11 +18,6 @@ on:
         required: false
         default: false
         type: boolean
-      version:
-        description: Release version override.
-        required: false
-        default: ''
-        type: string
       macos_update_public_key:
         description: Base64 Ed25519 public key for direct macOS updates.
         required: false
@@ -118,13 +113,9 @@ jobs:
       - name: "🏷️ Resolve Version"
         id: version_info
         shell: sh
-        env:
-          VERSION: ${{ inputs.version }}
         run: |
           set -eu
-          if [ -n "${VERSION}" ]; then
-            version="${VERSION}"
-          elif [ "${{ inputs.dry_run }}" = 'true' ]; then
+          if [ "${{ inputs.dry_run }}" = 'true' ]; then
             version="${{ steps.semver_info.outputs.next_snapshot }}"
           else
             version="${{ steps.date_info.outputs.date_version }}"
