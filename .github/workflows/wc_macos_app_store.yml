@@ -1,0 +1,182 @@
+name: "🛍️ CD · Mac App Store"
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: App bundle name.
+        required: true
+        type: string
+      bundle_id:
+        description: Store bundle identifier.
+        required: true
+        type: string
+      ref:
+        description: Checkout ref.
+        required: false
+        default: ''
+        type: string
+    secrets:
+      MACOS_APP_STORE_APPLICATION_CERTIFICATE:
+        required: true
+      MACOS_APP_STORE_APPLICATION_CERTIFICATE_PASSWORD:
+        required: true
+      MACOS_APP_STORE_INSTALLER_CERTIFICATE:
+        required: true
+      MACOS_APP_STORE_INSTALLER_CERTIFICATE_PASSWORD:
+        required: true
+      MACOS_APP_STORE_PROFILE:
+        required: true
+    outputs:
+      build_number:
+        description: Monotonically increasing App Store build number.
+        value: ${{ jobs.package.outputs.build_number }}
+      version:
+        description: UTC marketing version.
+        value: ${{ jobs.package.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: "🛍️ package"
+    runs-on: macos-latest
+    timeout-minutes: 210
+    permissions:
+      contents: read
+    outputs:
+      build_number: ${{ steps.version.outputs.build_number }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+          submodules: recursive
+
+      - name: "🏷️ Resolve Version"
+        id: version
+        shell: sh
+        run: |
+          set -eu
+          version=$(date -u '+%Y.%m.%d' | sed -E 's/\.0+([0-9])/\.\1/g')
+          build_number=${GITHUB_RUN_ID}
+          {
+            printf 'version=%s\n' "${version}"
+            printf 'build_number=%s\n' "${build_number}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'version=%s\n' "${version}"
+          printf 'build_number=%s\n' "${build_number}"
+
+      - name: "🔐 Setup Store Signing"
+        id: signing
+        shell: sh
+        env:
+          APPLICATION_CERTIFICATE: ${{ secrets.MACOS_APP_STORE_APPLICATION_CERTIFICATE }}
+          APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_APP_STORE_APPLICATION_CERTIFICATE_PASSWORD }}
+          INSTALLER_CERTIFICATE: ${{ secrets.MACOS_APP_STORE_INSTALLER_CERTIFICATE }}
+          INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_APP_STORE_INSTALLER_CERTIFICATE_PASSWORD }}
+          PROFILE: ${{ secrets.MACOS_APP_STORE_PROFILE }}
+        run: |
+          set -eu
+          credentials_dir=$(mktemp -d "${RUNNER_TEMP}/app-store.XXXXXX")
+          keychain="${RUNNER_TEMP}/app-store.keychain-db"
+          keychain_password=$(uuidgen)
+          application_certificate="${credentials_dir}/application.p12"
+          installer_certificate="${credentials_dir}/installer.p12"
+          profile_path="${credentials_dir}/profile.provisionprofile"
+          profile_plist="${credentials_dir}/profile.plist"
+          trap 'rm -rf "${credentials_dir}"' EXIT HUP INT TERM
+
+          printf '%s' "${APPLICATION_CERTIFICATE}" | base64 -D > "${application_certificate}"
+          printf '%s' "${INSTALLER_CERTIFICATE}" | base64 -D > "${installer_certificate}"
+          printf '%s' "${PROFILE}" | base64 -D > "${profile_path}"
+          security create-keychain -p "${keychain_password}" "${keychain}"
+          security set-keychain-settings -lut 21600 "${keychain}"
+          security unlock-keychain -p "${keychain_password}" "${keychain}"
+          security import "${application_certificate}" -k "${keychain}" -P "${APPLICATION_CERTIFICATE_PASSWORD}" -T /usr/bin/codesign
+          security import "${installer_certificate}" -k "${keychain}" -P "${INSTALLER_CERTIFICATE_PASSWORD}" -T /usr/bin/productsign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keychain_password}" "${keychain}"
+          security list-keychains -d user -s "${keychain}"
+          security default-keychain -d user -s "${keychain}"
+          security cms -D -i "${profile_path}" > "${profile_plist}"
+
+          team_id=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "${profile_plist}")
+          profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "${profile_plist}")
+          profile_identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "${profile_plist}")
+          test "${profile_identifier}" = "${team_id}.${{ inputs.bundle_id }}"
+
+          application_identity=$(security find-identity -v "${keychain}" | sed -n 's/.*"\(Mac App Distribution:.*\)"/\1/p; s/.*"\(Apple Distribution:.*\)"/\1/p; s/.*"\(3rd Party Mac Developer Application:.*\)"/\1/p' | sed -n '1p')
+          installer_identity=$(security find-identity -v "${keychain}" | sed -n 's/.*"\(Mac Installer Distribution:.*\)"/\1/p; s/.*"\(3rd Party Mac Developer Installer:.*\)"/\1/p' | sed -n '1p')
+          test -n "${application_identity}"
+          test -n "${installer_identity}"
+
+          installed_profile_dir="${HOME}/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "${installed_profile_dir}"
+          installed_profile="${installed_profile_dir}/$(uuidgen).provisionprofile"
+          cp "${profile_path}" "${installed_profile}"
+          {
+            printf 'application_identity=%s\n' "${application_identity}"
+            printf 'installer_identity=%s\n' "${installer_identity}"
+            printf 'profile_name=%s\n' "${profile_name}"
+            printf 'profile_path=%s\n' "${installed_profile}"
+            printf 'team_id=%s\n' "${team_id}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'application_identity=present\n'
+          printf 'installer_identity=present\n'
+          printf 'profile=valid\n'
+
+      - name: "📦 Package [${{ steps.version.outputs.version }}]"
+        shell: sh
+        env:
+          APP_STORE_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          APP_STORE_BUNDLE_ID: ${{ inputs.bundle_id }}
+          APP_STORE_MARKETING_VERSION: ${{ steps.version.outputs.version }}
+          APP_STORE_TEAM_ID: ${{ steps.signing.outputs.team_id }}
+          MACOS_APP_STORE_APPLICATION_IDENTITY: ${{ steps.signing.outputs.application_identity }}
+          MACOS_APP_STORE_INSTALLER_IDENTITY: ${{ steps.signing.outputs.installer_identity }}
+          MACOS_APP_STORE_PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
+          MACOS_APP_STORE_PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
+        run: |
+          set -eu
+          test -x scripts/package-app-store.sh
+          sh scripts/package-app-store.sh "${APP_STORE_MARKETING_VERSION}" "${APP_STORE_BUILD_NUMBER}"
+
+      - name: "🔍 Check Store Package"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: |
+          set -eu
+          app="dist/app-store/${APP_NAME}.app"
+          package="dist/app-store/${APP_NAME}.pkg"
+          test -d "${app}"
+          test -f "${package}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app}/Contents/Info.plist")" = "${BUNDLE_ID}"
+          codesign --verify --deep --strict --verbose=2 "${app}"
+          codesign -d --entitlements :- "${app}" 2>/dev/null | /usr/bin/grep -A 1 '<key>com.apple.security.app-sandbox</key>' | /usr/bin/grep -F '<true/>'
+          test -z "$(find "${app}/Contents" -type d -name Sparkle.framework -print -quit)"
+          pkgutil --check-signature "${package}"
+
+      - name: "📦 Upload Store Package"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: app-store-package
+          if-no-files-found: error
+          retention-days: 1
+          path: dist/app-store
+
+      - name: "🧹 Clean Store Signing"
+        if: always()
+        shell: sh
+        env:
+          PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
+        run: |
+          set -eu
+          if [ -n "${PROFILE_PATH}" ]; then
+            rm -f "${PROFILE_PATH}"
+          fi
+          security delete-keychain "${RUNNER_TEMP}/app-store.keychain-db" || true
