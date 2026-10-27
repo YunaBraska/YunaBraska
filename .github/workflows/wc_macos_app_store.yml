@@ -105,7 +105,7 @@ jobs:
 
           team_id=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "${profile_plist}")
           profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "${profile_plist}")
-          profile_identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "${profile_plist}")
+          profile_identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "${profile_plist}")
           test "${profile_identifier}" = "${team_id}.${{ inputs.bundle_id }}"
 
           application_identity=$(security find-identity -v "${keychain}" | sed -n 's/.*"\(Mac App Distribution:.*\)"/\1/p; s/.*"\(Apple Distribution:.*\)"/\1/p; s/.*"\(3rd Party Mac Developer Application:.*\)"/\1/p' | sed -n '1p')
