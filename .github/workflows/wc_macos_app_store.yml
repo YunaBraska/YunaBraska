@@ -115,7 +115,7 @@ jobs:
           test "${profile_identifier}" = "${team_id}.${{ inputs.bundle_id }}"
 
           application_identity=$(security find-identity -v "${keychain}" | sed -n 's/.*"\(Mac App Distribution:.*\)"/\1/p; s/.*"\(Apple Distribution:.*\)"/\1/p; s/.*"\(3rd Party Mac Developer Application:.*\)"/\1/p' | sed -n '1p')
-          installer_identity=$(security find-identity -v "${keychain}" | sed -n 's/.*"\(Mac Installer Distribution:.*\)"/\1/p; s/.*"\(3rd Party Mac Developer Installer:.*\)"/\1/p' | sed -n '1p')
+          installer_identity=$(security find-identity -v "${keychain}" | awk '/"Mac Installer Distribution:|"3rd Party Mac Developer Installer:/ {print $2; exit}')
           test -n "${application_identity}"
           test -n "${installer_identity}"
 
