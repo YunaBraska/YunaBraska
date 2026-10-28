@@ -139,7 +139,7 @@ jobs:
           MACOS_APP_STORE_PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
         run: |
           set -eu
-          test -x scripts/package-app-store.sh
+          test -f scripts/package-app-store.sh
           sh scripts/package-app-store.sh "${APP_STORE_MARKETING_VERSION}" "${APP_STORE_BUILD_NUMBER}"
 
       - name: "🔍 Check Store Package"
