@@ -95,7 +95,7 @@ jobs:
           security set-keychain-settings -lut 21600 "${keychain}"
           security unlock-keychain -p "${keychain_password}" "${keychain}"
           security import "${application_certificate}" -k "${keychain}" -P "${APPLICATION_CERTIFICATE_PASSWORD}" -T /usr/bin/codesign
-          security import "${installer_certificate}" -k "${keychain}" -P "${INSTALLER_CERTIFICATE_PASSWORD}" -T /usr/bin/productsign
+          security import "${installer_certificate}" -A -k "${keychain}" -P "${INSTALLER_CERTIFICATE_PASSWORD}" -T /usr/bin/productsign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keychain_password}" "${keychain}"
           # Keep the runner's trusted intermediates available for installer signing.
           set --
