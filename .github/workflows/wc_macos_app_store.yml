@@ -68,45 +68,38 @@ jobs:
           printf 'version=%s\n' "${version}"
           printf 'build_number=%s\n' "${build_number}"
 
-      - name: "🔐 Setup Store Signing"
+      - name: "🔐 Import App Certificate"
+        id: application_certificate
+        uses: Apple-Actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+        with:
+          keychain: ${{ runner.temp }}/app-store-${{ github.run_id }}
+          create-keychain: true
+          p12-file-base64: ${{ secrets.MACOS_APP_STORE_APPLICATION_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_APP_STORE_CERTIFICATE_PASSWORD }}
+
+      - name: "🔐 Import Installer Certificate"
+        uses: Apple-Actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+        with:
+          keychain: ${{ runner.temp }}/app-store-${{ github.run_id }}
+          create-keychain: false
+          keychain-password: ${{ steps.application_certificate.outputs.keychain-password }}
+          p12-file-base64: ${{ secrets.MACOS_APP_STORE_INSTALLER_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_APP_STORE_CERTIFICATE_PASSWORD }}
+
+      - name: "🔐 Setup Store Profile"
         id: signing
         shell: sh
         env:
-          APPLICATION_CERTIFICATE: ${{ secrets.MACOS_APP_STORE_APPLICATION_CERTIFICATE }}
-          APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_APP_STORE_CERTIFICATE_PASSWORD }}
-          INSTALLER_CERTIFICATE: ${{ secrets.MACOS_APP_STORE_INSTALLER_CERTIFICATE }}
-          INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_APP_STORE_CERTIFICATE_PASSWORD }}
           PROFILE: ${{ secrets.MACOS_APP_STORE_PROFILE }}
         run: |
           set -eu
           credentials_dir=$(mktemp -d "${RUNNER_TEMP}/app-store.XXXXXX")
-          keychain="${RUNNER_TEMP}/app-store.keychain-db"
-          keychain_password=$(uuidgen)
-          application_certificate="${credentials_dir}/application.p12"
-          installer_certificate="${credentials_dir}/installer.p12"
           profile_path="${credentials_dir}/profile.provisionprofile"
           profile_plist="${credentials_dir}/profile.plist"
+          keychain="${RUNNER_TEMP}/app-store-${GITHUB_RUN_ID}.keychain"
           trap 'rm -rf "${credentials_dir}"' EXIT HUP INT TERM
 
-          printf '%s' "${APPLICATION_CERTIFICATE}" | base64 -D > "${application_certificate}"
-          printf '%s' "${INSTALLER_CERTIFICATE}" | base64 -D > "${installer_certificate}"
           printf '%s' "${PROFILE}" | base64 -D > "${profile_path}"
-          security create-keychain -p "${keychain_password}" "${keychain}"
-          security set-keychain-settings -lut 21600 "${keychain}"
-          security unlock-keychain -p "${keychain_password}" "${keychain}"
-          security import "${application_certificate}" -k "${keychain}" -P "${APPLICATION_CERTIFICATE_PASSWORD}" -T /usr/bin/codesign
-          security import "${installer_certificate}" -A -k "${keychain}" -P "${INSTALLER_CERTIFICATE_PASSWORD}" -T /usr/bin/productsign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keychain_password}" "${keychain}"
-          # Keep the runner's trusted intermediates available for installer signing.
-          set --
-          while IFS= read -r existing_keychain; do
-            test -n "${existing_keychain}" || continue
-            set -- "$@" "${existing_keychain}"
-          done <<EOF
-          $(security list-keychains -d user | sed -E 's/"//g; s/^[[:space:]]+//; s/[[:space:]]+$//')
-          EOF
-          security list-keychains -d user -s "${keychain}" "$@"
-          security default-keychain -d user -s "${keychain}"
           security cms -D -i "${profile_path}" > "${profile_plist}"
 
           team_id=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "${profile_plist}")
@@ -114,7 +107,7 @@ jobs:
           profile_identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "${profile_plist}")
           test "${profile_identifier}" = "${team_id}.${{ inputs.bundle_id }}"
 
-          application_identity=$(security find-identity -v "${keychain}" | sed -n 's/.*"\(Mac App Distribution:.*\)"/\1/p; s/.*"\(Apple Distribution:.*\)"/\1/p; s/.*"\(3rd Party Mac Developer Application:.*\)"/\1/p' | sed -n '1p')
+          application_identity=$(security find-identity -v "${keychain}" | awk '/"Mac App Distribution:|"Apple Distribution:|"3rd Party Mac Developer Application:/ {print $2; exit}')
           installer_identity=$(security find-identity -v "${keychain}" | awk '/"Mac Installer Distribution:|"3rd Party Mac Developer Installer:/ {print $2; exit}')
           test -n "${application_identity}"
           test -n "${installer_identity}"
@@ -207,4 +200,3 @@ jobs:
           if [ -n "${PROFILE_PATH}" ]; then
             rm -f "${PROFILE_PATH}"
           fi
-          security delete-keychain "${RUNNER_TEMP}/app-store.keychain-db" || true
