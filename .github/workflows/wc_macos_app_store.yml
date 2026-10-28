@@ -95,7 +95,7 @@ jobs:
           security set-keychain-settings -lut 21600 "${keychain}"
           security unlock-keychain -p "${keychain_password}" "${keychain}"
           security import "${application_certificate}" -k "${keychain}" -P "${APPLICATION_CERTIFICATE_PASSWORD}" -T /usr/bin/codesign
-          security import "${installer_certificate}" -k "${keychain}" -P "${INSTALLER_CERTIFICATE_PASSWORD}" -T /usr/bin/productbuild
+          security import "${installer_certificate}" -k "${keychain}" -P "${INSTALLER_CERTIFICATE_PASSWORD}" -T /usr/bin/productsign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keychain_password}" "${keychain}"
           security list-keychains -d user -s "${keychain}"
           security default-keychain -d user -s "${keychain}"
@@ -126,7 +126,7 @@ jobs:
           printf 'installer_identity=present\n'
           printf 'profile=valid\n'
 
-      - name: "📦 Package [${{ steps.version.outputs.version }}]"
+      - name: "📦 Build Store App [${{ steps.version.outputs.version }}]"
         shell: sh
         env:
           APP_STORE_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
@@ -134,13 +134,27 @@ jobs:
           APP_STORE_MARKETING_VERSION: ${{ steps.version.outputs.version }}
           APP_STORE_TEAM_ID: ${{ steps.signing.outputs.team_id }}
           MACOS_APP_STORE_APPLICATION_IDENTITY: ${{ steps.signing.outputs.application_identity }}
-          MACOS_APP_STORE_INSTALLER_IDENTITY: ${{ steps.signing.outputs.installer_identity }}
           MACOS_APP_STORE_PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
           MACOS_APP_STORE_PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
         run: |
           set -eu
           test -f scripts/package-app-store.sh
           sh scripts/package-app-store.sh "${APP_STORE_MARKETING_VERSION}" "${APP_STORE_BUILD_NUMBER}"
+
+      - name: "🔏 Sign Store Package"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          INSTALLER_IDENTITY: ${{ steps.signing.outputs.installer_identity }}
+        run: |
+          set -eu
+          app="dist/app-store/${APP_NAME}.app"
+          package="dist/app-store/${APP_NAME}.pkg"
+          unsigned_package="${RUNNER_TEMP}/${APP_NAME}-${GITHUB_RUN_ID}.unsigned.pkg"
+          test -d "${app}"
+          productbuild --component "${app}" /Applications "${unsigned_package}"
+          productsign --sign "${INSTALLER_IDENTITY}" "${unsigned_package}" "${package}"
+          pkgutil --check-signature "${package}"
 
       - name: "🔍 Check Store Package"
         shell: sh
