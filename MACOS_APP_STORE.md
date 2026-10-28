@@ -5,9 +5,10 @@ The direct and Store channels are separate. Direct releases remain Developer ID 
 ```mermaid
 flowchart LR
   M[Manual App Store workflow] --> V[UTC version and GitHub run build number]
-  V --> S[Import Store certificates and profile]
-  S --> A[Repository package-app-store adapter]
-  A --> C[Check sandbox, identity, no Sparkle, package signature]
+  V --> S[Apple certificate action and profile]
+  S --> A[Repository adapter builds signed app]
+  A --> P[Shared package build and signing]
+  P --> C[Check sandbox, identity, no Sparkle, package signature]
   C --> R[One-day review artifact]
 ```
 
@@ -30,18 +31,16 @@ The adapter receives these environment values:
 | `APP_STORE_BUILD_NUMBER` | GitHub run ID. It always increases without a manual counter. |
 | `APP_STORE_TEAM_ID` | Team from the selected provisioning profile. |
 | `MACOS_APP_STORE_APPLICATION_IDENTITY` | Imported Mac App Distribution identity. |
-| `MACOS_APP_STORE_INSTALLER_IDENTITY` | Imported Mac Installer Distribution identity. |
 | `MACOS_APP_STORE_PROFILE_NAME` | Imported profile name. |
 | `MACOS_APP_STORE_PROFILE_PATH` | Imported profile path. |
 
-It must create exactly these review outputs:
+It must create this signed app:
 
 ```text
 dist/app-store/<App>.app
-dist/app-store/<App>.pkg
 ```
 
-The shared workflow checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, and the installer package is signed. The package is retained for one day.
+The shared workflow then builds the unsigned installer, signs it with the imported Mac Installer Distribution identity, and checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, and the installer package is signed. The package is retained for one day.
 
 ## Secrets
 
@@ -50,12 +49,11 @@ Every participating repository needs these Base64 values. They are Store-specifi
 | Secret | Content |
 | --- | --- |
 | `MACOS_APP_STORE_APPLICATION_CERTIFICATE` | PKCS#12 export of Mac App Distribution. |
-| `MACOS_APP_STORE_APPLICATION_CERTIFICATE_PASSWORD` | PKCS#12 password. |
 | `MACOS_APP_STORE_INSTALLER_CERTIFICATE` | PKCS#12 export of Mac Installer Distribution. |
-| `MACOS_APP_STORE_INSTALLER_CERTIFICATE_PASSWORD` | PKCS#12 password. |
+| `MACOS_APP_STORE_CERTIFICATE_PASSWORD` | Shared PKCS#12 password for both Store certificates. |
 | `MACOS_APP_STORE_PROFILE` | Provisioning profile for that product's Store identifier. |
 
-Never commit certificates, profiles, passwords, signing identities, or API keys. The runner imports them into a temporary keychain and removes that keychain after the job.
+Never commit certificates, profiles, passwords, signing identities, or API keys. The pinned Apple certificate action imports both P12 files into one temporary keychain, keeps the runner trust chain available to Apple signing tools, and removes that keychain after the job. Do not replace this with custom `security` setup unless the action cannot support a required Apple tool.
 
 ## Adapter boundaries
 
