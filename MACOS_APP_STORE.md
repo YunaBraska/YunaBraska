@@ -1,6 +1,6 @@
 # Mac App Store CI/CD
 
-The direct and Store channels are separate. Direct releases remain Developer ID signed, notarized, and may use Sparkle. A Store package is sandboxed, contains no Sparkle framework, and is signed with Mac App Distribution plus Mac Installer Distribution.
+The direct and Store channels are separate. Direct releases remain Developer ID signed, notarized, and may use signed Sparkle feeds. A Store package is sandboxed, contains no Sparkle framework, and is signed with Mac App Distribution plus Mac Installer Distribution.
 
 ```mermaid
 flowchart LR
@@ -67,6 +67,10 @@ The explicit upload workflow additionally needs these App Store Connect secrets.
 | `APP_STORE_CONNECT_PRIVATE_KEY` | Downloaded `.p8` API private key. |
 
 Apple requires an app record to be created in App Store Connect before the first upload. The upload produces a processed build. Screenshots, privacy answers, age rating, price, availability, and App Review submission stay separate product decisions.
+
+## Direct updates
+
+Homebrew owns upgrades for Homebrew installations. Direct GitHub downloads can use the signed macOS feed that is attached to every non-snapshot release. The .NET release workflow creates one feed per macOS architecture only when the product passes `macos_update_public_key` and provides `MACOS_UPDATE_PRIVATE_KEY`. The product embeds only the public key. Store builds do not receive a feed or update key.
 
 ## Adapter boundaries
 
