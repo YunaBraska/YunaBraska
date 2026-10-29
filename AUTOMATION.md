@@ -87,3 +87,22 @@ request, tag, release, deployment, or package.
 Upstream maintenance does not pass its writer token to Maven or project tests.
 Maven resolves private packages through the scoped GitHub Packages server;
 tests querying public GitHub APIs remain anonymous.
+
+## Branch and release gates
+
+Every maintained product repository must protect `main` with a repository
+ruleset:
+
+- Pull requests are required. Direct pushes, branch deletion, and history
+  rewrites are blocked.
+- All jobs in that repository's production build matrix are required before a
+  pull request may merge. The required names come from the workflow run, not a
+  guessed generic list.
+- A release workflow runs only from the merged `main` commit. It starts after
+  the required checks succeed. A cancelled or failed release run is deleted
+  only after a green replacement has produced the same intended result.
+
+The exact job matrix differs between Java, Node, and native products. The
+policy does not: each repository must require every job that produces or
+validates its shipping artifacts. When a workflow adds, removes, or renames a
+production job, update that repository's ruleset in the same pull request.
