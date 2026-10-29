@@ -1,0 +1,59 @@
+name: "🛍️ CD · App Store Upload"
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: App bundle name.
+        required: true
+        type: string
+      artifact_name:
+        description: Store package artifact.
+        required: false
+        default: app-store-package
+        type: string
+    secrets:
+      APP_STORE_CONNECT_API_KEY:
+        required: true
+      APP_STORE_CONNECT_ISSUER_ID:
+        required: true
+      APP_STORE_CONNECT_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: "🛍️ upload"
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: "📥 Download Store Package"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: app-store-package
+
+      - name: "🔎 Validate and Upload"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          set -eu
+          key_dir=$(mktemp -d "${RUNNER_TEMP}/app-store-connect.XXXXXX")
+          trap 'rm -rf "${key_dir}"' 0 HUP INT TERM
+          package=$(find app-store-package -type f -name "${APP_NAME}.pkg" -print -quit)
+          test -n "${package}"
+
+          umask 077
+          printf '%s' "${API_PRIVATE_KEY}" > "${key_dir}/AuthKey_${API_KEY}.p8"
+          export API_PRIVATE_KEYS_DIR="${key_dir}"
+          xcrun altool --validate-app "${package}" --api-key "${API_KEY}" --api-issuer "${API_ISSUER}" --output-format json
+          xcrun altool --upload-package "${package}" --api-key "${API_KEY}" --api-issuer "${API_ISSUER}" --output-format json
+          printf 'app_store_upload=accepted\n'
