@@ -9,12 +9,11 @@ flowchart LR
   S --> A[Repository adapter builds signed app]
   A --> P[Shared package build and signing]
   P --> C[Check sandbox, identity, no Sparkle, package signature]
-  C --> T[Start signed sandbox app]
-  T --> R[One-day review artifact]
+  C --> R[One-day review artifact]
   R --> U[Explicit upload workflow]
 ```
 
-The package workflow starts the final sandboxed bundle executable and verifies that it stays alive. It proves that the signed Store app starts on GitHub's headless macOS runner. It cannot prove user-granted microphone, camera, screen-recording, or network permissions. Those remain product acceptance tests in a normal macOS login session.
+The package workflow verifies the final Store bundle's identifier, hardened signature, sandbox entitlement, absence of Sparkle, and signed installer package. GitHub's hosted macOS runners have no usable GUI session, so starting a GUI app there is not a valid acceptance test. User-granted microphone, camera, screen-recording, audio-device, and network behavior remain product acceptance tests in a normal macOS login session.
 
 The package workflow deliberately never uploads a build or submits an App Store version. `wc_macos_app_store_upload.yml` is a separate reusable workflow. A product invokes it only from its explicitly started upload workflow. It validates and uploads the signed package using `xcrun altool`; it never submits a version for App Review.
 
