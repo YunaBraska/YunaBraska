@@ -188,7 +188,7 @@ jobs:
           name: app-store-package
           if-no-files-found: error
           retention-days: 1
-          path: dist/app-store
+          path: dist/app-store/${{ inputs.app_name }}.pkg
 
       - name: "🧹 Clean Store Signing"
         if: always()
