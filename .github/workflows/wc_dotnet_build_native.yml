@@ -13,6 +13,11 @@ on:
         required: false
         default: false
         type: boolean
+      macos_update_public_key:
+        description: Base64 Ed25519 public key for direct macOS updates.
+        required: false
+        default: ''
+        type: string
       version:
         description: Build version.
         required: true
@@ -185,7 +190,7 @@ jobs:
               test -n "${signing_identity}"
               notary_profile='macos-notary'
             fi
-            VERSION='${{ inputs.version }}' CODESIGN_IDENTITY="${signing_identity}" sh scripts/build-macos-app.sh "${rid}" > "${package_log}"
+            VERSION='${{ inputs.version }}' CODESIGN_IDENTITY="${signing_identity}" MACOS_UPDATE_PUBLIC_KEY='${{ inputs.dry_run == false && inputs.macos_update_public_key || '' }}' sh scripts/build-macos-app.sh "${rid}" > "${package_log}"
             bundle=$(sed -n '$p' "${package_log}")
             cat "${package_log}"
             test -d "${bundle}"

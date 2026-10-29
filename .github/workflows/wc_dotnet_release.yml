@@ -13,6 +13,11 @@ on:
         required: false
         default: false
         type: boolean
+      macos_update_public_key:
+        description: Base64 Ed25519 public key for direct macOS updates.
+        required: false
+        default: ''
+        type: string
     secrets:
       MACOS_NOTARY_ISSUER_ID:
         required: false
@@ -23,6 +28,8 @@ on:
       MACOS_SIGNING_CERTIFICATE:
         required: false
       MACOS_SIGNING_CERTIFICATE_PASSWORD:
+        required: false
+      MACOS_UPDATE_PRIVATE_KEY:
         required: false
     outputs:
       commit_sha:
@@ -107,6 +114,7 @@ jobs:
     with:
       dry_run: ${{ needs.build.outputs.dry_run == 'true' }}
       notarize_macos: ${{ inputs.notarize_macos }}
+      macos_update_public_key: ${{ inputs.macos_update_public_key }}
       version: ${{ needs.build.outputs.version }}
     secrets: inherit
 
@@ -128,6 +136,52 @@ jobs:
           path: release-assets
           merge-multiple: true
           github-token: ${{ github.token }}
+
+      - name: "🔐 Sign macOS Update Feeds"
+        if: inputs.macos_update_public_key != ''
+        shell: sh
+        env:
+          MACOS_UPDATE_PRIVATE_KEY: ${{ secrets.MACOS_UPDATE_PRIVATE_KEY }}
+          MACOS_UPDATE_PUBLIC_KEY: ${{ inputs.macos_update_public_key }}
+        run: |
+          set -eu
+          test -n "${MACOS_UPDATE_PRIVATE_KEY}"
+          private_key=$(mktemp "${RUNNER_TEMP}/macos-update.XXXXXX")
+          trap 'rm -f "${private_key}"' EXIT INT TERM
+          {
+            printf '\060\056\002\001\000\060\005\006\003\053\145\160\004\042\004\040'
+            printf '%s' "${MACOS_UPDATE_PRIVATE_KEY}" | base64 --decode
+          } > "${private_key}"
+          test "$(wc -c < "${private_key}" | tr -d ' ')" = 48
+          derived_public_key=$(openssl pkey -inform DER -in "${private_key}" -pubout -outform DER | tail -c 32 | base64 --wrap=0)
+          test "${derived_public_key}" = "${MACOS_UPDATE_PUBLIC_KEY}"
+
+          found=false
+          for asset in release-assets/*-macos-*.dmg; do
+            test -f "${asset}" || continue
+            found=true
+            asset_name=${asset##*/}
+            architecture=$(printf '%s\n' "${asset_name}" | sed -n 's/.*-macos-\(arm64\|x64\)\.dmg$/\1/p')
+            test -n "${architecture}"
+            signature=$(openssl pkeyutl -sign -inkey "${private_key}" -keyform DER -rawin -in "${asset}" | base64 --wrap=0)
+            appcast="release-assets/appcast-macos-${architecture}.xml"
+            asset_size=$(wc -c < "${asset}" | tr -d ' ')
+            cat > "${appcast}" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+            <channel>
+              <title>${{ github.repository }} macOS updates</title>
+              <item>
+                <title>Version ${{ needs.build.outputs.version }}</title>
+                <enclosure url="https://github.com/${{ github.repository }}/releases/download/${{ needs.build.outputs.version }}/${asset_name}" sparkle:version="${{ needs.build.outputs.version }}" sparkle:shortVersionString="${{ needs.build.outputs.version }}" sparkle:os="macos" sparkle:edSignature="${signature}" length="${asset_size}" type="application/octet-stream" />
+              </item>
+            </channel>
+          </rss>
+          EOF
+            openssl pkeyutl -sign -inkey "${private_key}" -keyform DER -rawin -in "${appcast}" | base64 --wrap=0 > "${appcast}.signature"
+            printf 'appcast=%s\n' "${appcast}"
+          done
+          test "${found}" = true
 
       - name: "🔐 Create Checksums"
         shell: sh
