@@ -43,7 +43,7 @@ It must create this signed app:
 dist/app-store/<App>.app
 ```
 
-The shared workflow then builds the unsigned installer, signs it with the imported Mac Installer Distribution identity, and checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, the installer package is signed, and the final app starts on the runner. The package is retained for one day.
+The shared workflow then builds the unsigned installer, signs it with the imported Mac Installer Distribution identity, and checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, and the installer package is signed. The package is retained for one day.
 
 ## Secrets
 
