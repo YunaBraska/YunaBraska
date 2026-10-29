@@ -9,10 +9,14 @@ flowchart LR
   S --> A[Repository adapter builds signed app]
   A --> P[Shared package build and signing]
   P --> C[Check sandbox, identity, no Sparkle, package signature]
-  C --> R[One-day review artifact]
+  C --> T[Launch signed sandbox app]
+  T --> R[One-day review artifact]
+  R --> U[Explicit upload workflow]
 ```
 
-The reusable workflow deliberately builds and validates only. It never uploads a build or submits an App Store version. That remains a separate, explicitly approved publication step.
+The package workflow launches the final sandboxed app through LaunchServices and waits for its bundle executable. It proves that the signed Store app starts. It cannot prove user-granted microphone, camera, screen-recording, or network permissions. Those remain product acceptance tests.
+
+The package workflow deliberately never uploads a build or submits an App Store version. `wc_macos_app_store_upload.yml` is a separate reusable workflow. A product invokes it only from its explicitly started upload workflow. It validates and uploads the signed package using `xcrun altool`; it never submits a version for App Review.
 
 ## Contract
 
@@ -40,7 +44,7 @@ It must create this signed app:
 dist/app-store/<App>.app
 ```
 
-The shared workflow then builds the unsigned installer, signs it with the imported Mac Installer Distribution identity, and checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, and the installer package is signed. The package is retained for one day.
+The shared workflow then builds the unsigned installer, signs it with the imported Mac Installer Distribution identity, and checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, the installer package is signed, and the final app starts from LaunchServices. The package is retained for one day.
 
 ## Secrets
 
@@ -54,6 +58,16 @@ Every participating repository needs these Base64 values. They are Store-specifi
 | `MACOS_APP_STORE_PROFILE` | Provisioning profile for that product's Store identifier. |
 
 Never commit certificates, profiles, passwords, signing identities, or API keys. The pinned Apple certificate action imports both P12 files into one temporary keychain, keeps the runner trust chain available to Apple signing tools, and removes that keychain after the job. Do not replace this with custom `security` setup unless the action cannot support a required Apple tool.
+
+The explicit upload workflow additionally needs these App Store Connect secrets. They are account-level credentials, not signing credentials, and may be shared only with repositories that are allowed to upload a Store build.
+
+| Secret | Content |
+| --- | --- |
+| `APP_STORE_CONNECT_API_KEY` | App Store Connect API key ID. |
+| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect issuer ID. |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | Downloaded `.p8` API private key. |
+
+Apple requires an app record to be created in App Store Connect before the first upload. The upload produces a processed build. Screenshots, privacy answers, age rating, price, availability, and App Review submission stay separate product decisions.
 
 ## Adapter boundaries
 

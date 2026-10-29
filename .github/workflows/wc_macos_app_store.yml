@@ -182,6 +182,40 @@ jobs:
           test -z "$(find "${app}/Contents" -type d -name Sparkle.framework -print -quit)"
           pkgutil --check-signature "${package}"
 
+      - name: "▶️ Smoke Test Store App"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+        run: |
+          set -eu
+          app="dist/app-store/${APP_NAME}.app"
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${app}/Contents/Info.plist")
+          test -n "${executable}"
+          before_pids=$(pgrep -x "${executable}" || true)
+          started_pids=''
+          cleanup() {
+            for pid in ${started_pids}; do
+              kill "${pid}" 2>/dev/null || true
+            done
+          }
+          trap cleanup 0 HUP INT TERM
+
+          open -gj "${app}"
+          attempt=0
+          while [ "${attempt}" -lt 15 ]; do
+            active_pids=$(pgrep -x "${executable}" || true)
+            for pid in ${active_pids}; do
+              if ! printf '%s\n' "${before_pids}" | grep -Fx "${pid}" >/dev/null; then
+                started_pids="${started_pids} ${pid}"
+              fi
+            done
+            test -n "${started_pids}" && break
+            attempt=$((attempt + 1))
+            sleep 1
+          done
+          test -n "${started_pids}"
+          printf 'sandbox_app_started=true\n'
+
       - name: "📦 Upload Store Package"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
