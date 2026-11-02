@@ -86,7 +86,7 @@ jobs:
         run: |
           set -eu
           if [ "${{ inputs.dry_run }}" = 'true' ]; then
-            version="${{ steps.semver_info.outputs.next_snapshot }}"
+            version="${{ steps.semver_info.outputs.next_snapshot }}.${GITHUB_RUN_ID}"
           else
             version="${{ steps.date_info.outputs.date_version }}"
           fi

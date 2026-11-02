@@ -15,11 +15,14 @@ Every build checks out one commit, resolves one version, tests it, creates a uni
 
 | Trigger | Version | Result |
 | --- | --- | --- |
-| Pull request or merge | `next_snapshot` from the latest tag, fallback `0.0.1` | Build only; merge keeps a one-day artifact. |
+| Pull request | `next_snapshot` from the latest tag, fallback `0.0.1` | Build and test only. |
+| Merge | `next_snapshot` plus the GitHub run ID | Build, test and a GitHub pre-release. |
 | Weekly release with source changes | UTC `YYYY.M.D` | Tag, GitHub release, ZIP and DMG. |
 | Manual release | Same; `force` permits unchanged source | Same. |
 
 Release detection ignores documentation, tests, examples, and `.github`. It releases for every other changed tracked file. A version with a hyphen is a GitHub pre-release.
+
+Snapshots append the GitHub run ID. GitHub tags and releases are immutable, so `next_snapshot` alone would collide after a second merge on the same version line.
 
 Reusable workflows declare the smallest permission ceiling needed by their nested jobs: `contents: read` for the build, and `actions: read` plus `contents: write` for the release. A caller may reduce that ceiling but cannot raise it; this is required for reusable workflows that call another reusable workflow.
 
@@ -41,16 +44,14 @@ jobs:
 ```yaml
 # build-merge.yml
 permissions:
-  contents: read
+  actions: read
+  contents: write
 
 jobs:
-  build:
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_swift_build_common.yml@<FULL_COMMIT_SHA>
+  snapshot:
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_swift_snapshot.yml@<FULL_COMMIT_SHA>
     with:
       ref: ${{ github.sha }}
-      dry_run: true
-      upload_artifact: true
-    secrets: inherit
 ```
 
 ```yaml
