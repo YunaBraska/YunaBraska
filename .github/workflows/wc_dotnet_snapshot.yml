@@ -1,0 +1,50 @@
+name: "🔄 CD · .NET Snapshot"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact main-branch revision.
+        required: false
+        default: ''
+        type: string
+    outputs:
+      commit_sha:
+        description: Tested source revision.
+        value: ${{ jobs.build.outputs.commit_sha }}
+      version:
+        description: Published snapshot version.
+        value: ${{ jobs.build.outputs.version }}
+
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_dotnet_build_common.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      dry_run: true
+
+  native:
+    needs: build
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_dotnet_build_native.yml
+    with:
+      dry_run: true
+      version: ${{ needs.build.outputs.version }}
+
+  publish:
+    needs:
+      - build
+      - native
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/wc_dotnet_create_github_release.yml
+    with:
+      run_id: ${{ github.run_id }}
+      commit_sha: ${{ needs.build.outputs.commit_sha }}
+      version: ${{ needs.build.outputs.version }}

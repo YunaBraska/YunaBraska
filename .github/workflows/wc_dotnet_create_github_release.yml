@@ -1,0 +1,144 @@
+name: "🏷️ CD · .NET GitHub Release"
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        description: Build run that owns the tested assets.
+        required: false
+        default: ''
+        type: string
+      commit_sha:
+        description: Tested source revision.
+        required: true
+        type: string
+      version:
+        description: Unique release version.
+        required: true
+        type: string
+      macos_update_public_key:
+        description: Base64 Ed25519 public key for stable direct macOS updates.
+        required: false
+        default: ''
+        type: string
+    secrets:
+      MACOS_UPDATE_PRIVATE_KEY:
+        required: false
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: "📥 Download Release Assets"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: release-assets-*
+          path: release-assets
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id || github.run_id }}
+
+      - name: "🔐 Sign macOS Update Feeds"
+        if: inputs.macos_update_public_key != '' && !contains(inputs.version, '-')
+        shell: sh
+        env:
+          MACOS_UPDATE_PRIVATE_KEY: ${{ secrets.MACOS_UPDATE_PRIVATE_KEY }}
+          MACOS_UPDATE_PUBLIC_KEY: ${{ inputs.macos_update_public_key }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          test -n "${MACOS_UPDATE_PRIVATE_KEY}"
+          private_key=$(mktemp "${RUNNER_TEMP}/macos-update.XXXXXX")
+          trap 'rm -f "${private_key}"' EXIT INT TERM
+          {
+            printf '\060\056\002\001\000\060\005\006\003\053\145\160\004\042\004\040'
+            printf '%s' "${MACOS_UPDATE_PRIVATE_KEY}" | base64 --decode
+          } > "${private_key}"
+          test "$(wc -c < "${private_key}" | tr -d ' ')" = 48
+          derived_public_key=$(openssl pkey -inform DER -in "${private_key}" -pubout -outform DER | tail -c 32 | base64 --wrap=0)
+          test "${derived_public_key}" = "${MACOS_UPDATE_PUBLIC_KEY}"
+
+          found=false
+          for asset in release-assets/*-macos-*.dmg; do
+            test -f "${asset}" || continue
+            found=true
+            asset_name=${asset##*/}
+            architecture=$(printf '%s\n' "${asset_name}" | sed -n 's/.*-macos-\(arm64\|x64\)\.dmg$/\1/p')
+            test -n "${architecture}"
+            signature=$(openssl pkeyutl -sign -inkey "${private_key}" -keyform DER -rawin -in "${asset}" | base64 --wrap=0)
+            appcast="release-assets/appcast-macos-${architecture}.xml"
+            asset_size=$(wc -c < "${asset}" | tr -d ' ')
+            cat > "${appcast}" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+            <channel>
+              <title>${{ github.repository }} macOS updates</title>
+              <item>
+                <title>Version ${RELEASE_VERSION}</title>
+                <enclosure url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_VERSION}/${asset_name}" sparkle:version="${RELEASE_VERSION}" sparkle:shortVersionString="${RELEASE_VERSION}" sparkle:os="macos" sparkle:edSignature="${signature}" length="${asset_size}" type="application/octet-stream" />
+              </item>
+            </channel>
+          </rss>
+          EOF
+            openssl pkeyutl -sign -inkey "${private_key}" -keyform DER -rawin -in "${appcast}" | base64 --wrap=0 > "${appcast}.signature"
+          done
+          test "${found}" = true
+
+      - name: "🔐 Create Checksums"
+        shell: sh
+        run: |
+          set -eu
+          test -n "$(find release-assets -maxdepth 1 -type f -print -quit)"
+          find release-assets -maxdepth 1 -type f -print | sort | while IFS= read -r asset; do
+            sha256sum "${asset}" | sed 's#  release-assets/#  #'
+          done > release-assets/SHA256SUMS
+
+      - name: "🏷️ Publish GitHub Release [${{ inputs.version }}]"
+        shell: sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_REVISION: ${{ inputs.commit_sha }}
+        run: |
+          set -eu
+          created=false
+          tag_existed=false
+          cleanup() {
+            status=$?
+            if test "${status}" -ne 0 && test "${created}" = true; then
+              if test "${tag_existed}" = true; then
+                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes || true
+              else
+                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes --cleanup-tag || true
+              fi
+            fi
+            exit "${status}"
+          }
+          trap cleanup 0
+          if gh release view "${RELEASE_VERSION}" --repo "${GH_REPO}" >/dev/null 2>&1; then
+            printf 'GitHub release already exists for %s.\n' "${RELEASE_VERSION}"
+            exit 0
+          fi
+          if gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
+            tag_existed=true
+          fi
+          case "${RELEASE_VERSION}" in
+            *-*) gh release create "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --generate-notes --draft --prerelease --latest=false ;;
+            *) gh release create "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --generate-notes --draft --latest=false ;;
+          esac
+          created=true
+          set -- release-assets/*
+          test -f "$1"
+          gh release upload "${RELEASE_VERSION}" "$@" --repo "${GH_REPO}" --clobber
+          case "${RELEASE_VERSION}" in
+            *-*) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --prerelease --latest=false ;;
+            *) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --latest ;;
+          esac
+          trap - 0

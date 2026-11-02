@@ -5,9 +5,9 @@ flowchart LR
   PR[Pull request] --> B[Build and test]
   M[Merge] --> S[Snapshot build]
   S --> N[Native archives]
+  N --> G[GitHub prerelease]
   W[Weekly or manual release] --> R[Release build]
   R --> N
-  N --> G[GitHub release]
   G --> H[Tap updater]
   H --> P[Homebrew PR]
 ```
@@ -15,11 +15,13 @@ flowchart LR
 | Trigger | Version | Result |
 | --- | --- | --- |
 | Pull request | `next_snapshot` from the latest tag, fallback `0.0.1` | Build and test only. |
-| Merge | Same | Build all native archives; retain them for one day. |
+| Merge | `next_snapshot` plus the GitHub run ID | Build all native archives, checksums and a GitHub pre-release. |
 | Weekly release with source changes | UTC `YYYY.M.D` | Tag, GitHub release, archives, and `SHA256SUMS`. |
 | Manual release | Same; `force` permits unchanged source | Same. |
 
 The latest tag is the newest reachable tag by creation time. Release detection ignores documentation, tests, examples, and `.github`; every other tracked source change releases. A version with a hyphen is a GitHub pre-release.
+
+Snapshots append the GitHub run ID. GitHub tags and releases are immutable, so `next_snapshot` alone would collide after a second merge on the same version line.
 
 ## Conventions
 
@@ -55,19 +57,14 @@ jobs:
 ```yaml
 # build-merge.yml
 permissions:
-  contents: read
+  actions: read
+  contents: write
 
 jobs:
-  build:
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_dotnet_build_common.yml@<FULL_COMMIT_SHA>
+  snapshot:
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_dotnet_snapshot.yml@<FULL_COMMIT_SHA>
     with:
       ref: ${{ github.sha }}
-      dry_run: true
-  native:
-    needs: build
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_dotnet_build_native.yml@<FULL_COMMIT_SHA>
-    with:
-      version: ${{ needs.build.outputs.version }}
 ```
 
 ```yaml
