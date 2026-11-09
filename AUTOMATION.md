@@ -106,3 +106,12 @@ The exact job matrix differs between Java, Node, and native products. The
 policy does not: each repository must require every job that produces or
 validates its shipping artifacts. When a workflow adds, removes, or renames a
 production job, update that repository's ruleset in the same pull request.
+
+## Pull request review
+
+Each maintained repository calls the shared pull-request-review workflow when a
+same-repository pull request to `main` becomes ready for review. It requests
+one Codex review for that exact head commit. The workflow neither checks out
+nor executes pull-request code, and later pushes do not create another review.
+See [pull request review](PR_REVIEW.md) for the caller and deliberate re-review
+path.
