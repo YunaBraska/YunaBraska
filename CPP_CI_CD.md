@@ -11,7 +11,7 @@ flowchart LR
   P --> G[GitHub release]
 ```
 
-The public product flow stays small: pull request, merge snapshot, stable release, product pages, App Store package, and explicit App Store upload. C++ products use the same release boundary as Swift and .NET, but their compiler and package commands remain product-owned.
+The public product flow stays small: pull request, merge snapshot, stable release, product pages, App Store package, and explicit App Store upload. A merge snapshot is only a tested one-day Actions artifact. It must not create a Git tag, GitHub release, Homebrew update, Sparkle feed, or App Store package. C++ products use the same release boundary as Swift and .NET, but their compiler and package commands remain product-owned.
 
 ## Reusable workers
 
