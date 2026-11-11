@@ -13,6 +13,16 @@ on:
         required: false
         default: ''
         type: string
+      app_store_app_name:
+        description: App Store bundle name. Empty disables the Store channel.
+        required: false
+        default: ''
+        type: string
+      app_store_bundle_id:
+        description: App Store bundle identifier. Empty disables the Store channel.
+        required: false
+        default: ''
+        type: string
     secrets:
       MACOS_SIGNING_CERTIFICATE:
         required: false
@@ -25,6 +35,14 @@ on:
       MACOS_NOTARY_ISSUER_ID:
         required: false
       MACOS_UPDATE_PRIVATE_KEY:
+        required: false
+      MACOS_APP_STORE_APPLICATION_CERTIFICATE:
+        required: false
+      MACOS_APP_STORE_INSTALLER_CERTIFICATE:
+        required: false
+      MACOS_APP_STORE_CERTIFICATE_PASSWORD:
+        required: false
+      MACOS_APP_STORE_PROFILE:
         required: false
     outputs:
       commit_sha:
@@ -64,7 +82,7 @@ jobs:
         shell: sh
         run: |
           set -eu
-          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | awk '/^v?[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
           {
             printf 'latest_tag=%s\n' "${latest_tag}"
           } >> "${GITHUB_OUTPUT}"
@@ -108,9 +126,37 @@ jobs:
       macos_update_public_key: ${{ inputs.macos_update_public_key }}
     secrets: inherit
 
-  release:
+  app_store_package:
     needs: build
-    if: needs.build.outputs.dry_run == 'false'
+    if: needs.build.outputs.dry_run == 'false' && inputs.app_store_bundle_id != ''
+    uses: ./.github/workflows/wc_macos_app_store.yml
+    with:
+      app_name: ${{ inputs.app_store_app_name }}
+      bundle_id: ${{ inputs.app_store_bundle_id }}
+      ref: ${{ github.sha }}
+      version: ${{ needs.build.outputs.version }}
+    secrets: inherit
+
+  app_store_upload:
+    needs: app_store_package
+    if: needs.app_store_package.result == 'success'
+    uses: ./.github/workflows/wc_macos_app_store_upload.yml
+    with:
+      app_name: ${{ inputs.app_store_app_name }}
+    secrets:
+      APP_STORE_CONNECT_API_KEY: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+
+  release:
+    needs:
+      - build
+      - app_store_package
+      - app_store_upload
+    if: >-
+      always() &&
+      needs.build.outputs.dry_run == 'false' &&
+      (inputs.app_store_bundle_id == '' || needs.app_store_upload.result == 'success')
     uses: ./.github/workflows/wc_swift_create_github_release.yml
     with:
       run_id: ${{ github.run_id }}

@@ -59,7 +59,7 @@ jobs:
         shell: sh
         run: |
           set -eu
-          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | awk '/^v?[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
           printf 'latest_tag=%s\n' "${latest_tag}" >> "${GITHUB_OUTPUT}"
           printf 'latest_tag=%s\n' "${latest_tag:-none}"
 
@@ -154,7 +154,7 @@ jobs:
                   dry_run=false
                 fi
               else
-                latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+                latest_tag=$(git tag --merged HEAD --sort=-creatordate | awk '/^v?[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
                 if [ -z "${latest_tag}" ] || ! git diff --quiet "${latest_tag}"..HEAD -- pom.xml src; then
                   dry_run=false
                 fi

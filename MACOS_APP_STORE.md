@@ -4,7 +4,7 @@ The direct and Store channels are separate. Direct releases remain Developer ID 
 
 ```mermaid
 flowchart LR
-  M[Manual App Store workflow] --> V[UTC version and GitHub run build number]
+  R[Stable release version] --> V[Store version and GitHub run build number]
   V --> S[Apple certificate action and profile]
   S --> A[Repository adapter builds signed app]
   A --> P[Shared package build and signing]
@@ -15,11 +15,11 @@ flowchart LR
 
 The package workflow verifies the final Store bundle's identifier, hardened signature, sandbox entitlement, absence of Sparkle, and signed installer package. Its one-day artifact contains only the signed `.pkg`, which is the sole file the upload workflow accepts. GitHub's hosted macOS runners have no usable GUI session, so starting a GUI app there is not a valid acceptance test. User-granted microphone, camera, screen-recording, audio-device, and network behavior remain product acceptance tests in a normal macOS login session.
 
-The package workflow deliberately never uploads a build or submits an App Store version. `wc_macos_app_store_upload.yml` is a separate reusable workflow. A product invokes it only from its explicitly started upload workflow. It validates and uploads the signed package using `xcrun altool`; it never submits a version for App Review.
+The package workflow never uploads a build or submits an App Store version by itself. The separate `wc_macos_app_store_upload.yml` validates and uploads its signed package using `xcrun altool`; it never submits a version for App Review. A configured stable Swift release chains both jobs before its GitHub tag and release, so a failed Store upload cannot leave a successful public release behind.
 
 ## Contract
 
-Each Store-ready product calls `wc_macos_app_store.yml` from a manually started `app-store.yml` workflow. The product supplies only its bundle name and Store bundle identifier. It must provide this executable adapter:
+Each Store-ready product calls `wc_macos_app_store.yml` with the final stable release version. The product supplies its bundle name and Store bundle identifier. It must provide this executable adapter:
 
 ```sh
 scripts/package-app-store.sh "$APP_STORE_MARKETING_VERSION" "$APP_STORE_BUILD_NUMBER"
@@ -30,7 +30,7 @@ The adapter receives these environment values:
 | Value | Purpose |
 | --- | --- |
 | `APP_STORE_BUNDLE_ID` | Registered Store identifier. |
-| `APP_STORE_MARKETING_VERSION` | UTC `YYYY.M.D`. |
+| `APP_STORE_MARKETING_VERSION` | Exact stable release version. |
 | `APP_STORE_BUILD_NUMBER` | GitHub run ID. It always increases without a manual counter. |
 | `APP_STORE_TEAM_ID` | Team from the selected provisioning profile. |
 | `MACOS_APP_STORE_APPLICATION_IDENTITY` | Imported Mac App Distribution identity. |
