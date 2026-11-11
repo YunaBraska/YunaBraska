@@ -16,6 +16,10 @@ on:
         required: false
         default: ''
         type: string
+      version:
+        description: Store marketing version from the stable release.
+        required: true
+        type: string
     secrets:
       MACOS_APP_STORE_APPLICATION_CERTIFICATE:
         required: true
@@ -30,7 +34,7 @@ on:
         description: Monotonically increasing App Store build number.
         value: ${{ jobs.package.outputs.build_number }}
       version:
-        description: UTC marketing version.
+        description: Store marketing version.
         value: ${{ jobs.package.outputs.version }}
 
 permissions:
@@ -57,9 +61,12 @@ jobs:
       - name: "🏷️ Resolve Version"
         id: version
         shell: sh
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           set -eu
-          version=$(date -u '+%Y.%m.%d' | sed -E 's/\.0+([0-9])/\.\1/g')
+          version="${VERSION}"
+          test -n "${version}"
           build_number=${GITHUB_RUN_ID}
           {
             printf 'version=%s\n' "${version}"
