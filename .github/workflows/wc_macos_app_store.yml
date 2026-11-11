@@ -184,6 +184,14 @@ jobs:
           test -d "${app}"
           test -f "${package}"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app}/Contents/Info.plist")" = "${BUNDLE_ID}"
+          test -n "$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "${app}/Contents/Info.plist")"
+          find "${app}/Contents/Resources" -type d -name '*.bundle' -exec sh -c '
+            for bundle do
+              info="${bundle}/Contents/Info.plist"
+              test -f "${info}"
+              test -n "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${info}")"
+            done
+          ' sh {} +
           codesign --verify --deep --strict --verbose=2 "${app}"
           codesign -d --entitlements :- "${app}" 2>/dev/null | /usr/bin/grep -A 1 '<key>com.apple.security.app-sandbox</key>' | /usr/bin/grep -F '<true/>'
           test -z "$(find "${app}/Contents" -type d -name Sparkle.framework -print -quit)"
