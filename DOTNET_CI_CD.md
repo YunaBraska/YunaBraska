@@ -4,10 +4,10 @@
 flowchart LR
   PR[Pull request] --> B[Build and test]
   M[Merge] --> S[Snapshot build]
-  S --> N[Native archives]
-  N --> G[GitHub prerelease]
+  S --> A[One-day native artifacts]
   W[Weekly or manual release] --> R[Release build]
-  R --> N
+  R --> N[Native archives]
+  N --> G[GitHub release]
   G --> H[Tap updater]
   H --> P[Homebrew PR]
 ```
@@ -15,13 +15,13 @@ flowchart LR
 | Trigger | Version | Result |
 | --- | --- | --- |
 | Pull request | `next_snapshot` from the latest tag, fallback `0.0.1` | Build and test only. |
-| Merge | `next_snapshot` plus the GitHub run ID | Build all native archives, checksums and a GitHub pre-release. |
+| Merge | `next_snapshot` from the newest reachable stable SemVer tag | Build all native archives and checksums as one-day Actions artifacts. |
 | Weekly release with source changes | UTC `YYYY.M.D` | Tag, GitHub release, archives, and `SHA256SUMS`. |
 | Manual release | Same; `force` permits unchanged source | Same. |
 
 The latest tag is the newest reachable tag by creation time. Release detection ignores documentation, tests, examples, and `.github`; every other tracked source change releases. A version with a hyphen is a GitHub pre-release.
 
-Snapshots append the GitHub run ID. GitHub tags and releases are immutable, so `next_snapshot` alone would collide after a second merge on the same version line.
+Snapshots never create GitHub tags, GitHub releases, Homebrew updates, or App Store packages. Their stable snapshot coordinate is intentionally reused; the current native archives are retained as one-day Actions artifacts for inspection. Stable tags are the only version source, so an old pre-release or a historical bad snapshot tag cannot change the next snapshot line.
 
 ## Conventions
 
@@ -57,8 +57,7 @@ jobs:
 ```yaml
 # build-merge.yml
 permissions:
-  actions: read
-  contents: write
+  contents: read
 
 jobs:
   snapshot:

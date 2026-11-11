@@ -79,12 +79,12 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
           printf 'commit_sha=%s\n' "${commit_sha}"
 
-      - name: "🏷️ Read Latest Tag"
+      - name: "🏷️ Read Latest Stable Tag"
         id: latest_tag
         shell: sh
         run: |
           set -eu
-          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | awk '/^v?[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
           {
             printf 'latest_tag=%s\n' "${latest_tag}"
           } >> "${GITHUB_OUTPUT}"
@@ -116,7 +116,7 @@ jobs:
         run: |
           set -eu
           if [ "${{ inputs.dry_run }}" = 'true' ]; then
-            version="${{ steps.semver_info.outputs.next_snapshot }}.${GITHUB_RUN_ID}"
+            version="${{ steps.semver_info.outputs.next_snapshot }}"
           else
             version="${{ steps.date_info.outputs.date_version }}"
           fi

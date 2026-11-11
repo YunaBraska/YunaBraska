@@ -148,6 +148,10 @@ A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next
 
 Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Central snapshots use its dedicated Maven snapshot endpoint: Maven's successful upload is authoritative because snapshots have no stable deployment state and Central removes them after 90 days. Stable Central releases finish after Maven validates the deployment, then Central publishes asynchronously. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
+## Snapshot contract
+
+Every repository follows one boundary: a snapshot is a build and package channel, never a public release channel. It has no Git tag, GitHub release, Homebrew update, Sparkle feed, or App Store package. Java snapshots deploy their stable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages; Maven metadata advances to the latest snapshot. Swift and .NET snapshots have no shared package registry, so they retain their build or native archives as one-day Actions artifacts. A stable release is dispatched only after Monday maintenance at 06:00 UTC and the central weekly release check at 16:00 UTC finds a production-source change.
+
 A GitHub version with a hyphen is a pre-release.
 
 Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Real version sources such as POMs, package manifests, and upstream releases trigger a release. Maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening.
