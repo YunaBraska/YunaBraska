@@ -13,7 +13,7 @@ on:
         description: Tested source revision.
         value: ${{ jobs.build.outputs.commit_sha }}
       version:
-        description: Published snapshot version.
+        description: Built snapshot version.
         value: ${{ jobs.build.outputs.version }}
 
 permissions: {}
@@ -27,14 +27,3 @@ jobs:
       ref: ${{ inputs.ref || github.sha }}
       dry_run: true
       upload_artifact: true
-
-  publish:
-    needs: build
-    permissions:
-      actions: read
-      contents: write
-    uses: ./.github/workflows/wc_swift_create_github_release.yml
-    with:
-      run_id: ${{ github.run_id }}
-      commit_sha: ${{ needs.build.outputs.commit_sha }}
-      version: ${{ needs.build.outputs.version }}

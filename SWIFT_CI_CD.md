@@ -4,6 +4,7 @@
 flowchart LR
   PR[Pull request] --> B[Build and test]
   M[Merge] --> S[Snapshot build]
+  S --> A[One-day Actions artifact]
   W[Weekly or manual release] --> R[Release build]
   R --> G[GitHub release]
   G --> U[Signed direct-update feed]
@@ -16,13 +17,13 @@ Every build checks out one commit, resolves one version, tests it, creates a uni
 | Trigger | Version | Result |
 | --- | --- | --- |
 | Pull request | `next_snapshot` from the latest tag, fallback `0.0.1` | Build and test only. |
-| Merge | `next_snapshot` plus the GitHub run ID | Build, test and a GitHub pre-release. |
+| Merge | `next_snapshot` from the newest reachable stable SemVer tag | Build, test and one-day Actions artifact. |
 | Weekly release with source changes | UTC `YYYY.M.D` | Tag, GitHub release, ZIP and DMG. |
 | Manual release | Same; `force` permits unchanged source | Same. |
 
 Release detection ignores documentation, tests, examples, and `.github`. It releases for every other changed tracked file. A version with a hyphen is a GitHub pre-release.
 
-Snapshots append the GitHub run ID. GitHub tags and releases are immutable, so `next_snapshot` alone would collide after a second merge on the same version line.
+Snapshots never create GitHub tags, GitHub releases, Sparkle feeds, Homebrew updates, or App Store packages. Their stable snapshot coordinate is intentionally reused; the current package files are retained as a one-day Actions artifact for inspection. Stable tags are the only version source, so an old pre-release or a historical bad snapshot tag cannot change the next snapshot line.
 
 Reusable workflows declare the smallest permission ceiling needed by their nested jobs: `contents: read` for the build, and `actions: read` plus `contents: write` for the release. A caller may reduce that ceiling but cannot raise it; this is required for reusable workflows that call another reusable workflow.
 
@@ -44,8 +45,7 @@ jobs:
 ```yaml
 # build-merge.yml
 permissions:
-  actions: read
-  contents: write
+  contents: read
 
 jobs:
   snapshot:

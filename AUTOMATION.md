@@ -31,6 +31,8 @@ flowchart LR
 
 Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance recognizes a successful dispatched `build-pr.yml` run for the exact `bot/maintenance-*` commit as its green check; ordinary PR checks remain the gate for Dependabot and human PRs.
 
+Snapshots and stable releases are deliberately separate: every merge produces a snapshot build, while tags and GitHub releases are reserved for the Monday stable-release pass after maintenance. Java snapshots publish only the reusable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages. Native snapshots remain one-day Actions artifacts. No snapshot may create a tag, GitHub release, Homebrew update, Sparkle feed, or App Store package.
+
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.
 It then dispatches its PR build for that exact branch commit. GitHub can
