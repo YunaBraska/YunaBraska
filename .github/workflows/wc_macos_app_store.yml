@@ -181,20 +181,22 @@ jobs:
           set -eu
           app="dist/app-store/${APP_NAME}.app"
           package="dist/app-store/${APP_NAME}.pkg"
-          test -d "${app}"
-          test -f "${package}"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app}/Contents/Info.plist")" = "${BUNDLE_ID}"
-          test -n "$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "${app}/Contents/Info.plist")"
+          test -d "${app}" || { printf '%s\n' "Missing app: ${app}" >&2; exit 1; }
+          test -f "${package}" || { printf '%s\n' "Missing package: ${package}" >&2; exit 1; }
+          app_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app}/Contents/Info.plist") || { printf '%s\n' 'Missing application bundle identifier.' >&2; exit 1; }
+          test "${app_bundle_id}" = "${BUNDLE_ID}" || { printf '%s\n' "Unexpected application bundle identifier: ${app_bundle_id}" >&2; exit 1; }
+          app_category=$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "${app}/Contents/Info.plist") || { printf '%s\n' 'Missing application category.' >&2; exit 1; }
+          test -n "${app_category}" || { printf '%s\n' 'Empty application category.' >&2; exit 1; }
           find "${app}/Contents/Resources" -type d -name '*.bundle' -print | while IFS= read -r bundle; do
             info="${bundle}/Contents/Info.plist"
-            test -f "${info}" || exit 1
-            resource_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${info}") || exit 1
-            test -n "${resource_bundle_id}" || exit 1
+            test -f "${info}" || { printf '%s\n' "Missing resource bundle metadata: ${bundle}" >&2; exit 1; }
+            resource_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${info}") || { printf '%s\n' "Missing resource bundle identifier: ${bundle}" >&2; exit 1; }
+            test -n "${resource_bundle_id}" || { printf '%s\n' "Empty resource bundle identifier: ${bundle}" >&2; exit 1; }
           done
-          codesign --verify --deep --strict --verbose=2 "${app}"
-          codesign -d --entitlements :- "${app}" 2>/dev/null | /usr/bin/grep -A 1 '<key>com.apple.security.app-sandbox</key>' | /usr/bin/grep -F '<true/>'
-          test -z "$(find "${app}/Contents" -type d -name Sparkle.framework -print -quit)"
-          pkgutil --check-signature "${package}"
+          codesign --verify --deep --strict --verbose=2 "${app}" || { printf '%s\n' 'Invalid application signature.' >&2; exit 1; }
+          codesign -d --entitlements :- "${app}" 2>/dev/null | /usr/bin/grep -A 1 '<key>com.apple.security.app-sandbox</key>' | /usr/bin/grep -F '<true/>' >/dev/null || { printf '%s\n' 'Missing App Sandbox entitlement.' >&2; exit 1; }
+          test -z "$(find "${app}/Contents" -type d -name Sparkle.framework -print -quit)" || { printf '%s\n' 'Store app must not contain Sparkle.' >&2; exit 1; }
+          pkgutil --check-signature "${package}" || { printf '%s\n' 'Invalid installer package signature.' >&2; exit 1; }
 
       - name: "📦 Upload Store Package"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
