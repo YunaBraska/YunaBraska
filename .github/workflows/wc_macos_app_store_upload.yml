@@ -8,9 +8,14 @@ on:
         required: true
         type: string
       artifact_name:
-        description: Store package artifact.
+        description: Artifact containing exactly one Store upload file.
         required: false
         default: app-store-package
+        type: string
+      artifact_extension:
+        description: Store upload file extension.
+        required: false
+        default: pkg
         type: string
     secrets:
       APP_STORE_CONNECT_API_KEY:
@@ -31,7 +36,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: "📥 Download Store Package"
+      - name: "📥 Download Store Upload"
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: ${{ inputs.artifact_name }}
@@ -41,15 +46,24 @@ jobs:
         shell: sh
         env:
           APP_NAME: ${{ inputs.app_name }}
+          ARTIFACT_EXTENSION: ${{ inputs.artifact_extension }}
           API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
           API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
         run: |
           set -eu
+          case "${ARTIFACT_EXTENSION}" in
+            pkg|ipa) ;;
+            *) printf 'Unsupported App Store upload extension: %s\n' "${ARTIFACT_EXTENSION}" >&2; exit 2 ;;
+          esac
           key_dir=$(mktemp -d "${RUNNER_TEMP}/app-store-connect.XXXXXX")
           trap 'rm -rf "${key_dir}"' 0 HUP INT TERM
-          package=$(find app-store-package -type f -name "${APP_NAME}.pkg" -print -quit)
-          test -n "${package}"
+          package_count=$(find app-store-package -type f -name "${APP_NAME}.${ARTIFACT_EXTENSION}" -print | wc -l | tr -d ' ')
+          case "${package_count}" in
+            1) ;;
+            *) printf 'Expected exactly one %s.%s file, found %s.\n' "${APP_NAME}" "${ARTIFACT_EXTENSION}" "${package_count}" >&2; exit 1 ;;
+          esac
+          package=$(find app-store-package -type f -name "${APP_NAME}.${ARTIFACT_EXTENSION}" -print -quit)
 
           umask 077
           printf '%s' "${API_PRIVATE_KEY}" > "${key_dir}/AuthKey_${API_KEY}.p8"
