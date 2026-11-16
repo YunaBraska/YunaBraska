@@ -1,0 +1,23 @@
+name: 🧪 CI · Swift Release Authentication
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/wc_swift_release.yml
+      - .github/workflows/wc_swift_create_github_release.yml
+      - .github/workflows/test-swift-release.yml
+      - .github/scripts/python/test/swift_releaseTest.py
+
+permissions:
+  contents: read
+
+jobs:
+  publisher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+      - name: Verify publisher authentication and failure cleanup
+        run: python3 -m unittest discover -s .github/scripts/python/test -p swift_releaseTest.py -v

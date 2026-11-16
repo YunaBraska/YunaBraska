@@ -24,6 +24,9 @@ on:
         default: ''
         type: string
     secrets:
+      RELEASE_TOKEN:
+        description: Optional repository publisher credential with Contents and Workflows write access.
+        required: false
       MACOS_SIGNING_CERTIFICATE:
         required: false
       MACOS_SIGNING_CERTIFICATE_PASSWORD:
@@ -159,3 +162,5 @@ jobs:
       run_id: ${{ github.run_id }}
       commit_sha: ${{ needs.build.outputs.commit_sha }}
       version: ${{ needs.build.outputs.version }}
+    secrets:
+      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
