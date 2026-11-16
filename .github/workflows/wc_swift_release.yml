@@ -143,10 +143,7 @@ jobs:
     uses: ./.github/workflows/wc_macos_app_store_upload.yml
     with:
       app_name: ${{ inputs.app_store_app_name }}
-    secrets:
-      APP_STORE_CONNECT_API_KEY: ${{ secrets.MACOS_NOTARY_KEY_ID }}
-      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
-      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+    secrets: inherit
 
   release:
     needs:
