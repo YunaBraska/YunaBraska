@@ -27,6 +27,12 @@ Snapshots never create GitHub tags, GitHub releases, Sparkle feeds, Homebrew upd
 
 Reusable workflows declare the smallest permission ceiling needed by their nested jobs: `contents: read` for the build, and `actions: read` plus `contents: write` for the release. A caller may reduce that ceiling but cannot raise it; this is required for reusable workflows that call another reusable workflow.
 
+The source repository can provide its existing `RELEASE_TOKEN` through `secrets: inherit`. The release wrapper explicitly forwards it to GitHub publication, where it replaces `github.token` for release lookup, creation, asset upload, publication and failure cleanup. Artifact downloads continue to use `github.token`. A configured token that fails authentication is not silently replaced with another identity.
+
+Use a publisher credential with repository access and `workflow` scope for a classic token, or Contents write and Workflows write permissions for a fine-grained token or GitHub App. This is required when the tested commit's `.github/workflows` differs from the default branch, including when `main` moves during a build. GitHub's built-in token cannot obtain Workflows write permission. Without `RELEASE_TOKEN`, ordinary releases retain the built-in-token behavior, but historical workflow targets can fail with 403/404. Increasing the repository's default workflow permissions does not resolve that limitation. See [GitHub release authentication](https://docs.github.com/en/rest/releases/releases#create-a-release).
+
+The publisher regression runs the actual publication shell against a simulated GitHub CLI boundary, including credential rejection and upload cleanup. Run it with `python3 -m unittest discover -s .github/scripts/python/test -p swift_releaseTest.py -v`. It does not validate the value, expiry or access of a repository secret. Credential rotation remains the repository owner's responsibility.
+
 ## Reuse
 
 ```yaml

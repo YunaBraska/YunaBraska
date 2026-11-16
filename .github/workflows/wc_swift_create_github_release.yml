@@ -16,6 +16,10 @@ on:
         description: Release version.
         required: true
         type: string
+    secrets:
+      RELEASE_TOKEN:
+        description: Optional repository publisher credential with Contents and Workflows write access.
+        required: false
 
 permissions:
   actions: read
@@ -39,6 +43,11 @@ jobs:
 
       - name: "🏷️ GitHub Release [${{ inputs.version }}]"
         shell: sh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_REVISION: ${{ inputs.commit_sha }}
         run: |
           set -eu
           created=false
@@ -47,27 +56,27 @@ jobs:
             status=$?
             if [ "${status}" -ne 0 ] && [ "${created}" = true ]; then
               if [ "${tag_existed}" = true ]; then
-                GH_TOKEN="${{ github.token }}" gh release delete "${{ inputs.version }}" --repo "${{ github.repository }}" --yes || true
+                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes || true
               else
-                GH_TOKEN="${{ github.token }}" gh release delete "${{ inputs.version }}" --repo "${{ github.repository }}" --yes --cleanup-tag || true
+                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes --cleanup-tag || true
               fi
             fi
             exit "${status}"
           }
           trap cleanup 0
-          if GH_TOKEN="${{ github.token }}" gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            echo "GitHub release already exists for ${{ inputs.version }}"
+          if gh release view "${RELEASE_VERSION}" --repo "${GH_REPO}" >/dev/null 2>&1; then
+            printf 'GitHub release already exists for %s\n' "${RELEASE_VERSION}"
             exit 0
           fi
-          if GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/git/ref/tags/${{ inputs.version }}" >/dev/null 2>&1; then
+          if gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
             tag_existed=true
           fi
-          case "${{ inputs.version }}" in
+          case "${RELEASE_VERSION}" in
             *-*)
-              GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft --prerelease --latest=false
+              gh release create "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --generate-notes --draft --prerelease --latest=false
               ;;
             *)
-              GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --draft
+              gh release create "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --generate-notes --draft
               ;;
           esac
           created=true
@@ -77,9 +86,9 @@ jobs:
             set -- "$@" "${artifact}"
           done
           test "$#" -gt 0
-          GH_TOKEN="${{ github.token }}" gh release upload "${{ inputs.version }}" "$@" --repo "${{ github.repository }}" --clobber
-          case "${{ inputs.version }}" in
-            *-*) GH_TOKEN="${{ github.token }}" gh release edit "${{ inputs.version }}" --repo "${{ github.repository }}" --draft=false --prerelease ;;
-            *) GH_TOKEN="${{ github.token }}" gh release edit "${{ inputs.version }}" --repo "${{ github.repository }}" --draft=false --latest ;;
+          gh release upload "${RELEASE_VERSION}" "$@" --repo "${GH_REPO}" --clobber
+          case "${RELEASE_VERSION}" in
+            *-*) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --prerelease ;;
+            *) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --latest ;;
           esac
           trap - 0
