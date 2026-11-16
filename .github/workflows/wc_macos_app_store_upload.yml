@@ -18,11 +18,11 @@ on:
         default: pkg
         type: string
     secrets:
-      APP_STORE_CONNECT_API_KEY:
+      MACOS_NOTARY_KEY:
         required: true
-      APP_STORE_CONNECT_ISSUER_ID:
+      MACOS_NOTARY_KEY_ID:
         required: true
-      APP_STORE_CONNECT_PRIVATE_KEY:
+      MACOS_NOTARY_ISSUER_ID:
         required: true
 
 permissions:
@@ -47,9 +47,9 @@ jobs:
         env:
           APP_NAME: ${{ inputs.app_name }}
           ARTIFACT_EXTENSION: ${{ inputs.artifact_extension }}
-          API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-          API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          API_KEY: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          API_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          API_PRIVATE_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
         run: |
           set -eu
           case "${ARTIFACT_EXTENSION}" in

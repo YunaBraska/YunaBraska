@@ -58,13 +58,13 @@ Every participating repository needs these Base64 values. They are Store-specifi
 
 Never commit certificates, profiles, passwords, signing identities, or API keys. The pinned Apple certificate action imports both P12 files into one temporary keychain, keeps the runner trust chain available to Apple signing tools, and removes that keychain after the job. Do not replace this with custom `security` setup unless the action cannot support a required Apple tool.
 
-The explicit upload workflow additionally needs these App Store Connect secrets. They are account-level credentials, not signing credentials, and may be shared only with repositories that are allowed to upload a Store build.
+The upload workflow reuses the existing notarization API key. It is already an App Store Connect Team API key and is authorized for both notarization and Store uploads. Do not create duplicate upload-only secrets.
 
 | Secret | Content |
 | --- | --- |
-| `APP_STORE_CONNECT_API_KEY` | App Store Connect API key ID. |
-| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect issuer ID. |
-| `APP_STORE_CONNECT_PRIVATE_KEY` | Downloaded `.p8` API private key. |
+| `MACOS_NOTARY_KEY_ID` | App Store Connect API key ID. |
+| `MACOS_NOTARY_ISSUER_ID` | App Store Connect issuer ID. |
+| `MACOS_NOTARY_KEY` | Downloaded `.p8` API private key. |
 
 Apple requires an app record to be created in App Store Connect before the first upload. The upload produces a processed build. Screenshots, privacy answers, age rating, price, availability, and App Review submission stay separate product decisions.
 
