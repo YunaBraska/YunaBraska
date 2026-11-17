@@ -150,7 +150,7 @@ Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Ce
 
 ## Snapshot contract
 
-Every repository follows one boundary: a snapshot is a build and package channel, never a public release channel. It has no Git tag, GitHub release, Homebrew update, Sparkle feed, or App Store package. Java snapshots deploy their stable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages; Maven metadata advances to the latest snapshot. Swift and .NET snapshots have no shared package registry, so they retain their build or native archives as one-day Actions artifacts. A stable release is dispatched only after Monday maintenance at 06:00 UTC and the central weekly release check at 16:00 UTC finds a production-source change.
+Every repository follows one boundary: a snapshot is a build and package channel, never a public release channel. It has no Git tag, GitHub release, Homebrew update, Sparkle feed, or App Store package. Java snapshots deploy their stable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages; Maven metadata advances to the latest snapshot. Swift and .NET snapshots have no shared package registry, so they retain their build or native archives as one-day Actions artifacts. Stable releases are currently dispatched only by an explicit manual action. The automatic weekly release dispatcher is paused while Maven Central's publishing-limit review is pending.
 
 A GitHub version with a hyphen is a pre-release.
 
