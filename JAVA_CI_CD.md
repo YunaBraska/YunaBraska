@@ -234,6 +234,8 @@ Native projects add `native` after the resolved Java build. Maven Central and Gi
 
 The matrix has `fail-fast: false` so every platform reports its result. Linux still uses Buildx to run its project Dockerfile, but the target runner matches the image architecture and the workflow does not configure QEMU. Windows ARM64 is not enabled: its hosted runner remains preview and no current release needs that extra artifact.
 
+Shared workflows pin their Linux jobs to `ubuntu-24.04`, not `ubuntu-latest`. A hosted-image change must be an intentional, tested migration in the reusable workflow before it reaches every consumer.
+
 For native projects, `central`, `packages`, and `docker` all need both `release` and `native`. The Docker caller must also grant `actions: read`; it downloads the current run's Linux assets.
 
 ```yml
