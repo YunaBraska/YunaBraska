@@ -156,7 +156,7 @@ A GitHub version with a hyphen is a pre-release.
 
 Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Real version sources such as POMs, package manifests, and upstream releases trigger a release. Maintenance merges `dependabot/*` and `bot/maintenance-*` PRs on Monday morning only after the exact pull-request commit has one successful completed `build-pr.yml` run. A third-party status such as Snyk never substitutes for that build. When the build is missing, maintenance starts it if that commit supports `workflow_dispatch`, then leaves the pull request open for the next run. The `BOT_TOKEN` account must be a branch-protection bypass actor. Maintenance uses that bypass only for these tested automation branches, never for user branches. A blocked or conflicted pull request also remains open without failing organization-wide maintenance. Release dispatch checks release inputs on Monday evening.
 
-Upstream maintenance is repository-owned and calls `wc_java_update_upstream.yml`. Its optional `upstream_property` makes the latest stable upstream `v?X.Y.Z` release the named Maven property. It always runs `mvn test` before opening one tested `bot/maintenance-upstream` PR, so generated sources—including Spring configuration metadata and upstream enums—are committed with the dependency update. The normal PR build runs the same test and requires no generated-source diff. Dependabot must ignore a dependency managed by this workflow; it continues to manage every other Maven and GitHub Actions dependency.
+Upstream maintenance is repository-owned and calls `wc_java_update_upstream.yml`. Its optional `upstream_property` makes the latest stable upstream `v?X.Y.Z` release the named Maven property. It runs `mvn test` before opening one tested `bot/maintenance-upstream` PR, so generated sources—including Spring configuration metadata and upstream enums—are committed with the dependency update. A repository may set `maintenance_test_property` to one validated `name=value` Java property when a generator must run only in maintenance. Normal PR, snapshot, and release builds must never modify tracked sources. Dependabot must ignore a dependency managed by this workflow; it continues to manage every other Maven and GitHub Actions dependency.
 
 Tests that query an external service must set finite connect and read timeouts. A stalled upstream then fails the maintenance build instead of occupying a runner indefinitely.
 
@@ -171,6 +171,7 @@ Tests that query an external service must set finite connect and read timeouts. 
     with:
       upstream_repository: owner/project
       upstream_property: project.version # omit when tests discover the upstream
+      maintenance_test_property: source.generator.update=true # optional, maintenance only
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
 ```
 
