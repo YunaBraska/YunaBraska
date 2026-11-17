@@ -160,23 +160,19 @@ jobs:
 
           publish() {
             output_dir=$1
-            if [ -f scripts/publish.sh ]; then
-              VERSION='${{ inputs.version }}' sh scripts/publish.sh "${rid}"
-            else
-              project=$(find . -type f -name '*.csproj' ! -path './test/*' ! -path './tests/*' | while IFS= read -r candidate; do
-                if grep -Eq '<OutputType>(Exe|WinExe)</OutputType>' "${candidate}"; then
-                  printf '%s\n' "${candidate}"
-                fi
-              done | sed -n '1p')
-              if [ -z "${project}" ]; then
-                project=$(find . -type f -name '*.csproj' ! -path './test/*' ! -path './tests/*' | sed -n '1p')
+            project=$(find . -type f -name '*.csproj' ! -path './test/*' ! -path './tests/*' | while IFS= read -r candidate; do
+              if grep -Eq '<OutputType>(Exe|WinExe)</OutputType>' "${candidate}"; then
+                printf '%s\n' "${candidate}"
               fi
-              test -n "${project}"
-              dotnet publish "${project}" --configuration Release --runtime "${rid}" --self-contained true \
-                -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-                -p:DebugType=none -p:DebugSymbols=false -p:Version='${{ inputs.version }}' \
-                --output "${output_dir}"
+            done | sed -n '1p')
+            if [ -z "${project}" ]; then
+              project=$(find . -type f -name '*.csproj' ! -path './test/*' ! -path './tests/*' | sed -n '1p')
             fi
+            test -n "${project}"
+            dotnet publish "${project}" --configuration Release --runtime "${rid}" --self-contained true \
+              -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+              -p:DebugType=none -p:DebugSymbols=false -p:Version='${{ inputs.version }}' \
+              --output "${output_dir}"
           }
 
           if [ "${package}" = 'app-zip' ] && [ -f scripts/build-macos-app.sh ]; then

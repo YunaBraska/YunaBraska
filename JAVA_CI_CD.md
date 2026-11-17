@@ -176,7 +176,7 @@ Tests that query an external service must set finite connect and read timeouts. 
 
 ## Maven Wrapper
 
-Dependabot does not support Maven Wrapper files. The workflow below is a legacy caller-owned writer. Do not add it to another repository: it is the remaining maintenance centralisation migration described in [automation ownership](AUTOMATION.md).
+Dependabot does not support Maven Wrapper files. The workflow below is a legacy caller-owned writer. Do not add it to another repository: it is the remaining maintenance centralisation migration described in [automation ownership](AUTOMATION.md). It reuses an existing maintenance branch without force-pushing and explicitly dispatches its normal pull-request build.
 
 ```yml
 name: 🛠️ CI · Maintenance
