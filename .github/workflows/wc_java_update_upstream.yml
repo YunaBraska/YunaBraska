@@ -12,6 +12,11 @@ on:
         required: false
         default: ''
         type: string
+      published_artifact:
+        description: Maven groupId:artifactId that must be published to Central before updating the property.
+        required: false
+        default: ''
+        type: string
       dry_run:
         description: Dry run.
         required: false
@@ -100,11 +105,39 @@ jobs:
         if: steps.maintenance.outputs.open != 'true'
         env:
           MAVEN_GITHUB_TOKEN: ${{ github.token }}
+          PUBLISHED_ARTIFACT: ${{ inputs.published_artifact }}
+          UPSTREAM_PROPERTY: ${{ inputs.upstream_property }}
+          UPSTREAM_VERSION: ${{ steps.upstream.outputs.upstream_version }}
         shell: sh
         run: |
           set -eu
-          if [ -n "${{ inputs.upstream_property }}" ]; then
-            ${{ steps.java_info.outputs.cmd }} -B -N versions:set-property -Dproperty="${{ inputs.upstream_property }}" -DnewVersion="${{ steps.upstream.outputs.upstream_version }}" -DgenerateBackupPoms=false
+          if [ -n "$UPSTREAM_PROPERTY" ]; then
+            if [ -n "$PUBLISHED_ARTIFACT" ]; then
+              artifact_group=$PUBLISHED_ARTIFACT
+              artifact_group=${artifact_group%%:*}
+              artifact_id=$PUBLISHED_ARTIFACT
+              artifact_id=${artifact_id#*:}
+              if [ -z "$artifact_group" ] || [ -z "$artifact_id" ] || [ "$artifact_group" = "$artifact_id" ]; then
+                printf '%s\n' "Invalid published_artifact, expected groupId:artifactId: $PUBLISHED_ARTIFACT" >&2
+                exit 1
+              fi
+              artifact_path=$(printf '%s' "$artifact_group" | tr . /)
+              artifact_url="https://repo.maven.apache.org/maven2/${artifact_path}/${artifact_id}/${UPSTREAM_VERSION}/${artifact_id}-${UPSTREAM_VERSION}.pom"
+              artifact_status=$(curl --location --output /dev/null --silent --write-out '%{http_code}' "$artifact_url")
+              case "$artifact_status" in
+                200) ;;
+                404)
+                  printf '%s\n' "Waiting for ${artifact_group}:${artifact_id}:${UPSTREAM_VERSION} in Maven Central."
+                  printf 'current=true\n' >> "${GITHUB_OUTPUT}"
+                  exit 0
+                  ;;
+                *)
+                  printf '%s\n' "Cannot verify Maven Central artifact: $artifact_url (HTTP $artifact_status)" >&2
+                  exit 1
+                  ;;
+              esac
+            fi
+            ${{ steps.java_info.outputs.cmd }} -B -N versions:set-property -Dproperty="$UPSTREAM_PROPERTY" -DnewVersion="$UPSTREAM_VERSION" -DgenerateBackupPoms=false
           fi
           ${{ steps.java_info.outputs.cmd }} -B test
           current=false
