@@ -1,0 +1,204 @@
+name: "🛍️ CD · iPhone and iPad App Store"
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: App bundle name and IPA filename.
+        required: true
+        type: string
+      bundle_id:
+        description: Registered iPhone and iPad Store identifier.
+        required: true
+        type: string
+      ref:
+        description: Exact source revision.
+        required: false
+        default: ''
+        type: string
+      version:
+        description: Store marketing version from the stable release.
+        required: true
+        type: string
+    secrets:
+      IOS_DISTRIBUTION_CERTIFICATE:
+        required: true
+      IOS_DISTRIBUTION_CERTIFICATE_PASSWORD:
+        required: true
+      IOS_APP_STORE_PROFILE:
+        required: true
+    outputs:
+      build_number:
+        description: Monotonically increasing App Store build number.
+        value: ${{ jobs.package.outputs.build_number }}
+      version:
+        description: Store marketing version.
+        value: ${{ jobs.package.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: "🛍️ package"
+    runs-on: macos-latest
+    timeout-minutes: 210
+    permissions:
+      contents: read
+    outputs:
+      build_number: ${{ steps.version.outputs.build_number }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+          submodules: recursive
+
+      - name: "🏷️ Resolve Version"
+        id: version
+        shell: sh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          version="${VERSION}"
+          printf '%s\n' "${version}" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || {
+            printf '%s\n' 'Store version must contain three numeric components.' >&2
+            exit 2
+          }
+          build_number=${GITHUB_RUN_ID}
+          {
+            printf 'version=%s\n' "${version}"
+            printf 'build_number=%s\n' "${build_number}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'version=%s\n' "${version}"
+          printf 'build_number=%s\n' "${build_number}"
+
+      - name: "🔐 Import Distribution Certificate"
+        uses: Apple-Actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+        with:
+          keychain: ${{ runner.temp }}/ios-app-store-${{ github.run_id }}
+          create-keychain: true
+          p12-file-base64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          p12-password: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+
+      - name: "🔐 Setup Store Profile"
+        id: signing
+        shell: sh
+        env:
+          PROFILE: ${{ secrets.IOS_APP_STORE_PROFILE }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: |
+          set -eu
+          credentials_dir=$(mktemp -d "${RUNNER_TEMP}/ios-app-store.XXXXXX")
+          profile_path="${credentials_dir}/profile.mobileprovision"
+          profile_plist="${credentials_dir}/profile.plist"
+          keychain="${RUNNER_TEMP}/ios-app-store-${GITHUB_RUN_ID}.keychain"
+          trap 'rm -rf "${credentials_dir}"' EXIT HUP INT TERM
+
+          printf '%s' "${PROFILE}" | base64 -D > "${profile_path}"
+          security cms -D -i "${profile_path}" > "${profile_plist}"
+          team_id=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "${profile_plist}")
+          profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "${profile_plist}")
+          profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "${profile_plist}")
+          profile_identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "${profile_plist}")
+          test "${profile_identifier}" = "${team_id}.${BUNDLE_ID}"
+
+          identity=$(security find-identity -v -p codesigning "${keychain}" | sed -n 's/.*"\(Apple Distribution:.*\)"/\1/p' | sed -n '1p')
+          test -n "${identity}"
+
+          installed_profile_dir="${HOME}/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "${installed_profile_dir}"
+          installed_profile="${installed_profile_dir}/${profile_uuid}.mobileprovision"
+          cp "${profile_path}" "${installed_profile}"
+          {
+            printf 'identity=%s\n' "${identity}"
+            printf 'profile_name=%s\n' "${profile_name}"
+            printf 'profile_path=%s\n' "${installed_profile}"
+            printf 'profile_uuid=%s\n' "${profile_uuid}"
+            printf 'team_id=%s\n' "${team_id}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'distribution_identity=present\n'
+          printf 'profile=valid\n'
+
+      - name: "📦 Build Store App [${{ steps.version.outputs.version }}]"
+        shell: sh
+        env:
+          APP_STORE_BUNDLE_ID: ${{ inputs.bundle_id }}
+          APP_STORE_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          APP_STORE_MARKETING_VERSION: ${{ steps.version.outputs.version }}
+          APP_STORE_TEAM_ID: ${{ steps.signing.outputs.team_id }}
+          IOS_APP_STORE_DISTRIBUTION_IDENTITY: ${{ steps.signing.outputs.identity }}
+          IOS_APP_STORE_PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
+          IOS_APP_STORE_PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
+          IOS_APP_STORE_PROFILE_UUID: ${{ steps.signing.outputs.profile_uuid }}
+        run: |
+          set -eu
+          test -x scripts/package-ios-app-store.sh
+          sh scripts/package-ios-app-store.sh "${APP_STORE_MARKETING_VERSION}" "${APP_STORE_BUILD_NUMBER}"
+
+      - name: "🔍 Check Store Package"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
+          TEAM_ID: ${{ steps.signing.outputs.team_id }}
+        run: |
+          set -eu
+          package="dist/app-store/${APP_NAME}.ipa"
+          test -f "${package}" || { printf 'Missing iPhone and iPad package: %s\n' "${package}" >&2; exit 1; }
+          stage=$(mktemp -d "${RUNNER_TEMP}/ios-app-store-check.XXXXXX")
+          trap 'rm -rf "${stage}"' EXIT HUP INT TERM
+          unzip -q "${package}" -d "${stage}"
+          app_count=$(find "${stage}/Payload" -mindepth 1 -maxdepth 1 -type d -name '*.app' -print | wc -l | tr -d ' ')
+          test "${app_count}" = 1 || { printf 'IPA must contain exactly one app.\n' >&2; exit 1; }
+          app=$(find "${stage}/Payload" -mindepth 1 -maxdepth 1 -type d -name '*.app' -print -quit)
+          plist="${app}/Info.plist"
+          test -f "${plist}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${plist}")" = "${BUNDLE_ID}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${plist}")" = "${VERSION}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "${plist}")" = "${BUILD_NUMBER}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :LSRequiresIPhoneOS' "${plist}")" = true
+          test "$(/usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily:0' "${plist}")" = 1
+          test "$(/usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily:1' "${plist}")" = 2
+          if /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily:2' "${plist}" >/dev/null 2>&1; then
+            printf '%s\n' 'IPA must support only iPhone and iPad.' >&2
+            exit 1
+          fi
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${plist}")
+          test -x "${app}/${executable}"
+          lipo -verify_arch arm64 "${app}/${executable}"
+          profile="${app}/embedded.mobileprovision"
+          test -f "${profile}"
+          security cms -D -i "${profile}" > "${stage}/embedded-profile.plist"
+          profile_identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "${stage}/embedded-profile.plist")
+          test "${profile_identifier}" = "${TEAM_ID}.${BUNDLE_ID}"
+          codesign --verify --deep --strict --verbose=2 "${app}"
+          codesign -d --entitlements :- "${app}" 2>/dev/null > "${stage}/entitlements.plist"
+          signed_identifier=$(/usr/libexec/PlistBuddy -c 'Print :application-identifier' "${stage}/entitlements.plist")
+          test "${signed_identifier}" = "${TEAM_ID}.${BUNDLE_ID}"
+          test -n "${PROFILE_PATH}"
+
+      - name: "📦 Upload Store Package"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ios-app-store-package
+          if-no-files-found: error
+          retention-days: 1
+          path: dist/app-store/${{ inputs.app_name }}.ipa
+
+      - name: "🧹 Clean Store Signing"
+        if: always()
+        shell: sh
+        env:
+          PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
+        run: |
+          set -eu
+          if [ -n "${PROFILE_PATH}" ]; then
+            rm -f "${PROFILE_PATH}"
+          fi
