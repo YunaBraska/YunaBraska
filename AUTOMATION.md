@@ -26,6 +26,7 @@ flowchart LR
 | Merge green Dependabot and maintenance PRs | `YunaBraska/YunaBraska` | `BOT_TOKEN` | One authority across the organisation. |
 | Dispatch releases | `YunaBraska/YunaBraska` | `BOT_TOKEN` | Discovery and scheduling are central. |
 | Create tags, GitHub releases, packages, and Central coordinates | Source repository | Its scoped `GITHUB_TOKEN` | The release owns its own artifacts. |
+| Submit an existing Windows release asset to Chocolatey | Source repository | Its scoped `CHOCOLATEY_API_KEY` | The reusable publisher verifies the release checksum and performs a real local install before it pushes a package. |
 | Publish a Swift release whose workflow files differ from current `main` | Source repository | Its existing `RELEASE_TOKEN` | GitHub requires workflow-write authorization for the tested historical commit. See [Swift publisher authentication](SWIFT_CI_CD.md). |
 | Update Homebrew casks and formulae | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater and tap are the same repository. |
 | Validate a maintenance PR | Source repository | Its `GITHUB_TOKEN` | The updater dispatches its existing PR-build workflow for the exact commit. |
