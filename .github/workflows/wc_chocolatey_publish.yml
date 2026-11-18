@@ -1,0 +1,176 @@
+name: "🍫 CD · Chocolatey Publish"
+
+on:
+  workflow_call:
+    inputs:
+      package_id:
+        description: Public Chocolatey package identifier.
+        required: true
+        type: string
+      display_name:
+        description: Human-readable Windows application name.
+        required: true
+        type: string
+      version:
+        description: Immutable stable package version.
+        required: true
+        type: string
+      release_tag:
+        description: GitHub release tag owning the Windows archive.
+        required: true
+        type: string
+      asset_name:
+        description: Windows ZIP asset on the GitHub release.
+        required: true
+        type: string
+      executable_path:
+        description: Executable path inside the ZIP archive.
+        required: true
+        type: string
+      project_url:
+        description: Canonical HTTPS product page.
+        required: true
+        type: string
+      license_expression:
+        description: SPDX license expression for the package metadata.
+        required: true
+        type: string
+    secrets:
+      CHOCOLATEY_API_KEY:
+        required: false
+    outputs:
+      published:
+        description: Whether this run pushed the checked package to Chocolatey.
+        value: ${{ jobs.publish.outputs.published }}
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      published: ${{ steps.package.outputs.published }}
+    steps:
+      - name: "🍫 Build, install and optionally publish Chocolatey package"
+        id: package
+        shell: pwsh
+        env:
+          ASSET_NAME: ${{ inputs.asset_name }}
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+          DISPLAY_NAME: ${{ inputs.display_name }}
+          EXECUTABLE_PATH: ${{ inputs.executable_path }}
+          LICENSE_EXPRESSION: ${{ inputs.license_expression }}
+          PACKAGE_ID: ${{ inputs.package_id }}
+          PACKAGE_VERSION: ${{ inputs.version }}
+          PROJECT_URL: ${{ inputs.project_url }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          if ($env:PACKAGE_ID -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$') { throw 'package_id must be a Chocolatey-safe identifier.' }
+          if ($env:PACKAGE_VERSION -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') { throw 'version must be SemVer-compatible.' }
+          if ($env:RELEASE_TAG -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') { throw 'release_tag contains unsupported characters.' }
+          if ($env:ASSET_NAME -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*\.zip$') { throw 'asset_name must name one ZIP file.' }
+          if ($env:EXECUTABLE_PATH -notmatch '^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._/ -]*\.exe$') { throw 'executable_path must be a safe path to an executable.' }
+          if ($env:DISPLAY_NAME -notmatch '^[A-Za-z0-9][A-Za-z0-9 .-]{0,80}$') { throw 'display_name contains unsupported characters.' }
+          if ($env:LICENSE_EXPRESSION -notmatch '^[A-Za-z0-9.+-]+$') { throw 'license_expression must be an SPDX identifier.' }
+          $projectUrl = [Uri]$env:PROJECT_URL
+          if (!$projectUrl.IsAbsoluteUri -or $projectUrl.Scheme -ne 'https') { throw 'project_url must be an absolute HTTPS URL.' }
+
+          $releaseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG"
+          $work = Join-Path $env:RUNNER_TEMP "chocolatey-$env:PACKAGE_ID"
+          $packageRoot = Join-Path $work 'package'
+          $tools = Join-Path $packageRoot 'tools'
+          $output = Join-Path $work 'output'
+          New-Item -ItemType Directory -Path $tools, $output -Force | Out-Null
+
+          $checksums = Join-Path $work 'SHA256SUMS'
+          Invoke-WebRequest -Uri "$releaseUrl/SHA256SUMS" -OutFile $checksums
+          $assetPattern = '^([a-fA-F0-9]{64})  ' + [regex]::Escape($env:ASSET_NAME) + '$'
+          $matches = @(Get-Content -LiteralPath $checksums | Where-Object { $_ -match $assetPattern })
+          if ($matches.Count -ne 1) { throw "SHA256SUMS must contain exactly one hash for $env:ASSET_NAME." }
+          $checksum = ([regex]::Match($matches[0], $assetPattern)).Groups[1].Value.ToLowerInvariant()
+          if ($checksum.Length -ne 64) { throw 'The release checksum is invalid.' }
+
+          $displayNameXml = [System.Security.SecurityElement]::Escape($env:DISPLAY_NAME)
+          $projectUrlXml = [System.Security.SecurityElement]::Escape($projectUrl.AbsoluteUri)
+          $nuspec = @"
+          <?xml version="1.0"?>
+          <package>
+            <metadata>
+              <id>$($env:PACKAGE_ID)</id>
+              <version>$($env:PACKAGE_VERSION)</version>
+              <title>$displayNameXml</title>
+              <authors>Yuna Morgenstern</authors>
+              <owners>Yuna Morgenstern</owners>
+              <license type="expression">$($env:LICENSE_EXPRESSION)</license>
+              <projectUrl>$projectUrlXml</projectUrl>
+              <requireLicenseAcceptance>false</requireLicenseAcceptance>
+              <description>$displayNameXml for Windows.</description>
+              <summary>$displayNameXml Windows application.</summary>
+              <tags>desktop application</tags>
+            </metadata>
+          </package>
+          "@
+          Set-Content -LiteralPath (Join-Path $packageRoot "$env:PACKAGE_ID.nuspec") -Value $nuspec -Encoding utf8NoBOM
+
+          $installScript = @'
+          $ErrorActionPreference = 'Stop'
+          $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+          $packageArgs = @{
+            packageName = '__PACKAGE_ID__'
+            url64bit = '__ASSET_URL__'
+            checksum64 = '__CHECKSUM__'
+            checksumType64 = 'sha256'
+            unzipLocation = $toolsDir
+          }
+          Install-ChocolateyZipPackage @packageArgs
+          $executable = Join-Path $toolsDir '__EXECUTABLE_PATH__'
+          if (!(Test-Path -LiteralPath $executable -PathType Leaf)) { throw "Installed executable is missing: $executable" }
+          $shortcut = Join-Path ([Environment]::GetFolderPath('CommonStartMenu')) 'Programs\__DISPLAY_NAME__.lnk'
+          Install-ChocolateyShortcut -ShortcutFilePath $shortcut -TargetPath $executable
+          '@
+          $installScript = $installScript.Replace('__PACKAGE_ID__', $env:PACKAGE_ID).Replace('__ASSET_URL__', "$releaseUrl/$env:ASSET_NAME").Replace('__CHECKSUM__', $checksum).Replace('__EXECUTABLE_PATH__', $env:EXECUTABLE_PATH).Replace('__DISPLAY_NAME__', $env:DISPLAY_NAME)
+          Set-Content -LiteralPath (Join-Path $tools 'chocolateyinstall.ps1') -Value $installScript -Encoding utf8NoBOM
+
+          $uninstallScript = @'
+          $ErrorActionPreference = 'Stop'
+          $shortcut = Join-Path ([Environment]::GetFolderPath('CommonStartMenu')) 'Programs\__DISPLAY_NAME__.lnk'
+          if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut -Force }
+          '@
+          Set-Content -LiteralPath (Join-Path $tools 'chocolateyuninstall.ps1') -Value $uninstallScript.Replace('__DISPLAY_NAME__', $env:DISPLAY_NAME) -Encoding utf8NoBOM
+
+          Push-Location $packageRoot
+          try {
+            choco pack "$env:PACKAGE_ID.nuspec" --outputdirectory $output --no-progress --limit-output
+          } finally {
+            Pop-Location
+          }
+          $package = Get-ChildItem -LiteralPath $output -Filter "$env:PACKAGE_ID.$env:PACKAGE_VERSION.nupkg" -File
+          if ($package.Count -ne 1) { throw 'Chocolatey package creation did not produce exactly one archive.' }
+
+          choco install $env:PACKAGE_ID --source $output --yes --no-progress --limit-output
+          $installedExecutable = Join-Path (Join-Path (Join-Path $env:ChocolateyInstall "lib/$env:PACKAGE_ID") 'tools') $env:EXECUTABLE_PATH
+          if (!(Test-Path -LiteralPath $installedExecutable -PathType Leaf)) { throw 'Chocolatey install did not provide the declared executable.' }
+          choco uninstall $env:PACKAGE_ID --yes --no-progress --limit-output
+
+          $published = 'false'
+          if ($env:CHOCOLATEY_API_KEY) {
+            choco push $package.FullName --source 'https://push.chocolatey.org/' --api-key $env:CHOCOLATEY_API_KEY --no-progress --limit-output
+            $published = 'true'
+          } else {
+            Write-Host 'Chocolatey package verified. CHOCOLATEY_API_KEY is not configured, so it was not published.'
+          }
+          "published=$published" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: "📦 Retain Chocolatey package"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: chocolatey-${{ inputs.package_id }}-${{ inputs.version }}
+          path: ${{ runner.temp }}/chocolatey-${{ inputs.package_id }}/output/*.nupkg
+          if-no-files-found: error
+          retention-days: 14
