@@ -28,12 +28,12 @@ on:
 permissions: {}
 
 jobs:
-  release:
+  prepare:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       actions: read
-      contents: write
+      contents: read
     steps:
       - name: "📥 Download Release Assets"
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
@@ -99,46 +99,24 @@ jobs:
             sha256sum "${asset}" | sed 's#  release-assets/#  #'
           done > release-assets/SHA256SUMS
 
-      - name: "🏷️ Publish GitHub Release [${{ inputs.version }}]"
-        shell: sh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_VERSION: ${{ inputs.version }}
-          SOURCE_REVISION: ${{ inputs.commit_sha }}
-        run: |
-          set -eu
-          created=false
-          tag_existed=false
-          cleanup() {
-            status=$?
-            if test "${status}" -ne 0 && test "${created}" = true; then
-              if test "${tag_existed}" = true; then
-                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes || true
-              else
-                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes --cleanup-tag || true
-              fi
-            fi
-            exit "${status}"
-          }
-          trap cleanup 0
-          if gh release view "${RELEASE_VERSION}" --repo "${GH_REPO}" >/dev/null 2>&1; then
-            printf 'GitHub release already exists for %s.\n' "${RELEASE_VERSION}"
-            exit 0
-          fi
-          if gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
-            tag_existed=true
-          fi
-          case "${RELEASE_VERSION}" in
-            *-*) gh release create "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --generate-notes --draft --prerelease --latest=false ;;
-            *) gh release create "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --generate-notes --draft --latest=false ;;
-          esac
-          created=true
-          set -- release-assets/*
-          test -f "$1"
-          gh release upload "${RELEASE_VERSION}" "$@" --repo "${GH_REPO}" --clobber
-          case "${RELEASE_VERSION}" in
-            *-*) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --prerelease --latest=false ;;
-            *) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --latest ;;
-          esac
-          trap - 0
+      - name: "📤 Upload Prepared Release"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: github-release-assets-${{ github.run_id }}
+          path: release-assets
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  release:
+    needs: prepare
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/wc_github_create_release.yml
+    with:
+      artifact_name: github-release-assets-${{ github.run_id }}
+      artifact_path: release-assets
+      commit_sha: ${{ inputs.commit_sha }}
+      run_id: ${{ github.run_id }}
+      version: ${{ inputs.version }}

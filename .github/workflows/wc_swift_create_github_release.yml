@@ -27,68 +27,15 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
     permissions:
       actions: read
       contents: write
-    steps:
-      - name: "📥 Download Build"
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: build-workspace
-          path: dist
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.run_id || github.run_id }}
-
-      - name: "🏷️ GitHub Release [${{ inputs.version }}]"
-        shell: sh
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_VERSION: ${{ inputs.version }}
-          SOURCE_REVISION: ${{ inputs.commit_sha }}
-        run: |
-          set -eu
-          created=false
-          tag_existed=false
-          cleanup() {
-            status=$?
-            if [ "${status}" -ne 0 ] && [ "${created}" = true ]; then
-              if [ "${tag_existed}" = true ]; then
-                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes || true
-              else
-                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes --cleanup-tag || true
-              fi
-            fi
-            exit "${status}"
-          }
-          trap cleanup 0
-          if gh release view "${RELEASE_VERSION}" --repo "${GH_REPO}" >/dev/null 2>&1; then
-            printf 'GitHub release already exists for %s\n' "${RELEASE_VERSION}"
-            exit 0
-          fi
-          if gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
-            tag_existed=true
-          fi
-          case "${RELEASE_VERSION}" in
-            *-*)
-              gh release create "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --generate-notes --draft --prerelease --latest=false
-              ;;
-            *)
-              gh release create "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --generate-notes --draft
-              ;;
-          esac
-          created=true
-          set --
-          for artifact in dist/*; do
-            [ -f "${artifact}" ] || continue
-            set -- "$@" "${artifact}"
-          done
-          test "$#" -gt 0
-          gh release upload "${RELEASE_VERSION}" "$@" --repo "${GH_REPO}" --clobber
-          case "${RELEASE_VERSION}" in
-            *-*) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --prerelease ;;
-            *) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --latest ;;
-          esac
-          trap - 0
+    uses: ./.github/workflows/wc_github_create_release.yml
+    with:
+      artifact_name: build-workspace
+      artifact_path: dist
+      commit_sha: ${{ inputs.commit_sha }}
+      run_id: ${{ inputs.run_id }}
+      version: ${{ inputs.version }}
+    secrets:
+      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}

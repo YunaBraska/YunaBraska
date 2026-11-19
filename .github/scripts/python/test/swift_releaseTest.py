@@ -36,6 +36,7 @@ if token != state["accepted_token"]:
 if args[:2] == ["release", "create"]:
     assert args[2] == "2026.11.16"
     assert args[args.index("--target") + 1] == "a" * 40
+    assert args[args.index("--title") + 1] == "2026.11.16"
     assert "--draft" in args
     state["draft"] = True
     state["tag"] = True
@@ -46,7 +47,7 @@ elif args[:2] == ["release", "upload"]:
     assert all("dist/" + name in args for name in ["app.zip", "app.dmg", "appcast.xml"])
     state["uploaded"] = True
 elif args[:2] == ["release", "edit"]:
-    assert state["uploaded"] and "--draft=false" in args
+    assert (state["uploaded"] or not state["assets"]) and "--draft=false" in args
     state["published"] = True
     state["draft"] = False
 elif args[:2] == ["release", "delete"]:
@@ -59,17 +60,20 @@ finish()
 '''
 
 
-class SwiftReleaseTest(unittest.TestCase):
-    def publish(self, custom_token="", historical=False, fail_upload=False, existing_tag=False):
+class CanonicalReleaseTest(unittest.TestCase):
+    def publish(self, custom_token="", historical=False, fail_upload=False, existing_tag=False, version=VERSION, assets=True):
         caller = (ROOT / ".github/workflows/wc_swift_release.yml").read_text()
-        publisher = (ROOT / ".github/workflows/wc_swift_create_github_release.yml").read_text()
+        publisher = (ROOT / ".github/workflows/wc_github_create_release.yml").read_text()
         release_job = caller.split("\n  release:\n", 1)[1]
         forwarded = re.search(r"^      RELEASE_TOKEN: \$\{\{ secrets.RELEASE_TOKEN \}\}$", release_job, re.MULTILINE)
         values = {
             "github.token": "github-token",
             "secrets.RELEASE_TOKEN": custom_token if forwarded else "",
             "github.repository": "example/app",
-            "inputs.version": VERSION,
+            "inputs.artifact_name": "build-workspace" if assets else "",
+            "inputs.artifact_path": "dist",
+            "inputs.release_notes_file": "",
+            "inputs.version": version,
             "inputs.commit_sha": REVISION,
         }
 
@@ -92,14 +96,15 @@ class SwiftReleaseTest(unittest.TestCase):
             gh.write_text(f"#!{sys.executable}\n" + textwrap.dedent(GH))
             gh.chmod(0o755)
             environment["PATH"] = str(directory) + os.pathsep + environment["PATH"]
-            (directory / "dist").mkdir()
-            for name in ("app.zip", "app.dmg", "appcast.xml"):
-                (directory / "dist" / name).write_text("tested artifact")
+            if assets:
+                (directory / "dist").mkdir()
+                for name in ("app.zip", "app.dmg", "appcast.xml"):
+                    (directory / "dist" / name).write_text("tested artifact")
             state_file = directory / "state.json"
             state_file.write_text(json.dumps({
                 "accepted_token": "publisher-token" if historical else "github-token",
                 "tag": existing_tag, "draft": False, "published": False,
-                "uploaded": False, "calls": [], "fail_upload": fail_upload,
+                "uploaded": False, "calls": [], "fail_upload": fail_upload, "assets": assets,
             }))
             result = subprocess.run(["/bin/sh", "-c", render(script)], cwd=directory,
                                     env=environment, text=True, capture_output=True, timeout=10)
@@ -142,6 +147,19 @@ class SwiftReleaseTest(unittest.TestCase):
         self.assertEqual(state["calls"][-1]["args"][:2], ["release", "delete"])
         self.assertEqual(state["calls"][-1]["token"], "publisher-token")
         self.assertNotIn("--cleanup-tag", state["calls"][-1]["args"])
+
+    def test_snapshot_never_creates_a_github_release(self):
+        for version in ("2026.011.16", "2026.11.16-SNAPSHOT", "2026.11.16-snapshot.1"):
+            with self.subTest(version=version):
+                result, state = self.publish(version=version)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(state["calls"], [])
+
+    def test_release_without_assets_publishes_the_exact_version(self):
+        result, state = self.publish(assets=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(state["published"])
+        self.assertFalse(any(call["args"][:2] == ["release", "upload"] for call in state["calls"]))
 
 
 if __name__ == "__main__":

@@ -5,7 +5,8 @@ on:
     inputs:
       artifact_name:
         description: Artifact containing the release files.
-        required: true
+        required: false
+        default: ''
         type: string
       artifact_path:
         description: Directory where the release artifact is unpacked.
@@ -48,6 +49,7 @@ jobs:
       contents: write
     steps:
       - name: "📥 Download Release Assets"
+        if: inputs.artifact_name != ''
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: ${{ inputs.artifact_name }}
@@ -60,6 +62,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_ARTIFACT_NAME: ${{ inputs.artifact_name }}
           RELEASE_ASSET_DIR: ${{ inputs.artifact_path }}
           RELEASE_NOTES_FILE: ${{ inputs.release_notes_file }}
           RELEASE_VERSION: ${{ inputs.version }}
@@ -71,7 +74,7 @@ jobs:
             exit 2
           }
           case "${RELEASE_VERSION}" in
-            *-SNAPSHOT)
+            *-[sS][nN][aA][pP][sS][hH][oO][tT]*)
               printf '%s\n' 'Snapshots are packages, never GitHub releases.' >&2
               exit 2
               ;;
@@ -83,12 +86,17 @@ jobs:
             test -f "${notes_path}"
           fi
           asset_count=0
-          for artifact in "${RELEASE_ASSET_DIR}"/*; do
-            [ -f "${artifact}" ] || continue
-            [ "${artifact}" = "${notes_path}" ] && continue
-            asset_count=$((asset_count + 1))
-          done
-          test "${asset_count}" -gt 0
+          if [ -n "${RELEASE_ARTIFACT_NAME}" ]; then
+            test -d "${RELEASE_ASSET_DIR}"
+            for artifact in "${RELEASE_ASSET_DIR}"/*; do
+              [ -f "${artifact}" ] || continue
+              [ "${artifact}" = "${notes_path}" ] && continue
+              asset_count=$((asset_count + 1))
+            done
+            test "${asset_count}" -gt 0
+          else
+            test -z "${RELEASE_NOTES_FILE}"
+          fi
 
           created=false
           tag_existed=false
@@ -123,13 +131,15 @@ jobs:
           esac
           gh release create "$@"
           created=true
-          set --
-          for artifact in "${RELEASE_ASSET_DIR}"/*; do
-            [ -f "${artifact}" ] || continue
-            [ "${artifact}" = "${notes_path}" ] && continue
-            set -- "$@" "${artifact}"
-          done
-          gh release upload "${RELEASE_VERSION}" "$@" --repo "${GH_REPO}" --clobber
+          if [ "${asset_count}" -gt 0 ]; then
+            set --
+            for artifact in "${RELEASE_ASSET_DIR}"/*; do
+              [ -f "${artifact}" ] || continue
+              [ "${artifact}" = "${notes_path}" ] && continue
+              set -- "$@" "${artifact}"
+            done
+            gh release upload "${RELEASE_VERSION}" "$@" --repo "${GH_REPO}" --clobber
+          fi
           case "${RELEASE_VERSION}" in
             *-*) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --prerelease --latest=false ;;
             *) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --latest ;;

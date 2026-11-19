@@ -6,7 +6,7 @@ prepended or appended to the GitHub Release title.
 
 `wc_github_create_release.yml` owns the public GitHub Release. It accepts only
 valid SemVer with an optional `v` prefix and prerelease suffix. It rejects
-`*-SNAPSHOT`. A snapshot may publish to a snapshot package registry but never
+`*-snapshot`, regardless of letter case. A snapshot may publish to a snapshot package registry but never
 creates a Git tag or GitHub Release.
 
 Products prepare and verify their assets and optional release notes. They do
