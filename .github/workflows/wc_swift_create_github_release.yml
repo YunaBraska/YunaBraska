@@ -8,6 +8,11 @@ on:
         required: false
         default: ''
         type: string
+      release_notes_prefix:
+        description: Optional text prepended to automatically generated release notes.
+        required: false
+        default: ''
+        type: string
       commit_sha:
         description: Build commit.
         required: true
@@ -35,6 +40,7 @@ jobs:
       artifact_name: build-workspace
       artifact_path: dist
       commit_sha: ${{ inputs.commit_sha }}
+      release_notes_prefix: ${{ inputs.release_notes_prefix }}
       run_id: ${{ inputs.run_id }}
       version: ${{ inputs.version }}
     secrets:

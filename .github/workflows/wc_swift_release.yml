@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      release_notes_prefix:
+        description: Optional text prepended to automatically generated release notes.
+        required: false
+        default: ''
+        type: string
       macos_update_public_key:
         description: Base64 Ed25519 public key for direct macOS updates.
         required: false
@@ -161,6 +166,7 @@ jobs:
     with:
       run_id: ${{ github.run_id }}
       commit_sha: ${{ needs.build.outputs.commit_sha }}
+      release_notes_prefix: ${{ inputs.release_notes_prefix }}
       version: ${{ needs.build.outputs.version }}
     secrets:
       RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
