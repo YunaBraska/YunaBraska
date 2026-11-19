@@ -40,6 +40,10 @@ reference. A repository without `build-pr.yml` is deliberately left untouched un
 it has the standard PR build. This keeps every workflow update reviewable and
 prevents a central change from bypassing the repository's own checks.
 
+Manual maintenance can set `workflow_refs_only` to update those references
+without merging unrelated maintenance pull requests. Scheduled maintenance always
+runs both phases.
+
 Snapshots and stable releases are deliberately separate: every merge produces a snapshot build, while tags and GitHub releases are reserved for the Monday stable-release pass after maintenance. Java snapshots publish only the reusable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages. Native snapshots remain one-day Actions artifacts. No snapshot may create a tag, GitHub release, Homebrew update, Sparkle feed, or App Store package.
 
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
