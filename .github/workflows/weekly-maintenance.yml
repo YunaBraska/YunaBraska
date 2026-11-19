@@ -112,7 +112,7 @@ jobs:
                   git -C "${checkout}" commit -m 'ci: update shared workflow refs'
                   if git -C "${checkout}" push origin "${branch}"; then
                     if gh pr create --repo "${repository}" --base "${default_branch}" --head "${branch}" --title 'ci: update shared workflow refs' --body 'Updates reusable workflow refs to the tested central revision.' >/dev/null; then
-                      gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${branch}" || echo "Could not start the normal PR build for ${repository}."
+                      gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" || echo "Could not start the normal PR build for ${repository}."
                     else
                       echo "Could not create the workflow reference PR for ${repository}."
                     fi

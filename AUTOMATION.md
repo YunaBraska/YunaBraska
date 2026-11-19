@@ -40,6 +40,10 @@ reference. A repository without `build-pr.yml` is deliberately left untouched un
 it has the standard PR build. This keeps every workflow update reviewable and
 prevents a central change from bypassing the repository's own checks.
 
+`build-pr.yml` is dispatched at the maintenance branch itself. It must use
+`github.sha` when there is no pull-request event. It has no custom dispatch
+inputs, so every maintenance writer can trigger the same contract.
+
 Manual maintenance can set `workflow_refs_only` to update those references
 without merging unrelated maintenance pull requests. Scheduled maintenance always
 runs both phases.

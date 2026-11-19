@@ -181,7 +181,7 @@ jobs:
             git push origin "${{ steps.maintenance.outputs.branch }}"
           fi
           gh pr create --repo "${GITHUB_REPOSITORY}" --base "${{ github.event.repository.default_branch }}" --head "${{ steps.maintenance.outputs.branch }}" --title 'build: update upstream sources' --body 'Updates ${{ inputs.upstream_repository }}.'
-          gh workflow run build-pr.yml --repo "${GITHUB_REPOSITORY}" --ref "${{ steps.maintenance.outputs.branch }}" -f ref="${{ steps.maintenance.outputs.branch }}"
+          gh workflow run build-pr.yml --repo "${GITHUB_REPOSITORY}" --ref "${{ steps.maintenance.outputs.branch }}"
 
       - name: "🧪 Dry Run"
         if: inputs.dry_run == true && steps.maintenance.outputs.open != 'true' && steps.update.outputs.current != 'true'

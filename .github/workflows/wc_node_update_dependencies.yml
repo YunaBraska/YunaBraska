@@ -44,7 +44,7 @@ jobs:
             if [ "${{ inputs.dry_run }}" = 'true' ]; then
               echo "Would dispatch ${branch}."
             else
-              gh workflow run build-pr.yml --repo "${GITHUB_REPOSITORY}" --ref "${branch}" -f ref="${branch}"
+              gh workflow run build-pr.yml --repo "${GITHUB_REPOSITORY}" --ref "${branch}"
             fi
           }
           if gh pr list --repo "${GITHUB_REPOSITORY}" --head "${branch}" --state open --json number --jq '.[0].number // empty' | grep -q .; then
