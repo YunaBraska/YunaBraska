@@ -22,6 +22,7 @@ flowchart LR
 | Work | Runs in | Writer | Reason |
 | --- | --- | --- | --- |
 | Update Node dependencies | Source repository | Its scoped `GITHUB_TOKEN` | It rebuilds and tests that repository's `dist`, opens or recovers `bot/maintenance-node`, then dispatches its exact branch to `build-pr.yml`. |
+| Update shared workflow references | `YunaBraska/YunaBraska` | `BOT_TOKEN` | It opens one `bot/maintenance-workflow-pins-*` PR per repository, dispatches its normal PR build, and leaves the central weekly merge gate unchanged. |
 | Sync an upstream Maven property or generated source | Source repository | Its scoped `GITHUB_TOKEN` | The shared upstream workflow reads a stable upstream release when a Maven property is configured, then always runs `mvn test` before it opens or safely recovers `bot/maintenance-upstream`. |
 | Merge green Dependabot and maintenance PRs | `YunaBraska/YunaBraska` | `BOT_TOKEN` | One authority across the organisation. |
 | Dispatch releases | `YunaBraska/YunaBraska` | `BOT_TOKEN` | Discovery and scheduling are central. |
@@ -32,6 +33,12 @@ flowchart LR
 | Validate a maintenance PR | Source repository | Its `GITHUB_TOKEN` | The updater dispatches its existing PR-build workflow for the exact commit. |
 
 Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance recognizes a successful dispatched `build-pr.yml` run for the exact `bot/maintenance-*` commit as its green check; ordinary PR checks remain the gate for Dependabot and human PRs.
+
+Shared workflow references are immutable full commit IDs. Weekly maintenance updates
+them through the same tested maintenance-PR path instead of using a mutable branch
+reference. A repository without `build-pr.yml` is deliberately left untouched until
+it has the standard PR build. This keeps every workflow update reviewable and
+prevents a central change from bypassing the repository's own checks.
 
 Snapshots and stable releases are deliberately separate: every merge produces a snapshot build, while tags and GitHub releases are reserved for the Monday stable-release pass after maintenance. Java snapshots publish only the reusable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages. Native snapshots remain one-day Actions artifacts. No snapshot may create a tag, GitHub release, Homebrew update, Sparkle feed, or App Store package.
 

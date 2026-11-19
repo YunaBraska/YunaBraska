@@ -39,6 +39,84 @@ jobs:
             exit 0
           fi
 
+          sync_shared_workflow_refs() {
+            shared_revision=$1
+            branch="bot/maintenance-workflow-pins-${GITHUB_RUN_ID}"
+
+            gh repo list "${GITHUB_REPOSITORY_OWNER}" --limit 1000 --json nameWithOwner,isArchived,isFork,defaultBranchRef \
+              --jq '.[] | select(.isArchived == false and .isFork == false and .defaultBranchRef != null) | [.nameWithOwner, .defaultBranchRef.name] | @tsv' \
+              | while IFS="$(printf '\t')" read -r repository default_branch; do
+                  [ "${repository}" != "${GITHUB_REPOSITORY}" ] || continue
+
+                  open_pr=$(gh pr list --repo "${repository}" --state open --limit 100 --json number,headRefName \
+                    --jq '.[] | select(.headRefName | test("^bot/maintenance-workflow-pins-")) | .number' | head -n 1)
+                  if [ -n "${open_pr}" ]; then
+                    echo "${repository} already has workflow reference PR #${open_pr}."
+                    continue
+                  fi
+                  checkout=$(mktemp -d "${RUNNER_TEMP}/workflow-pins.XXXXXX")
+                  if ! git clone --quiet --depth=1 --branch "${default_branch}" "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${checkout}"; then
+                    echo "Could not read ${repository}; leaving it unchanged."
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+                  if [ ! -d "${checkout}/.github/workflows" ]; then
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+
+                  changed=false
+                  workflow_files=$(mktemp)
+                  find "${checkout}/.github/workflows" -type f -print > "${workflow_files}"
+                  while IFS= read -r workflow_file; do
+                    case "${workflow_file}" in
+                      *.yml|*.yaml) ;;
+                      *) continue ;;
+                    esac
+                    updated_file="${workflow_file}.updated"
+                    sed -E "s|(YunaBraska/YunaBraska/\\.github/workflows/[[:alnum:]_.-]+\\.ya?ml)@[0-9a-f]{40}|\\1@${shared_revision}|g" "${workflow_file}" > "${updated_file}"
+                    if ! cmp -s "${workflow_file}" "${updated_file}"; then
+                      mv "${updated_file}" "${workflow_file}"
+                      changed=true
+                    else
+                      rm -f "${updated_file}"
+                    fi
+                  done < "${workflow_files}"
+                  rm -f "${workflow_files}"
+
+                  if [ "${changed}" = false ]; then
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+                  if ! gh api --silent "repos/${repository}/actions/workflows/build-pr.yml" >/dev/null 2>&1; then
+                    echo "${repository} has shared workflow references but no standard build-pr.yml; leaving it unchanged."
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+                  if [ "${dry_run}" = true ]; then
+                    echo "Would update shared workflow references in ${repository}."
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+
+                  git -C "${checkout}" config user.name 'Kira Bot'
+                  git -C "${checkout}" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+                  git -C "${checkout}" switch -c "${branch}"
+                  git -C "${checkout}" add .github/workflows
+                  git -C "${checkout}" commit -m 'ci: update shared workflow refs'
+                  if git -C "${checkout}" push origin "${branch}"; then
+                    if gh pr create --repo "${repository}" --base "${default_branch}" --head "${branch}" --title 'ci: update shared workflow refs' --body 'Updates reusable workflow refs to the tested central revision.' >/dev/null; then
+                      gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${branch}" || echo "Could not start the normal PR build for ${repository}."
+                    else
+                      echo "Could not create the workflow reference PR for ${repository}."
+                    fi
+                  else
+                    echo "Could not push the workflow reference branch for ${repository}."
+                  fi
+                  rm -rf "${checkout}"
+                done
+          }
+
           gh repo list "${GITHUB_REPOSITORY_OWNER}" --limit 1000 --json nameWithOwner,isArchived,isFork,defaultBranchRef \
             --jq '.[] | select(.isArchived == false and .isFork == false and .defaultBranchRef != null) | [.nameWithOwner, .defaultBranchRef.name] | @tsv' \
             > "${repositories_file}"
@@ -95,5 +173,7 @@ jobs:
           while IFS="$(printf '\t')" read -r repository default_branch; do
             merge_ready_prs "${repository}" "${default_branch}"
           done < "${repositories_file}"
+
+          sync_shared_workflow_refs "${GITHUB_SHA}"
 
           test "${failures}" -eq 0
