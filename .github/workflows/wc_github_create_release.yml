@@ -1,0 +1,137 @@
+name: 🏷️ CD · GitHub Release
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        description: Artifact containing the release files.
+        required: true
+        type: string
+      artifact_path:
+        description: Directory where the release artifact is unpacked.
+        required: false
+        default: dist
+        type: string
+      commit_sha:
+        description: Tested source commit for the tag.
+        required: true
+        type: string
+      release_notes_file:
+        description: Optional notes file inside the release artifact.
+        required: false
+        default: ''
+        type: string
+      run_id:
+        description: Build run owning the artifact.
+        required: false
+        default: ''
+        type: string
+      version:
+        description: SemVer tag and release name.
+        required: true
+        type: string
+    secrets:
+      RELEASE_TOKEN:
+        description: Optional repository publisher credential with Contents and Workflows write access.
+        required: false
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: "📥 Download Release Assets"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ inputs.artifact_path }}
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id || github.run_id }}
+
+      - name: "🏷️ GitHub Release [${{ inputs.version }}]"
+        shell: sh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ASSET_DIR: ${{ inputs.artifact_path }}
+          RELEASE_NOTES_FILE: ${{ inputs.release_notes_file }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_REVISION: ${{ inputs.commit_sha }}
+        run: |
+          set -eu
+          printf '%s\n' "${RELEASE_VERSION}" | grep -Eq '^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' || {
+            printf 'Release version must be valid SemVer: %s\n' "${RELEASE_VERSION}" >&2
+            exit 2
+          }
+          case "${RELEASE_VERSION}" in
+            *-SNAPSHOT)
+              printf '%s\n' 'Snapshots are packages, never GitHub releases.' >&2
+              exit 2
+              ;;
+          esac
+
+          notes_path=''
+          if [ -n "${RELEASE_NOTES_FILE}" ]; then
+            notes_path="${RELEASE_ASSET_DIR}/${RELEASE_NOTES_FILE}"
+            test -f "${notes_path}"
+          fi
+          asset_count=0
+          for artifact in "${RELEASE_ASSET_DIR}"/*; do
+            [ -f "${artifact}" ] || continue
+            [ "${artifact}" = "${notes_path}" ] && continue
+            asset_count=$((asset_count + 1))
+          done
+          test "${asset_count}" -gt 0
+
+          created=false
+          tag_existed=false
+          cleanup() {
+            status=$?
+            if [ "${status}" -ne 0 ] && [ "${created}" = true ]; then
+              if [ "${tag_existed}" = true ]; then
+                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes || true
+              else
+                gh release delete "${RELEASE_VERSION}" --repo "${GH_REPO}" --yes --cleanup-tag || true
+              fi
+            fi
+            exit "${status}"
+          }
+          trap cleanup 0
+          if gh release view "${RELEASE_VERSION}" --repo "${GH_REPO}" >/dev/null 2>&1; then
+            printf 'GitHub release already exists for %s\n' "${RELEASE_VERSION}"
+            exit 0
+          fi
+          if gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
+            tag_existed=true
+          fi
+
+          set -- "${RELEASE_VERSION}" --repo "${GH_REPO}" --target "${SOURCE_REVISION}" --title "${RELEASE_VERSION}" --draft --latest=false
+          if [ -n "${notes_path}" ]; then
+            set -- "$@" --notes-file "${notes_path}"
+          else
+            set -- "$@" --generate-notes
+          fi
+          case "${RELEASE_VERSION}" in
+            *-*) set -- "$@" --prerelease ;;
+          esac
+          gh release create "$@"
+          created=true
+          set --
+          for artifact in "${RELEASE_ASSET_DIR}"/*; do
+            [ -f "${artifact}" ] || continue
+            [ "${artifact}" = "${notes_path}" ] && continue
+            set -- "$@" "${artifact}"
+          done
+          gh release upload "${RELEASE_VERSION}" "$@" --repo "${GH_REPO}" --clobber
+          case "${RELEASE_VERSION}" in
+            *-*) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --prerelease --latest=false ;;
+            *) gh release edit "${RELEASE_VERSION}" --repo "${GH_REPO}" --draft=false --latest ;;
+          esac
+          trap - 0
