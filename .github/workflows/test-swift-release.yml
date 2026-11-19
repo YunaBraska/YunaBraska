@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/wc_swift_release.yml
       - .github/workflows/wc_swift_create_github_release.yml
+      - .github/workflows/wc_github_create_release.yml
       - .github/workflows/test-swift-release.yml
       - .github/scripts/python/test/swift_releaseTest.py
 

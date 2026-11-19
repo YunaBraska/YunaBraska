@@ -16,24 +16,10 @@ permissions: {}
 
 jobs:
   release:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
     permissions:
+      actions: read
       contents: write
-    steps:
-      - name: "🏷️ GitHub Release [${{ inputs.version }}]"
-        shell: sh
-        run: |
-          set -eu
-          if GH_TOKEN="${{ github.token }}" gh release view "${{ inputs.version }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            echo "GitHub release already exists for ${{ inputs.version }}"
-            exit 0
-          fi
-          case "${{ inputs.version }}" in
-            *-*)
-              GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --prerelease --latest=false
-              ;;
-            *)
-              GH_TOKEN="${{ github.token }}" gh release create "${{ inputs.version }}" --repo "${{ github.repository }}" --target "${{ inputs.commit_sha }}" --generate-notes --latest
-              ;;
-          esac
+    uses: ./.github/workflows/wc_github_create_release.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha }}
+      version: ${{ inputs.version }}
