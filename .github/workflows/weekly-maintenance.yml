@@ -89,6 +89,33 @@ jobs:
                     if grep -q 'wc_java_release\.yml@' "${updated_file}"; then
                       sed -E '/^[[:space:]]*semver_strategy:[[:space:]]*snapshot[[:space:]]*$/d' "${updated_file}" > "${updated_file}.java"
                       mv "${updated_file}.java" "${updated_file}"
+                      case "${workflow_file}" in
+                        */build-merge.yml)
+                          awk '
+                            /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/ { java_release = 1 }
+                            java_release && /^  [[:alnum:]_-]+:/ { java_release = 0 }
+                            java_release && /^[[:space:]]*dry_run:[[:space:]]*\$\{\{ github\.event_name ==/ { next }
+                            { print }
+                          ' "${updated_file}" > "${updated_file}.snapshot"
+                          mv "${updated_file}.snapshot" "${updated_file}"
+                          ;;
+                        */release.yml)
+                          if ! grep -q '^[[:space:]]*stable_release:[[:space:]]*true[[:space:]]*$' "${updated_file}"; then
+                            awk '
+                              /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/ { java_release = 1 }
+                              java_release && /^[[:space:]]*with:[[:space:]]*$/ {
+                                print
+                                match($0, /^[[:space:]]*/)
+                                print substr($0, RSTART, RLENGTH) "  stable_release: true"
+                                java_release = 0
+                                next
+                              }
+                              { print }
+                            ' "${updated_file}" > "${updated_file}.release"
+                            mv "${updated_file}.release" "${updated_file}"
+                          fi
+                          ;;
+                      esac
                     fi
                     if ! cmp -s "${workflow_file}" "${updated_file}"; then
                       mv "${updated_file}" "${workflow_file}"

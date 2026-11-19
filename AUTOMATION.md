@@ -43,9 +43,10 @@ workflow-reference PR advances to the newest tested central revision in place,
 then runs its PR build again.
 
 Java releases have one versioning contract. Normal projects use the UTC date and
-NATS uses its declared upstream release. The synchronization removes the obsolete
-`semver_strategy: snapshot` caller setting when it updates a Java release ref, so
-an old workflow cannot preserve a conflicting version rule.
+NATS uses its declared upstream release. The shared Java workflow defaults to a
+snapshot. Only the standard `release.yml` passes `stable_release: true`. The
+synchronization removes the obsolete `semver_strategy: snapshot` caller setting,
+so an old workflow cannot preserve a conflicting version rule.
 
 The organization-level pin synchronizer pushes with `BOT_TOKEN`, so GitHub's
 normal pull-request event starts `build-pr.yml`; it never starts a duplicate

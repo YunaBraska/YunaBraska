@@ -18,6 +18,11 @@ on:
         required: false
         default: false
         type: boolean
+      stable_release:
+        description: Allow an eligible stable release.
+        required: false
+        default: false
+        type: boolean
       dry_run:
         description: Publish a snapshot.
         required: false
@@ -132,16 +137,18 @@ jobs:
         run: |
           set -eu
           dry_run=true
-          if [ "${{ inputs.force }}" = "true" ]; then
-            dry_run=false
-          elif [ -n "${{ needs.version.outputs.upstream_version }}" ]; then
-            if ! git rev-parse -q --verify "refs/tags/${{ needs.version.outputs.upstream_version }}" >/dev/null; then
+          if [ "${{ inputs.stable_release }}" = "true" ]; then
+            if [ "${{ inputs.force }}" = "true" ]; then
               dry_run=false
-            fi
-          else
-            latest_tag=$(git tag --merged HEAD --sort=-creatordate | awk '/^v?[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
-            if [ -z "${latest_tag}" ] || ! git diff --quiet "${latest_tag}"..HEAD -- pom.xml src; then
-              dry_run=false
+            elif [ -n "${{ needs.version.outputs.upstream_version }}" ]; then
+              if ! git rev-parse -q --verify "refs/tags/${{ needs.version.outputs.upstream_version }}" >/dev/null; then
+                dry_run=false
+              fi
+            else
+              latest_tag=$(git tag --merged HEAD --sort=-creatordate | awk '/^v?[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
+              if [ -z "${latest_tag}" ] || ! git diff --quiet "${latest_tag}"..HEAD -- pom.xml src; then
+                dry_run=false
+              fi
             fi
           fi
 

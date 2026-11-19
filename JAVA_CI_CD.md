@@ -76,6 +76,7 @@ jobs:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@<FULL_COMMIT_SHA>
     with:
       force: ${{ inputs.force }}
+      stable_release: true
       dry_run: ${{ inputs.maven_central != true || inputs.github_packages != true }}
 
   central:
@@ -148,7 +149,7 @@ Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Ce
 
 ## Snapshot contract
 
-Every repository follows one boundary: a snapshot is a build and package channel, never a public release channel. It has no Git tag, GitHub release, Homebrew update, Sparkle feed, or App Store package. Java snapshots deploy their stable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages; Maven metadata advances to the latest snapshot. Swift and .NET snapshots have no shared package registry, so they retain their build or native archives as one-day Actions artifacts. Stable releases are currently dispatched only by an explicit manual action. The automatic weekly release dispatcher is paused while Maven Central's publishing-limit review is pending.
+Every repository follows one boundary: a snapshot is a build and package channel, never a public release channel. It has no Git tag, GitHub release, Homebrew update, Sparkle feed, or App Store package. Java's shared workflow defaults to a snapshot. Only `release.yml` passes `stable_release: true`; its `dry_run` input still turns a manual dry run into a snapshot. Java snapshots deploy their stable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages; Maven metadata advances to the latest snapshot. Swift and .NET snapshots have no shared package registry, so they retain their build or native archives as one-day Actions artifacts. Stable releases are currently dispatched only by an explicit manual action. The automatic weekly release dispatcher is paused while Maven Central's publishing-limit review is pending.
 
 A GitHub version with a hyphen is a pre-release.
 
