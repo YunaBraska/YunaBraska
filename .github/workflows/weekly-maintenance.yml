@@ -93,7 +93,8 @@ jobs:
                         */build-merge.yml)
                           awk '
                             /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/ { java_release = 1 }
-                            java_release && /^[[:space:]]*dry_run:[[:space:]]*/ { java_release = 0; next }
+                            java_release && /^  [[:alnum:]_-]+:/ { java_release = 0 }
+                            java_release && /^[[:space:]]*dry_run:[[:space:]]*\$\{\{ github\.event_name ==/ { next }
                             { print }
                           ' "${updated_file}" > "${updated_file}.snapshot"
                           mv "${updated_file}.snapshot" "${updated_file}"
