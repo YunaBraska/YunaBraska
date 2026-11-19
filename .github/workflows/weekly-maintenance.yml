@@ -47,21 +47,26 @@ jobs:
 
           sync_shared_workflow_refs() {
             shared_revision=$1
-            branch="bot/maintenance-workflow-pins-${GITHUB_RUN_ID}"
+            tab=$(printf '\t')
 
             gh repo list "${GITHUB_REPOSITORY_OWNER}" --limit 1000 --json nameWithOwner,isArchived,isFork,defaultBranchRef \
               --jq '.[] | select(.isArchived == false and .isFork == false and .defaultBranchRef != null) | [.nameWithOwner, .defaultBranchRef.name] | @tsv' \
-              | while IFS="$(printf '\t')" read -r repository default_branch; do
+              | while IFS="${tab}" read -r repository default_branch; do
                   [ "${repository}" != "${GITHUB_REPOSITORY}" ] || continue
 
-                  open_pr=$(gh pr list --repo "${repository}" --state open --limit 100 --json number,headRefName \
-                    --jq '.[] | select(.headRefName | test("^bot/maintenance-workflow-pins-")) | .number' | head -n 1)
-                  if [ -n "${open_pr}" ]; then
-                    echo "${repository} already has workflow reference PR #${open_pr}."
-                    continue
+                  open_pr=''
+                  open_ref=$(gh pr list --repo "${repository}" --state open --limit 100 --json number,headRefName \
+                    --jq '.[] | select(.headRefName | test("^bot/maintenance-workflow-pins-")) | [.number, .headRefName] | @tsv' | head -n 1)
+                  if [ -n "${open_ref}" ]; then
+                    open_pr=${open_ref%%"${tab}"*}
+                    branch=${open_ref#*"${tab}"}
+                    source_ref="${branch}"
+                  else
+                    branch="bot/maintenance-workflow-pins-${GITHUB_RUN_ID}"
+                    source_ref="${default_branch}"
                   fi
                   checkout=$(mktemp -d "${RUNNER_TEMP}/workflow-pins.XXXXXX")
-                  if ! git clone --quiet --depth=1 --branch "${default_branch}" "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${checkout}"; then
+                  if ! git clone --quiet --depth=1 --branch "${source_ref}" "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${checkout}"; then
                     echo "Could not read ${repository}; leaving it unchanged."
                     rm -rf "${checkout}"
                     continue
@@ -107,15 +112,20 @@ jobs:
 
                   git -C "${checkout}" config user.name 'Kira Bot'
                   git -C "${checkout}" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-                  git -C "${checkout}" switch -c "${branch}"
+                  if [ -z "${open_pr}" ]; then
+                    git -C "${checkout}" switch -c "${branch}"
+                  fi
                   git -C "${checkout}" add .github/workflows
                   git -C "${checkout}" commit -m 'ci: update shared workflow refs'
-                  if git -C "${checkout}" push origin "${branch}"; then
-                    if gh pr create --repo "${repository}" --base "${default_branch}" --head "${branch}" --title 'ci: update shared workflow refs' --body 'Updates reusable workflow refs to the tested central revision.' >/dev/null; then
-                      gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" || echo "Could not start the normal PR build for ${repository}."
-                    else
-                      echo "Could not create the workflow reference PR for ${repository}."
+                  if git -C "${checkout}" push origin HEAD:"${branch}"; then
+                    if [ -z "${open_pr}" ]; then
+                      if ! gh pr create --repo "${repository}" --base "${default_branch}" --head "${branch}" --title 'ci: update shared workflow refs' --body 'Updates reusable workflow refs to the tested central revision.' >/dev/null; then
+                        echo "Could not create the workflow reference PR for ${repository}."
+                        rm -rf "${checkout}"
+                        continue
+                      fi
                     fi
+                    gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" || echo "Could not start the normal PR build for ${repository}."
                   else
                     echo "Could not push the workflow reference branch for ${repository}."
                   fi
