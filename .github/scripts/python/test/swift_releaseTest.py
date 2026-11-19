@@ -61,7 +61,8 @@ finish()
 
 
 class CanonicalReleaseTest(unittest.TestCase):
-    def publish(self, custom_token="", historical=False, fail_upload=False, existing_tag=False, version=VERSION, assets=True):
+    def publish(self, custom_token="", historical=False, fail_upload=False, existing_tag=False, version=VERSION,
+                assets=True, notes_file="", notes_prefix=""):
         caller = (ROOT / ".github/workflows/wc_swift_release.yml").read_text()
         publisher = (ROOT / ".github/workflows/wc_github_create_release.yml").read_text()
         release_job = caller.split("\n  release:\n", 1)[1]
@@ -72,7 +73,8 @@ class CanonicalReleaseTest(unittest.TestCase):
             "github.repository": "example/app",
             "inputs.artifact_name": "build-workspace" if assets else "",
             "inputs.artifact_path": "dist",
-            "inputs.release_notes_file": "",
+            "inputs.release_notes_file": notes_file,
+            "inputs.release_notes_prefix": notes_prefix,
             "inputs.version": version,
             "inputs.commit_sha": REVISION,
         }
@@ -100,6 +102,8 @@ class CanonicalReleaseTest(unittest.TestCase):
                 (directory / "dist").mkdir()
                 for name in ("app.zip", "app.dmg", "appcast.xml"):
                     (directory / "dist" / name).write_text("tested artifact")
+                if notes_file:
+                    (directory / "dist" / notes_file).write_text("release notes")
             state_file = directory / "state.json"
             state_file.write_text(json.dumps({
                 "accepted_token": "publisher-token" if historical else "github-token",
@@ -160,6 +164,19 @@ class CanonicalReleaseTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(state["published"])
         self.assertFalse(any(call["args"][:2] == ["release", "upload"] for call in state["calls"]))
+
+    def test_generated_notes_can_start_with_a_product_compatibility_notice(self):
+        prefix = "## Compatibility\n\n- Requires macOS 14 or later."
+        result, state = self.publish(notes_prefix=prefix)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        create = next(call["args"] for call in state["calls"] if call["args"][:2] == ["release", "create"])
+        self.assertEqual(create[create.index("--notes-start") + 1], prefix)
+        self.assertIn("--generate-notes", create)
+
+    def test_note_prefix_and_complete_notes_file_are_mutually_exclusive(self):
+        result, state = self.publish(notes_file="notes.md", notes_prefix="Compatibility")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(state["calls"], [])
 
 
 if __name__ == "__main__":

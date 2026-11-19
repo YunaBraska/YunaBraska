@@ -22,6 +22,11 @@ on:
         required: false
         default: ''
         type: string
+      release_notes_prefix:
+        description: Optional text prepended to automatically generated release notes.
+        required: false
+        default: ''
+        type: string
       run_id:
         description: Build run owning the artifact.
         required: false
@@ -65,6 +70,7 @@ jobs:
           RELEASE_ARTIFACT_NAME: ${{ inputs.artifact_name }}
           RELEASE_ASSET_DIR: ${{ inputs.artifact_path }}
           RELEASE_NOTES_FILE: ${{ inputs.release_notes_file }}
+          RELEASE_NOTES_PREFIX: ${{ inputs.release_notes_prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           SOURCE_REVISION: ${{ inputs.commit_sha }}
         run: |
@@ -84,6 +90,7 @@ jobs:
           if [ -n "${RELEASE_NOTES_FILE}" ]; then
             notes_path="${RELEASE_ASSET_DIR}/${RELEASE_NOTES_FILE}"
             test -f "${notes_path}"
+            test -z "${RELEASE_NOTES_PREFIX}"
           fi
           asset_count=0
           if [ -n "${RELEASE_ARTIFACT_NAME}" ]; then
@@ -124,6 +131,9 @@ jobs:
           if [ -n "${notes_path}" ]; then
             set -- "$@" --notes-file "${notes_path}"
           else
+            if [ -n "${RELEASE_NOTES_PREFIX}" ]; then
+              set -- "$@" --notes-start "${RELEASE_NOTES_PREFIX}"
+            fi
             set -- "$@" --generate-notes
           fi
           case "${RELEASE_VERSION}" in

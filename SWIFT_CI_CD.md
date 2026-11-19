@@ -73,10 +73,18 @@ jobs:
     with:
       force: ${{ inputs.force }}
       macos_update_public_key: ${{ vars.MACOS_UPDATE_PUBLIC_KEY }}
+      release_notes_prefix: |
+        ## Compatibility
+
+        - Requires macOS 14 or later.
     secrets: inherit
 ```
 
 `scripts/check.sh` is the repository's test entrypoint. `scripts/package.sh "${VERSION}"` must create the ZIP and DMG in `dist/`. The common workflow deliberately has no packaging knobs.
+
+`release_notes_prefix` is optional. Use it only for a short product-specific
+notice that belongs before GitHub's generated notes. It cannot be combined
+with a complete `release_notes_file`.
 
 ## Signing
 
