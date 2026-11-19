@@ -86,6 +86,10 @@ jobs:
                     esac
                     updated_file="${workflow_file}.updated"
                     sed -E "s|(YunaBraska/YunaBraska/\\.github/workflows/[[:alnum:]_.-]+\\.ya?ml)@[0-9a-f]{40}|\\1@${shared_revision}|g" "${workflow_file}" > "${updated_file}"
+                    if grep -q 'wc_java_release\.yml@' "${updated_file}"; then
+                      sed -E '/^[[:space:]]*semver_strategy:[[:space:]]*snapshot[[:space:]]*$/d' "${updated_file}" > "${updated_file}.java"
+                      mv "${updated_file}.java" "${updated_file}"
+                    fi
                     if ! cmp -s "${workflow_file}" "${updated_file}"; then
                       mv "${updated_file}" "${workflow_file}"
                       changed=true

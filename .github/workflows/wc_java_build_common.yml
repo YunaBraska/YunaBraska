@@ -8,11 +8,6 @@ on:
         required: false
         default: ''
         type: string
-      semver_strategy:
-        description: Semver next strategy.
-        required: false
-        default: snapshot
-        type: string
       upstream_version:
         description: Upstream version.
         required: false
@@ -127,9 +122,6 @@ jobs:
           if [ "${dry_run}" = "true" ]; then
             version="${{ steps.semver_info.outputs.next_snapshot }}"
             test -n "${version}"
-          elif [ -n "${{ inputs.semver_strategy }}" ]; then
-            version="${{ steps.semver_info.outputs[format('next_{0}', inputs.semver_strategy)] }}"
-            test -n "${version}"
           elif [ -z "${{ inputs.upstream_version }}" ] && [ "${{ steps.semver_info.outputs.is_greater_a }}" != "true" ]; then
             dry_run=true
             version="${{ steps.semver_info.outputs.next_snapshot }}"
@@ -144,7 +136,6 @@ jobs:
           printf 'date_tag=%s\n' "${{ steps.latest_tag.outputs.date_tag || 'none' }}"
           printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
           printf 'dry_run=%s\n' "${dry_run}"
-          printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
           printf 'version=%s\n' "${version}"
           printf 'upstream_version=%s\n' "${{ inputs.upstream_version }}"
 

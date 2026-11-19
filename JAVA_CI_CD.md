@@ -137,14 +137,12 @@ then opens one `bot/maintenance-homebrew` PR. See [automation ownership](AUTOMAT
 | Source / Semver strategy | Version |
 | --- | --- |
 | no `upstream_repository` | UTC release date: `YYYY.M.D` |
-| newer upstream release without a strategy | Exact upstream version |
-| `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
-
-Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
+| newer upstream release | Exact upstream version |
+Common build uses the UTC date for a normal release, the exact upstream release when declared, and `next_snapshot` only for a dry run or when that date has already been released. The SemVer fallback is `0.0.1`.
 
 The shared Java publishers declare their exact Maven credential origins through `actions/setup-java`: `https://central.sonatype.com` for Central and `https://maven.pkg.github.com` for GitHub Packages. Maven 3.10 then never sends either credential to another host. The Central publisher uses each project's Maven Wrapper. `central-publishing-maven-plugin` 0.12.0 removes Maven 3.10 local metadata from the upload bundle.
 
-A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. Its optional `v` prefix is removed before comparison, tagging, and build resolution. The declared strategy wins when present; otherwise a new upstream version is used exactly. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the upstream/latest local Semver base.
+A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest stable GitHub release. Its optional `v` prefix is removed before comparison, tagging, and build resolution. NATS declares only `upstream_repository` and uses that stable version exactly. Its snapshot runs derive `next_snapshot` from the upstream/latest local SemVer base.
 
 Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Central snapshots use its dedicated Maven snapshot endpoint: Maven's successful upload is authoritative because snapshots have no stable deployment state and Central removes them after 90 days. Stable Central releases finish after Maven validates the deployment, then Central publishes asynchronously. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
