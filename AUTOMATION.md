@@ -47,9 +47,12 @@ NATS uses its declared upstream release. The synchronization removes the obsolet
 `semver_strategy: snapshot` caller setting when it updates a Java release ref, so
 an old workflow cannot preserve a conflicting version rule.
 
-`build-pr.yml` is dispatched at the maintenance branch itself. It must use
-`github.sha` when there is no pull-request event. It has no custom dispatch
-inputs, so every maintenance writer can trigger the same contract.
+The organization-level pin synchronizer pushes with `BOT_TOKEN`, so GitHub's
+normal pull-request event starts `build-pr.yml`; it never starts a duplicate
+manual run. A manual dispatch is reserved for an existing pull request with no
+build, or a maintenance writer that uses `GITHUB_TOKEN`. It targets the
+maintenance branch itself, uses `github.sha` outside a pull-request event, and
+has no custom inputs.
 
 Manual maintenance can set `workflow_refs_only` to update those references
 without merging unrelated maintenance pull requests. Scheduled maintenance always

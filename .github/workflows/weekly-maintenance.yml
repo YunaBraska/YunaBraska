@@ -129,7 +129,7 @@ jobs:
                         continue
                       fi
                     fi
-                    gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" || echo "Could not start the normal PR build for ${repository}."
+                    echo "Updated ${repository}; its pull request trigger starts the normal PR build."
                   else
                     echo "Could not push the workflow reference branch for ${repository}."
                   fi
