@@ -38,7 +38,9 @@ Shared workflow references are immutable full commit IDs. Weekly maintenance upd
 them through the same tested maintenance-PR path instead of using a mutable branch
 reference. A repository without `build-pr.yml` is deliberately left untouched until
 it has the standard PR build. This keeps every workflow update reviewable and
-prevents a central change from bypassing the repository's own checks.
+prevents a central change from bypassing the repository's own checks. An open
+workflow-reference PR advances to the newest tested central revision in place,
+then runs its PR build again.
 
 `build-pr.yml` is dispatched at the maintenance branch itself. It must use
 `github.sha` when there is no pull-request event. It has no custom dispatch
