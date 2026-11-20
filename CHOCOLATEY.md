@@ -42,6 +42,7 @@ Call this after the job that creates the public GitHub release:
     with:
       package_id: example
       display_name: Example
+      publisher: NanoNative
       version: ${{ needs.version.outputs.version }}
       release_tag: ${{ needs.version.outputs.version }}
       asset_name: example-windows-x64.zip
