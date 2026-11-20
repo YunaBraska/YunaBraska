@@ -61,6 +61,15 @@ runs both phases.
 
 Snapshots and stable releases are deliberately separate: every merge produces a snapshot build, while tags and GitHub releases are reserved for the Monday stable-release pass after maintenance. Java snapshots publish only the reusable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages. Native snapshots remain one-day Actions artifacts. No snapshot may create a tag, GitHub release, Homebrew update, Sparkle feed, or App Store package.
 
+## Product pages
+
+Product-page inputs are `README.md`, `docs/**`, `doc/**`, and the product Pages
+caller itself. The Pages workflow alone validates those changes and deploys them
+after a merge. Product PR-build and snapshot callers ignore a change when every
+changed path is a product-page input. A pull request that changes source and
+product-page inputs runs both workflows. This keeps page editing fast without
+reducing code or package validation.
+
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.
 It then dispatches its PR build for that exact branch commit. GitHub can
