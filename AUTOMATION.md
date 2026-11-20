@@ -63,12 +63,11 @@ Snapshots and stable releases are deliberately separate: every merge produces a 
 
 ## Product pages
 
-Product-page inputs are `README.md`, `docs/**`, `doc/**`, and the product Pages
-caller itself. The Pages workflow alone validates those changes and deploys them
-after a merge. Product PR-build and snapshot callers ignore a change when every
-changed path is a product-page input. A pull request that changes source and
-product-page inputs runs both workflows. This keeps page editing fast without
-reducing code or package validation.
+Each product's `product-pages.yml` defines its product-page inputs. Its PR-build
+and snapshot callers ignore exactly that same path set. The Pages workflow alone
+validates those changes and deploys them after a merge. A pull request that
+changes source and product-page inputs runs both workflows. This keeps page
+editing fast without reducing code or package validation.
 
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.
