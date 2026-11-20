@@ -26,7 +26,7 @@ jobs:
       matrix:
         include:
           - name: linux-amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             distribution: temurin
             kind: linux
             platform: linux/amd64
