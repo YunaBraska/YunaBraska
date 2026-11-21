@@ -32,6 +32,7 @@ The adapter receives these environment values:
 | `APP_STORE_BUNDLE_ID` | Registered Store identifier. |
 | `APP_STORE_MARKETING_VERSION` | Exact stable release version. |
 | `APP_STORE_BUILD_NUMBER` | GitHub run ID. It always increases without a manual counter. |
+| `APP_STORE_BUILD` | `1` for every Store package. Product adapters pass it into their build so Store-only source conditions can remove disallowed features. |
 | `APP_STORE_TEAM_ID` | Team from the selected provisioning profile. |
 | `MACOS_APP_STORE_APPLICATION_IDENTITY` | Imported Mac App Distribution identity. |
 | `MACOS_APP_STORE_PROFILE_NAME` | Imported profile name. |
@@ -43,7 +44,7 @@ It must create this signed app:
 dist/app-store/<App>.app
 ```
 
-The shared workflow then builds the unsigned installer, signs it with the imported Mac Installer Distribution identity, and checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, and the installer package is signed. The package is retained for one day.
+The shared workflow then builds the unsigned installer, signs it with the imported Mac Installer Distribution identity, and checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, and the installer package is signed. It also rejects Store bundles containing donation links to GitHub Sponsors, Buy Me a Coffee, Ko-fi, or Liberapay. Product adapters must compile those links out when `APP_STORE_BUILD=1`. Direct distributions may retain them. The package is retained for one day.
 
 ## Secrets
 
