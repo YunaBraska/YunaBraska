@@ -126,6 +126,7 @@ jobs:
       - name: "📦 Build Store App [${{ steps.version.outputs.version }}]"
         shell: sh
         env:
+          APP_STORE_BUILD: '1'
           APP_STORE_BUNDLE_ID: ${{ inputs.bundle_id }}
           APP_STORE_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
           APP_STORE_MARKETING_VERSION: ${{ steps.version.outputs.version }}
@@ -173,6 +174,12 @@ jobs:
           executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${plist}")
           test -x "${app}/${executable}"
           lipo -verify_arch arm64 "${app}/${executable}"
+          for forbidden_domain in github.com/sponsors buymeacoffee.com ko-fi.com liberapay.com; do
+            if find "${app}" -type f ! -path '*/_CodeSignature/*' ! -name embedded.mobileprovision -exec strings {} + | grep -Fq "${forbidden_domain}"; then
+              printf '%s\n' "Store app must not contain ${forbidden_domain}." >&2
+              exit 1
+            fi
+          done
           profile="${app}/embedded.mobileprovision"
           test -f "${profile}"
           security cms -D -i "${profile}" > "${stage}/embedded-profile.plist"
