@@ -137,6 +137,7 @@ jobs:
       - name: "📦 Build Store App [${{ steps.version.outputs.version }}]"
         shell: sh
         env:
+          APP_STORE_BUILD: '1'
           APP_STORE_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
           APP_STORE_BUNDLE_ID: ${{ inputs.bundle_id }}
           APP_STORE_MARKETING_VERSION: ${{ steps.version.outputs.version }}
@@ -196,6 +197,12 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "${app}" || { printf '%s\n' 'Invalid application signature.' >&2; exit 1; }
           codesign -d --entitlements :- "${app}" 2>/dev/null | /usr/bin/grep -A 1 '<key>com.apple.security.app-sandbox</key>' | /usr/bin/grep -F '<true/>' >/dev/null || { printf '%s\n' 'Missing App Sandbox entitlement.' >&2; exit 1; }
           test -z "$(find "${app}/Contents" -type d -name Sparkle.framework -print -quit)" || { printf '%s\n' 'Store app must not contain Sparkle.' >&2; exit 1; }
+          for forbidden_domain in github.com/sponsors buymeacoffee.com ko-fi.com liberapay.com; do
+            if find "${app}/Contents" -type f ! -path '*/_CodeSignature/*' ! -name embedded.provisionprofile -exec strings {} + | grep -Fq "${forbidden_domain}"; then
+              printf '%s\n' "Store app must not contain ${forbidden_domain}." >&2
+              exit 1
+            fi
+          done
           pkgutil --check-signature "${package}" || { printf '%s\n' 'Invalid installer package signature.' >&2; exit 1; }
 
       - name: "📦 Upload Store Package"
