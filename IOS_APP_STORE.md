@@ -21,13 +21,13 @@ Each Store-ready product calls `wc_ios_app_store.yml` with its stable version an
 scripts/package-ios-app-store.sh "$APP_STORE_MARKETING_VERSION" "$APP_STORE_BUILD_NUMBER"
 ```
 
-The shared workflow provides `APP_STORE_BUNDLE_ID`, `APP_STORE_TEAM_ID`, `IOS_APP_STORE_DISTRIBUTION_IDENTITY`, `IOS_APP_STORE_PROFILE_NAME`, `IOS_APP_STORE_PROFILE_PATH` and `IOS_APP_STORE_PROFILE_UUID`. The adapter creates exactly:
+The shared workflow provides `APP_STORE_BUILD=1`, `APP_STORE_BUNDLE_ID`, `APP_STORE_TEAM_ID`, `IOS_APP_STORE_DISTRIBUTION_IDENTITY`, `IOS_APP_STORE_PROFILE_NAME`, `IOS_APP_STORE_PROFILE_PATH` and `IOS_APP_STORE_PROFILE_UUID`. The adapter creates exactly:
 
 ```text
 dist/app-store/<App>.ipa
 ```
 
-Product code owns its toolchain, app resources, runtime tests and platform-specific entitlements. The reusable workflow owns certificate import, profile matching, final IPA validation, artifact retention and upload compatibility.
+Product code owns its toolchain, app resources, runtime tests and platform-specific entitlements. The reusable workflow owns certificate import, profile matching, final IPA validation, artifact retention and upload compatibility. Product adapters must compile donation links out when `APP_STORE_BUILD=1`. The shared validation rejects IPAs containing donation links to GitHub Sponsors, Buy Me a Coffee, Ko-fi, or Liberapay. Direct distributions may retain them.
 
 ## Secrets
 
