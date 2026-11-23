@@ -87,7 +87,7 @@ jobs:
                     updated_file="${workflow_file}.updated"
                     sed -E "s|(YunaBraska/YunaBraska/\\.github/workflows/[[:alnum:]_.-]+\\.ya?ml)@[0-9a-f]{40}|\\1@${shared_revision}|g" "${workflow_file}" > "${updated_file}"
                     if grep -q 'wc_java_release\.yml@' "${updated_file}"; then
-                      sed -E '/^[[:space:]]*semver_strategy:[[:space:]]*snapshot[[:space:]]*$/d' "${updated_file}" > "${updated_file}.java"
+                      sed -E '/^[[:space:]]*semver_strategy:[[:space:]]*/d' "${updated_file}" > "${updated_file}.java"
                       mv "${updated_file}.java" "${updated_file}"
                       case "${workflow_file}" in
                         */build-merge.yml)
@@ -116,6 +116,36 @@ jobs:
                           fi
                           ;;
                       esac
+
+                      awk '
+                        /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/ {
+                          java_release = 1
+                          print
+                          next
+                        }
+                        java_release && /^[[:space:]]*with:[[:space:]]*$/ {
+                          with_line = $0
+                          blank_lines = ""
+                          while ((read_status = getline next_line) > 0 && next_line ~ /^[[:space:]]*$/) {
+                            blank_lines = blank_lines next_line ORS
+                          }
+                          if (read_status == 0 || next_line ~ /^    [[:alnum:]_-]+:/ || next_line ~ /^  [[:alnum:]_-]+:/) {
+                            printf "%s", blank_lines
+                            if (read_status > 0) {
+                              print next_line
+                            }
+                          } else {
+                            print with_line
+                            printf "%s", blank_lines
+                            print next_line
+                          }
+                          java_release = 0
+                          next
+                        }
+                        java_release && /^  [[:alnum:]_-]+:/ { java_release = 0 }
+                        { print }
+                      ' "${updated_file}" > "${updated_file}.without-empty-with"
+                      mv "${updated_file}.without-empty-with" "${updated_file}"
                     fi
                     if ! cmp -s "${workflow_file}" "${updated_file}"; then
                       mv "${updated_file}" "${workflow_file}"
@@ -156,7 +186,11 @@ jobs:
                         continue
                       fi
                     fi
-                    echo "Updated ${repository}; its pull request trigger starts the normal PR build."
+                    if gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" >/dev/null 2>&1; then
+                      echo "Updated ${repository}; started its normal PR build."
+                    else
+                      echo "Updated ${repository}; could not start its normal PR build."
+                    fi
                   else
                     echo "Could not push the workflow reference branch for ${repository}."
                   fi

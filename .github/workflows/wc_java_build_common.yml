@@ -55,6 +55,46 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           submodules: recursive
 
+      - name: "🛡️ Validate Workflows"
+        shell: sh
+        run: |
+          set -eu
+          invalid=false
+          for workflow in .github/workflows/*.yml .github/workflows/*.yaml; do
+            test -f "${workflow}" || continue
+            if ! awk '
+              function indentation(line) {
+                match(line, /[^[:space:]]/)
+                return RSTART - 1
+              }
+              pending_with {
+                if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^[[:space:]]*#/) {
+                  next
+                }
+                if (indentation($0) <= with_indent) {
+                  printf "%s:%d: empty with block\n", FILENAME, with_line
+                  invalid = 1
+                }
+                pending_with = 0
+              }
+              /^[[:space:]]*with:[[:space:]]*$/ {
+                pending_with = 1
+                with_indent = indentation($0)
+                with_line = FNR
+              }
+              END {
+                if (pending_with) {
+                  printf "%s:%d: empty with block\n", FILENAME, with_line
+                  invalid = 1
+                }
+                exit invalid
+              }
+            ' "${workflow}"; then
+              invalid=true
+            fi
+          done
+          test "${invalid}" = false
+
       - name: "🧾 Read Commit"
         id: commit_info
         shell: sh
