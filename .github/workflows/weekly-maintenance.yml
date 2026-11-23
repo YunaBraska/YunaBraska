@@ -241,7 +241,7 @@ jobs:
                         echo "Updated ${repository}; its pull request trigger started the normal PR build."
                         ;;
                       missing|approval_required)
-                        if gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" >/dev/null 2>&1; then
+                        if gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${commit_sha}" >/dev/null 2>&1; then
                           echo "Updated ${repository}; started its normal PR build after ${build_state}."
                         else
                           echo "Updated ${repository}; could not start its normal PR build."
@@ -277,7 +277,7 @@ jobs:
                 if [ "${build_check}" = 'missing' ]; then
                   if [ "${dry_run}" = 'true' ]; then
                     echo "Would start the normal PR build for ${repository}#${pr}."
-                  elif gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" >/dev/null 2>&1; then
+                  elif gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${commit_sha}" >/dev/null 2>&1; then
                     echo "Started the normal PR build for ${repository}#${pr}."
                   else
                     echo "${repository}#${pr} has no startable normal PR build at its current commit; leaving it open."
