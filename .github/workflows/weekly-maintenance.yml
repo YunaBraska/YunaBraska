@@ -146,6 +146,53 @@ jobs:
                         { print }
                       ' "${updated_file}" > "${updated_file}.without-empty-with"
                       mv "${updated_file}.without-empty-with" "${updated_file}"
+
+                      awk '
+                        function flush_job(    i,java_release,has_permissions,has_packages,permissions_line) {
+                          if (line_count == 0) {
+                            return
+                          }
+                          for (i = 1; i <= line_count; i++) {
+                            if (job_lines[i] ~ /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/) {
+                              java_release = 1
+                            }
+                            if (job_lines[i] ~ /^    permissions:[[:space:]]*$/) {
+                              has_permissions = 1
+                              permissions_line = i
+                            }
+                            if (job_lines[i] ~ /^      packages:[[:space:]]*read[[:space:]]*$/) {
+                              has_packages = 1
+                            }
+                          }
+                          for (i = 1; i <= line_count; i++) {
+                            print job_lines[i]
+                            if (i == 1 && java_release && !has_permissions) {
+                              print "    permissions:"
+                              print "      contents: read"
+                              print "      packages: read"
+                            }
+                            if (java_release && has_permissions && !has_packages && i == permissions_line) {
+                              print "      packages: read"
+                            }
+                          }
+                          delete job_lines
+                          line_count = 0
+                        }
+                        /^  [[:alnum:]_-]+:/ {
+                          flush_job()
+                        }
+                        {
+                          if (line_count > 0 || $0 ~ /^  [[:alnum:]_-]+:/) {
+                            job_lines[++line_count] = $0
+                          } else {
+                            print
+                          }
+                        }
+                        END {
+                          flush_job()
+                        }
+                      ' "${updated_file}" > "${updated_file}.release-packages"
+                      mv "${updated_file}.release-packages" "${updated_file}"
                     fi
                     if ! cmp -s "${workflow_file}" "${updated_file}"; then
                       mv "${updated_file}" "${workflow_file}"
