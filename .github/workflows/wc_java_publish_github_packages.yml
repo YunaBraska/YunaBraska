@@ -58,4 +58,23 @@ jobs:
         run: |
           set -eu
           repository="github::default::https://maven.pkg.github.com/${{ github.repository }}"
-          ${{ steps.java_info.outputs.cmd }} -B -DskipTests -DaltDeploymentRepository="${repository}" deploy
+          attempt=1
+          while :; do
+            deploy_log=$(mktemp)
+            if ${{ steps.java_info.outputs.cmd }} -B -DskipTests -DaltDeploymentRepository="${repository}" deploy >"${deploy_log}" 2>&1; then
+              cat "${deploy_log}"
+              rm -f "${deploy_log}"
+              break
+            fi
+            cat "${deploy_log}"
+            if grep -Eq 'from/to central .*HTTP Status: 429|from/to central .*status code: 429' "${deploy_log}" && [ "${attempt}" -lt 3 ]; then
+              rm -f "${deploy_log}"
+              delay=$((attempt * 30))
+              echo "::warning::Maven Central rate-limited dependency resolution. Retrying in ${delay} seconds."
+              attempt=$((attempt + 1))
+              sleep "${delay}"
+              continue
+            fi
+            rm -f "${deploy_log}"
+            exit 1
+          done
