@@ -13,8 +13,8 @@ on:
         type: string
       publisher:
         description: Public publisher name for Chocolatey package metadata.
-        required: true
         type: string
+        default: NanoNative
       version:
         description: Immutable stable package version.
         required: true
