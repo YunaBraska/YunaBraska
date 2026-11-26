@@ -11,6 +11,10 @@ on:
         description: Human-readable Windows application name.
         required: true
         type: string
+      publisher:
+        description: Public publisher name for Chocolatey package metadata.
+        type: string
+        default: NanoNative
       version:
         description: Immutable stable package version.
         required: true
@@ -65,6 +69,7 @@ jobs:
           LICENSE_EXPRESSION: ${{ inputs.license_expression }}
           PACKAGE_ID: ${{ inputs.package_id }}
           PACKAGE_VERSION: ${{ inputs.version }}
+          PUBLISHER: ${{ inputs.publisher }}
           PROJECT_URL: ${{ inputs.project_url }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
@@ -77,6 +82,7 @@ jobs:
           if ($env:ASSET_NAME -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*\.zip$') { throw 'asset_name must name one ZIP file.' }
           if ($env:EXECUTABLE_PATH -notmatch '^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._/ -]*\.exe$') { throw 'executable_path must be a safe path to an executable.' }
           if ($env:DISPLAY_NAME -notmatch '^[A-Za-z0-9][A-Za-z0-9 .-]{0,80}$') { throw 'display_name contains unsupported characters.' }
+          if ($env:PUBLISHER -notmatch '^[A-Za-z0-9][A-Za-z0-9 .-]{0,80}$') { throw 'publisher contains unsupported characters.' }
           if ($env:LICENSE_EXPRESSION -notmatch '^[A-Za-z0-9.+-]+$') { throw 'license_expression must be an SPDX identifier.' }
           $projectUrl = [Uri]$env:PROJECT_URL
           if (!$projectUrl.IsAbsoluteUri -or $projectUrl.Scheme -ne 'https') { throw 'project_url must be an absolute HTTPS URL.' }
@@ -97,6 +103,7 @@ jobs:
           if ($checksum.Length -ne 64) { throw 'The release checksum is invalid.' }
 
           $displayNameXml = [System.Security.SecurityElement]::Escape($env:DISPLAY_NAME)
+          $publisherXml = [System.Security.SecurityElement]::Escape($env:PUBLISHER)
           $projectUrlXml = [System.Security.SecurityElement]::Escape($projectUrl.AbsoluteUri)
           $nuspec = @"
           <?xml version="1.0"?>
@@ -105,8 +112,8 @@ jobs:
               <id>$($env:PACKAGE_ID)</id>
               <version>$($env:PACKAGE_VERSION)</version>
               <title>$displayNameXml</title>
-              <authors>Yuna Morgenstern</authors>
-              <owners>Yuna Morgenstern</owners>
+              <authors>$publisherXml</authors>
+              <owners>$publisherXml</owners>
               <license type="expression">$($env:LICENSE_EXPRESSION)</license>
               <projectUrl>$projectUrlXml</projectUrl>
               <requireLicenseAcceptance>false</requireLicenseAcceptance>

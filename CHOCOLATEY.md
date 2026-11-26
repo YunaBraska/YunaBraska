@@ -33,6 +33,9 @@ after the package is publicly searchable.
 
 ## Product call
 
+The public publisher defaults to `NanoNative`. Set `publisher` only if the
+package should display a different public name.
+
 Call this after the job that creates the public GitHub release:
 
 ```yaml
