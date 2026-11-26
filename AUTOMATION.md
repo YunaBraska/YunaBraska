@@ -117,7 +117,10 @@ Homebrew, Maven Wrapper, and Node dependency maintenance intentionally
 open their own narrow pull requests with `GITHUB_TOKEN`; their repositories must
 enable **Allow GitHub Actions to create and approve pull requests**. Node
 maintenance runs at 06:00 UTC Sunday, central merges green PRs at 06:00 UTC
-Monday, and the release dispatcher runs at 16:00 UTC Monday.
+Monday, and the release dispatcher runs at 16:00 UTC Monday. When a repository
+follows the weekly Dependabot schedule, its `.github/dependabot.yml` sets Sunday
+00:00 UTC so checks can finish before Monday's merge pass. A repository's own
+configuration is authoritative.
 
 Every scheduled workflow supports a manual dry run. A dry run may read, build,
 test, style, and print its intended mutation; it never creates a branch, pull
