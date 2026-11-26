@@ -10,6 +10,11 @@ on:
         required: true
         default: true
         type: boolean
+      workflow_refs_only:
+        description: Update shared workflow references without merging other maintenance PRs.
+        required: true
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -19,27 +24,19 @@ concurrency:
 
 jobs:
   maintenance:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
     env:
       GH_TOKEN: ${{ secrets.BOT_TOKEN }}
     steps:
-      - name: "☕ Setup Java [25]"
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
-        with:
-          distribution: temurin
-          java-version: '25'
-          server-id: github
-          server-username: GITHUB_ACTOR
-          server-password: GH_TOKEN
-
       - name: "🤖 Merge"
         shell: sh
         run: |
           set -eu
           dry_run="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}"
+          workflow_refs_only="${{ github.event_name == 'workflow_dispatch' && inputs.workflow_refs_only || false }}"
           repositories_file="${RUNNER_TEMP}/repositories.tsv"
           failures=0
 
@@ -48,6 +45,216 @@ jobs:
             exit 0
           fi
 
+          sync_shared_workflow_refs() {
+            shared_revision=$1
+            tab=$(printf '\t')
+
+            gh repo list "${GITHUB_REPOSITORY_OWNER}" --limit 1000 --json nameWithOwner,isArchived,isFork,defaultBranchRef \
+              --jq '.[] | select(.isArchived == false and .isFork == false and .defaultBranchRef != null) | [.nameWithOwner, .defaultBranchRef.name] | @tsv' \
+              | while IFS="${tab}" read -r repository default_branch; do
+                  [ "${repository}" != "${GITHUB_REPOSITORY}" ] || continue
+
+                  open_pr=''
+                  open_ref=$(gh pr list --repo "${repository}" --state open --limit 100 --json number,headRefName \
+                    --jq '.[] | select(.headRefName | test("^bot/maintenance-workflow-pins-")) | [.number, .headRefName] | @tsv' | head -n 1)
+                  if [ -n "${open_ref}" ]; then
+                    open_pr=${open_ref%%"${tab}"*}
+                    branch=${open_ref#*"${tab}"}
+                    source_ref="${branch}"
+                  else
+                    branch="bot/maintenance-workflow-pins-${GITHUB_RUN_ID}"
+                    source_ref="${default_branch}"
+                  fi
+                  checkout=$(mktemp -d "${RUNNER_TEMP}/workflow-pins.XXXXXX")
+                  if ! git clone --quiet --depth=1 --branch "${source_ref}" "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${checkout}"; then
+                    echo "Could not read ${repository}; leaving it unchanged."
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+                  if [ ! -d "${checkout}/.github/workflows" ]; then
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+
+                  changed=false
+                  workflow_files=$(mktemp)
+                  find "${checkout}/.github/workflows" -type f -print > "${workflow_files}"
+                  while IFS= read -r workflow_file; do
+                    case "${workflow_file}" in
+                      *.yml|*.yaml) ;;
+                      *) continue ;;
+                    esac
+                    updated_file="${workflow_file}.updated"
+                    sed -E "s|(YunaBraska/YunaBraska/\\.github/workflows/[[:alnum:]_.-]+\\.ya?ml)@[0-9a-f]{40}|\\1@${shared_revision}|g" "${workflow_file}" > "${updated_file}"
+                    if grep -q 'wc_java_release\.yml@' "${updated_file}"; then
+                      sed -E '/^[[:space:]]*semver_strategy:[[:space:]]*/d' "${updated_file}" > "${updated_file}.java"
+                      mv "${updated_file}.java" "${updated_file}"
+                      case "${workflow_file}" in
+                        */build-merge.yml)
+                          awk '
+                            /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/ { java_release = 1 }
+                            java_release && /^  [[:alnum:]_-]+:/ { java_release = 0 }
+                            java_release && /^[[:space:]]*dry_run:[[:space:]]*\$\{\{ github\.event_name ==/ { next }
+                            { print }
+                          ' "${updated_file}" > "${updated_file}.snapshot"
+                          mv "${updated_file}.snapshot" "${updated_file}"
+                          ;;
+                        */release.yml)
+                          if ! grep -q '^[[:space:]]*stable_release:[[:space:]]*true[[:space:]]*$' "${updated_file}"; then
+                            awk '
+                              /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/ { java_release = 1 }
+                              java_release && /^[[:space:]]*with:[[:space:]]*$/ {
+                                print
+                                match($0, /^[[:space:]]*/)
+                                print substr($0, RSTART, RLENGTH) "  stable_release: true"
+                                java_release = 0
+                                next
+                              }
+                              { print }
+                            ' "${updated_file}" > "${updated_file}.release"
+                            mv "${updated_file}.release" "${updated_file}"
+                          fi
+                          ;;
+                      esac
+
+                      awk '
+                        /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/ {
+                          java_release = 1
+                          print
+                          next
+                        }
+                        java_release && /^[[:space:]]*with:[[:space:]]*$/ {
+                          with_line = $0
+                          blank_lines = ""
+                          while ((read_status = getline next_line) > 0 && next_line ~ /^[[:space:]]*$/) {
+                            blank_lines = blank_lines next_line ORS
+                          }
+                          if (read_status == 0 || next_line ~ /^    [[:alnum:]_-]+:/ || next_line ~ /^  [[:alnum:]_-]+:/) {
+                            printf "%s", blank_lines
+                            if (read_status > 0) {
+                              print next_line
+                            }
+                          } else {
+                            print with_line
+                            printf "%s", blank_lines
+                            print next_line
+                          }
+                          java_release = 0
+                          next
+                        }
+                        java_release && /^  [[:alnum:]_-]+:/ { java_release = 0 }
+                        { print }
+                      ' "${updated_file}" > "${updated_file}.without-empty-with"
+                      mv "${updated_file}.without-empty-with" "${updated_file}"
+
+                      awk '
+                        function flush_job(    i,java_release,has_permissions,has_packages,permissions_line) {
+                          if (line_count == 0) {
+                            return
+                          }
+                          for (i = 1; i <= line_count; i++) {
+                            if (job_lines[i] ~ /uses: YunaBraska\/YunaBraska\/\.github\/workflows\/wc_java_release\.yml@/) {
+                              java_release = 1
+                            }
+                            if (job_lines[i] ~ /^    permissions:[[:space:]]*$/) {
+                              has_permissions = 1
+                              permissions_line = i
+                            }
+                            if (job_lines[i] ~ /^      packages:[[:space:]]*read[[:space:]]*$/) {
+                              has_packages = 1
+                            }
+                          }
+                          for (i = 1; i <= line_count; i++) {
+                            print job_lines[i]
+                            if (i == 1 && java_release && !has_permissions) {
+                              print "    permissions:"
+                              print "      contents: read"
+                              print "      packages: read"
+                            }
+                            if (java_release && has_permissions && !has_packages && i == permissions_line) {
+                              print "      packages: read"
+                            }
+                          }
+                          delete job_lines
+                          line_count = 0
+                        }
+                        /^  [[:alnum:]_-]+:/ {
+                          flush_job()
+                        }
+                        {
+                          if (line_count > 0 || $0 ~ /^  [[:alnum:]_-]+:/) {
+                            job_lines[++line_count] = $0
+                          } else {
+                            print
+                          }
+                        }
+                        END {
+                          flush_job()
+                        }
+                      ' "${updated_file}" > "${updated_file}.release-packages"
+                      mv "${updated_file}.release-packages" "${updated_file}"
+                    fi
+                    if ! cmp -s "${workflow_file}" "${updated_file}"; then
+                      mv "${updated_file}" "${workflow_file}"
+                      changed=true
+                    else
+                      rm -f "${updated_file}"
+                    fi
+                  done < "${workflow_files}"
+                  rm -f "${workflow_files}"
+
+                  if [ "${changed}" = false ]; then
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+                  if ! gh api --silent "repos/${repository}/actions/workflows/build-pr.yml" >/dev/null 2>&1; then
+                    echo "${repository} has shared workflow references but no standard build-pr.yml; leaving it unchanged."
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+                  if [ "${dry_run}" = true ]; then
+                    echo "Would update shared workflow references in ${repository}."
+                    rm -rf "${checkout}"
+                    continue
+                  fi
+
+                  git -C "${checkout}" config user.name 'Kira Bot'
+                  git -C "${checkout}" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+                  if [ -z "${open_pr}" ]; then
+                    git -C "${checkout}" switch -c "${branch}"
+                  fi
+                  git -C "${checkout}" add .github/workflows
+                  git -C "${checkout}" commit -m 'ci: update shared workflow refs'
+                  if git -C "${checkout}" push origin HEAD:"${branch}"; then
+                    if [ -z "${open_pr}" ]; then
+                      if ! gh pr create --repo "${repository}" --base "${default_branch}" --head "${branch}" --title 'ci: update shared workflow refs' --body 'Updates reusable workflow refs to the tested central revision.' >/dev/null; then
+                        echo "Could not create the workflow reference PR for ${repository}."
+                        rm -rf "${checkout}"
+                        continue
+                      fi
+                    fi
+                    commit_sha=$(git -C "${checkout}" rev-parse HEAD)
+                    sleep 10
+                    build_state=$(gh run list --repo "${repository}" --workflow build-pr.yml --commit "${commit_sha}" --limit 20 --json status,conclusion --jq 'if length == 0 then "missing" elif all(.[]; .status == "completed" and .conclusion == "action_required") then "approval_required" else "started" end')
+                    case "${build_state}" in
+                      started)
+                        echo "Updated ${repository}; its pull request trigger started the normal PR build."
+                        ;;
+                      missing|approval_required)
+                        if gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${commit_sha}" >/dev/null 2>&1; then
+                          echo "Updated ${repository}; started its normal PR build after ${build_state}."
+                        else
+                          echo "Updated ${repository}; could not start its normal PR build."
+                        fi
+                        ;;
+                    esac
+                  else
+                    echo "Could not push the workflow reference branch for ${repository}."
+                  fi
+                  rm -rf "${checkout}"
+                done
+          }
+
           gh repo list "${GITHUB_REPOSITORY_OWNER}" --limit 1000 --json nameWithOwner,isArchived,isFork,defaultBranchRef \
             --jq '.[] | select(.isArchived == false and .isFork == false and .defaultBranchRef != null) | [.nameWithOwner, .defaultBranchRef.name] | @tsv' \
             > "${repositories_file}"
@@ -55,129 +262,58 @@ jobs:
           merge_ready_prs() {
             repository=$1
             base_branch=$2
-            prs=$(gh pr list --repo "${repository}" --base "${base_branch}" --state open --json number,headRefName,headRefOid,isDraft,mergeStateStatus \
-              --jq '.[] | select(.isDraft == false) | select(.mergeStateStatus == "CLEAN" or ((.headRefName | test("^bot/maintenance-")) and (.mergeStateStatus == "UNKNOWN" or .mergeStateStatus == "UNSTABLE"))) | select(.headRefName | test("^(dependabot/|bot/maintenance-)")) | [.number, .headRefName, .headRefOid] | @tsv')
+            prs=$(gh pr list --repo "${repository}" --base "${base_branch}" --state open --json number,headRefName,headRefOid,isDraft \
+              --jq '.[] | select(.isDraft == false) | select(.headRefName | test("^(dependabot/|bot/maintenance-)")) | [.number, .headRefName, .headRefOid] | @tsv')
             while IFS="$(printf '\t')" read -r pr branch commit_sha; do
               if [ -z "${pr}" ]; then
                 continue
               fi
-              if ! gh pr checks "${pr}" --repo "${repository}" >/dev/null 2>&1; then
-                maintenance_check=''
-                if printf '%s\n' "${branch}" | grep -Eq '^bot/maintenance-'; then
-                  maintenance_check=$(gh run list --repo "${repository}" --workflow build-pr.yml --commit "${commit_sha}" --event workflow_dispatch --status completed --limit 1 --json conclusion --jq '.[0].conclusion // empty')
-                fi
-                if [ "${maintenance_check}" = 'success' ]; then
-                  echo "${repository}#${pr} has a green maintenance check."
+              if ! gh api --silent "repos/${repository}/actions/workflows/build-pr.yml" >/dev/null 2>&1; then
+                echo "${repository}#${pr} has no standard build-pr.yml; leaving it open."
+                continue
+              fi
+              build_check=$(gh run list --repo "${repository}" --workflow build-pr.yml --commit "${commit_sha}" --status completed --limit 20 --json conclusion --jq 'if length == 0 then "missing" elif any(.[]; .conclusion == "success") then "success" else "failed" end')
+              if [ "${build_check}" != 'success' ]; then
+                if [ "${build_check}" = 'missing' ]; then
+                  if [ "${dry_run}" = 'true' ]; then
+                    echo "Would start the normal PR build for ${repository}#${pr}."
+                  elif gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${commit_sha}" >/dev/null 2>&1; then
+                    echo "Started the normal PR build for ${repository}#${pr}."
+                  else
+                    echo "${repository}#${pr} has no startable normal PR build at its current commit; leaving it open."
+                  fi
                 else
-                  echo "${repository}#${pr} is not green; leaving it open."
-                  continue
+                  echo "${repository}#${pr} has no successful normal PR build; leaving it open."
                 fi
+                continue
               fi
               if [ "${dry_run}" = "true" ]; then
                 echo "Would merge ${repository}#${pr}."
-              elif gh pr merge "${pr}" --repo "${repository}" --squash --delete-branch; then
+              elif gh pr merge "${pr}" --repo "${repository}" --squash --delete-branch --admin >/dev/null 2>&1; then
                 echo "Merged ${repository}#${pr}."
               else
-                echo "Could not merge ${repository}#${pr}." >&2
-                failures=$((failures + 1))
+                state=$(gh pr view "${pr}" --repo "${repository}" --json state,mergeStateStatus --jq '.state + ":" + .mergeStateStatus')
+                case "${state}" in
+                  OPEN:BEHIND|OPEN:BLOCKED|OPEN:DIRTY|OPEN:UNSTABLE|OPEN:UNKNOWN)
+                    echo "${repository}#${pr} is not ready to merge; leaving it open."
+                    ;;
+                  *)
+                    echo "Could not merge ${repository}#${pr}." >&2
+                    failures=$((failures + 1))
+                    ;;
+                esac
               fi
             done <<EOF
           ${prs}
           EOF
           }
 
-          maintain_upstream() {
-            repository=$1
-            default_branch=$2
-            upstream_repository=$3
-            upstream_property=$4
-            branch='bot/maintenance-upstream'
-            checkout=$(mktemp -d "${RUNNER_TEMP}/maintenance.XXXXXX")
+          if [ "${workflow_refs_only}" != true ]; then
+            while IFS="$(printf '\t')" read -r repository default_branch; do
+              merge_ready_prs "${repository}" "${default_branch}"
+            done < "${repositories_file}"
+          fi
 
-            if gh pr list --repo "${repository}" --head "${branch}" --state open --json number --jq '.[0].number // empty' | grep -q .; then
-              echo "${repository}: ${branch} already has an open pull request."
-              rm -rf "${checkout}"
-              return
-            fi
-
-            upstream_version=''
-            if [ -n "${upstream_property}" ]; then
-              upstream_tag=$(gh api "repos/${upstream_repository}/releases/latest" --jq '.tag_name')
-              upstream_version=${upstream_tag#v}
-              if ! printf '%s\n' "${upstream_version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-                echo "${repository}: ${upstream_repository} latest release is not stable SemVer; skipping."
-                rm -rf "${checkout}"
-                return
-              fi
-            fi
-
-            git clone --quiet --depth=1 --branch "${default_branch}" "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${checkout}"
-            (
-              cd "${checkout}"
-              if [ -n "${upstream_property}" ]; then
-                ./mvnw -B -N versions:set-property -Dproperty="${upstream_property}" -DnewVersion="${upstream_version}" -DgenerateBackupPoms=false
-              fi
-              ./mvnw -B -N wrapper:wrapper
-              ./mvnw -B verify
-            )
-
-            if git -C "${checkout}" diff --quiet; then
-              echo "${repository}: ${upstream_repository} is current."
-              rm -rf "${checkout}"
-              return
-            fi
-            if [ "${dry_run}" = "true" ]; then
-              echo "Would open ${repository}:${branch}."
-              rm -rf "${checkout}"
-              return
-            fi
-
-            git -C "${checkout}" switch -c "${branch}"
-            git -C "${checkout}" config user.name 'Kira Bot'
-            git -C "${checkout}" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git -C "${checkout}" diff --name-only | while IFS= read -r path; do
-              git -C "${checkout}" add -- "${path}"
-            done
-            git -C "${checkout}" commit -m 'build: update upstream sources'
-            git -C "${checkout}" push origin "${branch}"
-            gh pr create --repo "${repository}" --base "${default_branch}" --head "${branch}" --title 'build: update upstream sources' --body "Updates ${upstream_repository}."
-            gh workflow run build-pr.yml --repo "${repository}" --ref "${branch}" -f ref="${branch}"
-            rm -rf "${checkout}"
-          }
-
-          while IFS="$(printf '\t')" read -r repository default_branch; do
-            merge_ready_prs "${repository}" "${default_branch}"
-            if ! workflow_paths=$(gh api "repos/${repository}/contents/.github/workflows?ref=${default_branch}" --jq '.[] | select(.type == "file") | select((.name | endswith(".yml")) or (.name | endswith(".yaml"))) | .path' 2>/dev/null); then
-              continue
-            fi
-            upstream_repository=''
-            upstream_markers=0
-            upstream_property=''
-            upstream_property_markers=0
-            for workflow_path in ${workflow_paths}; do
-              workflow_file="${RUNNER_TEMP}/workflow.yml"
-              if ! gh api -H 'Accept: application/vnd.github.raw+json' "repos/${repository}/contents/${workflow_path}?ref=${default_branch}" > "${workflow_file}" 2>/dev/null; then
-                continue
-              fi
-              marker=$(sed -nE 's/^[[:space:]]*# yuna-java-upstream:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "${workflow_file}")
-              if [ -z "${marker}" ]; then
-                continue
-              fi
-              upstream_markers=$((upstream_markers + 1))
-              upstream_repository="${marker}"
-              property_marker=$(sed -nE 's/^[[:space:]]*# yuna-java-upstream-property:[[:space:]]*([A-Za-z0-9_.-]+)[[:space:]]*$/\1/p' "${workflow_file}")
-              if [ -n "${property_marker}" ]; then
-                upstream_property_markers=$((upstream_property_markers + 1))
-                upstream_property="${property_marker}"
-              fi
-            done
-            if [ "${upstream_markers}" -eq 1 ] && [ "${upstream_property_markers}" -le 1 ]; then
-              maintain_upstream "${repository}" "${default_branch}" "${upstream_repository}" "${upstream_property}"
-            elif [ "${upstream_markers}" -gt 1 ]; then
-              echo "${repository}: multiple yuna-java-upstream markers; skipping."
-            else
-              echo "${repository}: multiple yuna-java-upstream-property markers; skipping."
-            fi
-          done < "${repositories_file}"
+          sync_shared_workflow_refs "${GITHUB_SHA}"
 
           test "${failures}" -eq 0

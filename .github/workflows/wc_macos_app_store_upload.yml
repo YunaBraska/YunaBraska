@@ -1,0 +1,73 @@
+name: "🛍️ CD · App Store Upload"
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: App bundle name.
+        required: true
+        type: string
+      artifact_name:
+        description: Artifact containing exactly one Store upload file.
+        required: false
+        default: app-store-package
+        type: string
+      artifact_extension:
+        description: Store upload file extension.
+        required: false
+        default: pkg
+        type: string
+    secrets:
+      MACOS_NOTARY_KEY:
+        required: true
+      MACOS_NOTARY_KEY_ID:
+        required: true
+      MACOS_NOTARY_ISSUER_ID:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: "🛍️ upload"
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: "📥 Download Store Upload"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: app-store-package
+
+      - name: "🔎 Validate and Upload"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          ARTIFACT_EXTENSION: ${{ inputs.artifact_extension }}
+          API_KEY: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          API_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          API_PRIVATE_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+        run: |
+          set -eu
+          case "${ARTIFACT_EXTENSION}" in
+            pkg|ipa) ;;
+            *) printf 'Unsupported App Store upload extension: %s\n' "${ARTIFACT_EXTENSION}" >&2; exit 2 ;;
+          esac
+          key_dir=$(mktemp -d "${RUNNER_TEMP}/app-store-connect.XXXXXX")
+          trap 'rm -rf "${key_dir}"' 0 HUP INT TERM
+          package_count=$(find app-store-package -type f -name "${APP_NAME}.${ARTIFACT_EXTENSION}" -print | wc -l | tr -d ' ')
+          case "${package_count}" in
+            1) ;;
+            *) printf 'Expected exactly one %s.%s file, found %s.\n' "${APP_NAME}" "${ARTIFACT_EXTENSION}" "${package_count}" >&2; exit 1 ;;
+          esac
+          package=$(find app-store-package -type f -name "${APP_NAME}.${ARTIFACT_EXTENSION}" -print -quit)
+
+          umask 077
+          printf '%s' "${API_PRIVATE_KEY}" > "${key_dir}/AuthKey_${API_KEY}.p8"
+          export API_PRIVATE_KEYS_DIR="${key_dir}"
+          xcrun altool --validate-app "${package}" --api-key "${API_KEY}" --api-issuer "${API_ISSUER}" --output-format json
+          xcrun altool --upload-package "${package}" --api-key "${API_KEY}" --api-issuer "${API_ISSUER}" --output-format json
+          printf 'app_store_upload=accepted\n'

@@ -1,12 +1,15 @@
 # Automation ownership
 
 `YunaBraska/YunaBraska` owns organisation-wide scheduling. `BOT_TOKEN` merges
-the green maintenance pull requests it discovers in other repositories.
+the green maintenance pull requests it discovers in other repositories; each
+repository owns its own narrow writer. Most operations use its scoped `GITHUB_TOKEN`.
 
 ```mermaid
 flowchart LR
   N[Repository Node maintenance] -->|GITHUB_TOKEN| R[bot/maintenance-node PR]
   N -->|dispatch exact branch| V[Repository CI]
+  U[Repository upstream maintenance] -->|GITHUB_TOKEN| UPR[bot/maintenance-upstream PR]
+  U -->|Maven test then dispatch exact branch| V
   V -->|green| M[Central weekly merge]
   T[Homebrew tap updater] -->|GITHUB_TOKEN| P[Homebrew PR]
   T -->|dispatch exact branch| H[Tap CI]
@@ -19,14 +22,53 @@ flowchart LR
 | Work | Runs in | Writer | Reason |
 | --- | --- | --- | --- |
 | Update Node dependencies | Source repository | Its scoped `GITHUB_TOKEN` | It rebuilds and tests that repository's `dist`, opens or recovers `bot/maintenance-node`, then dispatches its exact branch to `build-pr.yml`. |
-| Sync an upstream Maven property | `YunaBraska/YunaBraska` | `BOT_TOKEN` | An optional `# yuna-java-upstream-property` marker selects one property. Central reads the latest stable upstream SemVer release, sets it, runs `mvn verify`, opens `bot/maintenance-upstream`, and dispatches its exact branch to `build-pr.yml`. |
+| Update shared workflow references | `YunaBraska/YunaBraska` | `BOT_TOKEN` | It opens one `bot/maintenance-workflow-pins-*` PR per repository, dispatches its normal PR build, and leaves the central weekly merge gate unchanged. |
+| Sync an upstream Maven property or generated source | Source repository | Its scoped `GITHUB_TOKEN` | The shared upstream workflow reads a stable upstream release when a Maven property is configured, then always runs `mvn test` before it opens or safely recovers `bot/maintenance-upstream`. |
 | Merge green Dependabot and maintenance PRs | `YunaBraska/YunaBraska` | `BOT_TOKEN` | One authority across the organisation. |
 | Dispatch releases | `YunaBraska/YunaBraska` | `BOT_TOKEN` | Discovery and scheduling are central. |
 | Create tags, GitHub releases, packages, and Central coordinates | Source repository | Its scoped `GITHUB_TOKEN` | The release owns its own artifacts. |
+| Submit an existing Windows release asset to Chocolatey | Source repository | Its scoped `CHOCOLATEY_API_KEY` | The reusable publisher verifies the release checksum and performs a real local install before it pushes a package. |
+| Publish a Swift release whose workflow files differ from current `main` | Source repository | Its existing `RELEASE_TOKEN` | GitHub requires workflow-write authorization for the tested historical commit. See [Swift publisher authentication](SWIFT_CI_CD.md). |
 | Update Homebrew casks and formulae | `YunaBraska/homebrew-tap` | Its `GITHUB_TOKEN` | The updater and tap are the same repository. |
 | Validate a maintenance PR | Source repository | Its `GITHUB_TOKEN` | The updater dispatches its existing PR-build workflow for the exact commit. |
 
-Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance recognizes a successful dispatched `build-pr.yml` run for the exact `bot/maintenance-*` commit as its green check; ordinary PR checks remain the gate for Dependabot and human PRs. Dependabot checks Sunday at 00:00 UTC, so its grouped PRs have time to complete before Monday maintenance.
+Node maintenance follows the same explicit-check pattern as Maven Wrapper and Homebrew: GitHub may suppress the automatic pull-request event created by `GITHUB_TOKEN`, so it dispatches the repository's existing `🧪 CI · Pull Request` for the exact maintenance branch. These maintenance jobs grant `actions: write` only for that dispatch; they never start a release or publish artifacts. Central weekly maintenance recognizes a successful dispatched `build-pr.yml` run for the exact `bot/maintenance-*` commit as its green check; ordinary PR checks remain the gate for Dependabot and human PRs.
+
+Shared workflow references are immutable full commit IDs. Weekly maintenance updates
+them through the same tested maintenance-PR path instead of using a mutable branch
+reference. A repository without `build-pr.yml` is deliberately left untouched until
+it has the standard PR build. This keeps every workflow update reviewable and
+prevents a central change from bypassing the repository's own checks. An open
+workflow-reference PR advances to the newest tested central revision in place,
+then runs its PR build again.
+
+Java releases have one versioning contract. Normal projects use the UTC date and
+NATS uses its declared upstream release. The shared Java workflow defaults to a
+snapshot. Only the standard `release.yml` passes `stable_release: true`. The
+synchronization removes the obsolete `semver_strategy: snapshot` caller setting,
+so an old workflow cannot preserve a conflicting version rule.
+
+The organization-level pin synchronizer pushes with `BOT_TOKEN`, so GitHub's
+normal pull-request event starts `build-pr.yml`; it never starts a duplicate
+manual run. A manual dispatch is reserved for an existing pull request with no
+build, or a maintenance writer that uses `GITHUB_TOKEN`. It targets the
+maintenance branch itself, uses `github.sha` outside a pull-request event, and
+has no custom inputs.
+
+Manual maintenance can set `workflow_refs_only` to update those references
+without merging unrelated maintenance pull requests. Scheduled maintenance always
+runs both phases.
+
+Snapshots and stable releases are deliberately separate: every merge produces a snapshot build, while tags and GitHub releases are reserved for the Monday stable-release pass after maintenance. Java snapshots publish only the reusable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages. Native snapshots remain one-day Actions artifacts. No snapshot may create a tag, GitHub release, Homebrew update, Sparkle feed, or App Store package.
+
+## Product pages
+
+Each product's `product-pages.yml` defines its product-page inputs. Every
+automatic code, test, package, PR-build, and snapshot caller ignores exactly
+that same path set. The Pages workflow alone validates those changes and deploys
+them after a merge. A pull request that changes source and product-page inputs
+runs both workflows. This keeps page editing fast without reducing code or
+package validation.
 
 The tap updater runs daily at 20:00 UTC, supports manual dry runs, updates only
 declared stable release assets, and opens one `bot/maintenance-homebrew` PR.
@@ -70,17 +112,48 @@ architectures with Homebrew's normal conditions.
 
 ## Audit boundary
 
-Central release discovery, upstream maintenance, and weekly merging follow this
-model. Homebrew, Maven Wrapper, and Node dependency maintenance intentionally
+Central release discovery and weekly merging follow this model. Upstream,
+Homebrew, Maven Wrapper, and Node dependency maintenance intentionally
 open their own narrow pull requests with `GITHUB_TOKEN`; their repositories must
 enable **Allow GitHub Actions to create and approve pull requests**. Node
 maintenance runs at 06:00 UTC Sunday, central merges green PRs at 06:00 UTC
-Monday, and the release dispatcher runs at 16:00 UTC Monday.
+Monday, and the release dispatcher runs at 16:00 UTC Monday. When a repository
+follows the weekly Dependabot schedule, its `.github/dependabot.yml` sets Sunday
+00:00 UTC so checks can finish before Monday's merge pass. A repository's own
+configuration is authoritative.
 
 Every scheduled workflow supports a manual dry run. A dry run may read, build,
 test, style, and print its intended mutation; it never creates a branch, pull
 request, tag, release, deployment, or package.
 
-Upstream maintenance maps the existing central `GH_TOKEN` only to Maven's
-`github` server. Project tests never receive `GITHUB_TOKEN`, so tests that query
-public GitHub APIs use anonymous access while Maven can resolve private packages.
+Upstream maintenance does not pass its writer token to Maven or project tests.
+Maven resolves private packages through the scoped GitHub Packages server;
+tests querying public GitHub APIs remain anonymous.
+
+## Branch and release gates
+
+Every maintained product repository must protect `main` with a repository
+ruleset:
+
+- Pull requests are required. Direct pushes, branch deletion, and history
+  rewrites are blocked.
+- All jobs in that repository's production build matrix are required before a
+  pull request may merge. The required names come from the workflow run, not a
+  guessed generic list.
+- A release workflow runs only from the merged `main` commit. It starts after
+  the required checks succeed. A cancelled or failed release run is deleted
+  only after a green replacement has produced the same intended result.
+
+The exact job matrix differs between Java, Node, and native products. The
+policy does not: each repository must require every job that produces or
+validates its shipping artifacts. When a workflow adds, removes, or renames a
+production job, update that repository's ruleset in the same pull request.
+
+## Pull request review
+
+Each maintained repository calls the shared pull-request-review workflow when a
+same-repository pull request to `main` becomes ready for review. It requests
+one Codex review for that exact head commit. The workflow neither checks out
+nor executes pull-request code, and later pushes do not create another review.
+See [pull request review](PR_REVIEW.md) for the caller and deliberate re-review
+path.

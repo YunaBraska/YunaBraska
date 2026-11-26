@@ -7,7 +7,7 @@ and maintenance.
 ```mermaid
 flowchart LR
   A[Pull request] --> B[Build and test]
-  C[Merge] --> D[Main build]
+  C[Merge] --> D[Snapshot build]
   E[Sunday dependency update] --> F[bot/maintenance-node PR]
   F --> G[Monday merge]
   G --> H[Monday release check]
@@ -17,6 +17,9 @@ flowchart LR
 ## Decisions
 
 - A GitHub Action releases from its committed `dist`; it does not publish to npm.
+- A merge runs the shared snapshot build. It creates no tag, GitHub release, or
+  package publication because these actions have no package registry. The run
+  is still the tested snapshot boundary before the weekly stable release.
 - The build runs `npm ci`, `npm test`, then rejects any tracked generated-file
   change. A release therefore always tags tested source and tested `dist`.
 - Releases use the newest reachable full SemVer tag by creation time and
@@ -53,6 +56,23 @@ jobs:
     permissions:
       contents: read
     uses: YunaBraska/YunaBraska/.github/workflows/wc_node_build_common.yml@<FULL_COMMIT_SHA>
+```
+
+```yml
+# build-merge.yml
+name: 🔄 CD · Snapshot
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions: {}
+jobs:
+  snapshot:
+    permissions:
+      contents: read
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_node_snapshot.yml@<FULL_COMMIT_SHA>
+    with:
+      ref: ${{ github.sha }}
 ```
 
 ```yml
@@ -132,6 +152,7 @@ updates:
 | Workflow | Purpose |
 | --- | --- |
 | `wc_node_build_common.yml` | Install, build, test, and verify committed generated output. |
+| `wc_node_snapshot.yml` | Build and test merged source without creating a tag or release. |
 | `wc_node_release.yml` | Resolve exact SemVer, decide whether production changed, and build. |
 | `wc_node_create_github_release.yml` | Create the tag and GitHub release after a successful release decision. |
 | `wc_node_update_dependencies.yml` | Update npm dependencies, regenerate `dist`, test, and open one maintenance PR. |

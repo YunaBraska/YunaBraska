@@ -1,6 +1,6 @@
 # Java CI/CD
 
-Reusable Java workflows use POSIX `sh`. External calls use a full commit SHA; an internal call uses `./.github/workflows/` at the same commit.
+Reusable Java workflows use POSIX `sh`. External calls use a full commit SHA from the default branch after its PR is merged; an internal call uses `./.github/workflows/` at the same commit.
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ Build resolves one version, writes it only to its workspace POM, and tests it. W
 - Set `maven-jar-plugin` `outputTimestamp` from that property; the build replaces it with the commit timestamp.
 - Use `maven-compiler-plugin` `<release>`, not `<source>` / `<target>`.
 - Attach source and Javadoc jars in the normal build.
-- Keep profile `central` for GPG and `central-publishing-maven-plugin` `0.11.0`, with `autoPublish` and `waitUntil` set to `published`. Version `0.7.0` rejects Sonatype's `warnings` response field; waiting for `published` keeps tags and GitHub releases behind public Central coordinates.
+- Keep profile `central` for GPG and `central-publishing-maven-plugin` `0.12.0`, with `autoPublish` and `waitUntil` set to `validated`. Maven succeeds after Central has accepted and validated the deployment, then Central publishes it asynchronously. The shared publisher does not add a second status poll or upload.
 
 ## Migration
 
@@ -76,6 +76,7 @@ jobs:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_java_release.yml@<FULL_COMMIT_SHA>
     with:
       force: ${{ inputs.force }}
+      stable_release: true
       dry_run: ${{ inputs.maven_central != true || inputs.github_packages != true }}
 
   central:
@@ -104,7 +105,7 @@ jobs:
 
   github:
     needs: [release, central, packages]
-    if: ${{ always() && !cancelled() && needs.release.outputs.dry_run == 'false' && !endsWith(needs.release.outputs.version, '-SNAPSHOT') && needs.release.result == 'success' && needs.central.result == 'success' && needs.packages.result == 'success' }}
+    if: ${{ always() && !cancelled() && needs.release.outputs.version != '' && !endsWith(needs.release.outputs.version, '-SNAPSHOT') && needs.release.result == 'success' && needs.central.result == 'success' && needs.packages.result == 'success' }}
     permissions:
       actions: read
       contents: write
@@ -138,25 +139,44 @@ then opens one `bot/maintenance-homebrew` PR. See [automation ownership](AUTOMAT
 | --- | --- |
 | no `upstream_repository` | UTC release date: `YYYY.M.D` |
 | newer upstream release | Exact upstream version |
-| `snapshot`, `rc`, `major`, `minor`, `patch` | Semver action’s matching `next_<strategy>` |
+Common build uses the UTC date for a normal release, the exact upstream release when declared, and `next_snapshot` only for a dry run or when that date has already been released. The SemVer fallback is `0.0.1`.
 
-Common build defaults to `snapshot`. The Semver base is the latest tag or upstream version; with neither it is `0.0.1`.
+The shared Java publishers declare their exact Maven credential origins through `actions/setup-java`: `https://central.sonatype.com` for Central and `https://maven.pkg.github.com` for GitHub Packages. Maven 3.10 then never sends either credential to another host. The Central publisher uses each project's Maven Wrapper. `central-publishing-maven-plugin` 0.12.0 removes Maven 3.10 local metadata from the upload bundle.
 
-The shared Java workflows configure Maven's GitHub Packages server with the scoped action token; Central preserves both server entries.
+A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest stable GitHub release. Its optional `v` prefix is removed before comparison, tagging, and build resolution. NATS declares only `upstream_repository` and uses that stable version exactly. Its snapshot runs derive `next_snapshot` from the upstream/latest local SemVer base.
 
-A date that is not newer than the latest canonical `YYYY.M.D` tag resolves `next_snapshot`; legacy timestamp tags do not participate in date versioning. An upstream repository is read directly from its latest GitHub release. A newer upstream release wins; otherwise the declared strategy applies. For example, `upstream_repository: nats-io/nats-streaming-server` with `semver_strategy: snapshot` resolves the next snapshot from the latest local tag.
+Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. Central snapshots use its dedicated Maven snapshot endpoint: Maven's successful upload is authoritative because snapshots have no stable deployment state and Central removes them after 90 days. Stable Central releases finish after Maven validates the deployment, then Central publishes asynchronously. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
 
-Disabling an artifact publisher selects a dry run. Build resolves a snapshot; Central and GitHub Packages deploy that snapshot. An unchanged release or non-default branch also uses dry runs unless `force` is true. GitHub releases are real and created only for a new non-snapshot version. The tap daily workflow opens a `bot/maintenance-homebrew` PR for a new public release; weekly maintenance merges it when green.
+## Snapshot contract
+
+Every repository follows one boundary: a snapshot is a build and package channel, never a public release channel. It has no Git tag, GitHub release, Homebrew update, Sparkle feed, or App Store package. Java's shared workflow defaults to a snapshot. Only `release.yml` passes `stable_release: true`; its `dry_run` input still turns a manual dry run into a snapshot. Java snapshots deploy their stable `*-SNAPSHOT` coordinate to Maven Central's snapshot endpoint and GitHub Packages; Maven metadata advances to the latest snapshot. Swift and .NET snapshots have no shared package registry, so they retain their build or native archives as one-day Actions artifacts. Stable releases are currently dispatched only by an explicit manual action. The automatic weekly release dispatcher is paused while Maven Central's publishing-limit review is pending.
 
 A GitHub version with a hyphen is a pre-release.
 
-Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Real version sources such as POMs, package manifests, and upstream releases trigger a release. Dependabot checks Sunday at 00:00 UTC; maintenance merges green `dependabot/*` and `bot/maintenance-*` PRs on Monday morning; release dispatch checks release inputs on Monday evening. `# yuna-java-upstream: owner/repository` in one maintenance workflow lets the central job run Maven's updater, then open one tested `bot/maintenance-upstream` PR only when tracked files changed.
+Weekly release discovery requires exactly one `# yuna-release: true` marker and a `workflow_dispatch` trigger with defaults. Real version sources such as POMs, package manifests, and upstream releases trigger a release. Maintenance merges `dependabot/*` and `bot/maintenance-*` PRs on Monday morning only after the exact pull-request commit has one successful completed `build-pr.yml` run. A third-party status such as Snyk never substitutes for that build. When the build is missing, maintenance starts it if that commit supports `workflow_dispatch`, then leaves the pull request open for the next run. The `BOT_TOKEN` account must be a branch-protection bypass actor. Maintenance uses that bypass only for these tested automation branches, never for user branches. A blocked or conflicted pull request also remains open without failing organization-wide maintenance. Release dispatch checks release inputs on Monday evening.
 
-`# yuna-java-upstream-property: property.name` additionally makes the latest stable upstream `v?X.Y.Z` release the named Maven property. The updater strips an optional `v`, sets the property, runs `mvn verify`, and explicitly dispatches that PR's normal build. Generated files, including Spring configuration metadata, therefore arrive in the same tested PR. Dependabot must ignore the matching upstream dependency; it continues to manage every other Maven and GitHub Actions dependency.
+Upstream maintenance is repository-owned and calls `wc_java_update_upstream.yml`. Its optional `upstream_property` makes the latest stable upstream `v?X.Y.Z` release the named Maven property. It runs `mvn test` before opening one tested `bot/maintenance-upstream` PR, so generated sources—including Spring configuration metadata and upstream enums—are committed with the dependency update. A repository may set `maintenance_test_property` to one validated `name=value` Java property when a generator must run only in maintenance. Normal PR, snapshot, and release builds must never modify tracked sources. Dependabot must ignore a dependency managed by this workflow; it continues to manage every other Maven and GitHub Actions dependency.
+
+Tests that query an external service must set finite connect and read timeouts. A stalled upstream then fails the maintenance build instead of occupying a runner indefinitely.
+
+```yml
+  upstream:
+    permissions:
+      actions: write
+      contents: write
+      packages: read
+      pull-requests: write
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_java_update_upstream.yml@<FULL_COMMIT_SHA>
+    with:
+      upstream_repository: owner/project
+      upstream_property: project.version # omit when tests discover the upstream
+      maintenance_test_property: source.generator.update=true # optional, maintenance only
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+```
 
 ## Maven Wrapper
 
-Dependabot does not support Maven Wrapper files. The workflow below is a legacy caller-owned writer. Do not add it to another repository: it is the remaining maintenance centralisation migration described in [automation ownership](AUTOMATION.md).
+Dependabot does not support Maven Wrapper files. The workflow below is a legacy caller-owned writer. Do not add it to another repository: it is the remaining maintenance centralisation migration described in [automation ownership](AUTOMATION.md). It reuses an existing maintenance branch without force-pushing and explicitly dispatches its normal pull-request build.
 
 ```yml
 name: 🛠️ CI · Maintenance
@@ -213,6 +233,8 @@ Native projects add `native` after the resolved Java build. Maven Central and Gi
 | Windows x64 | `windows-latest` | Maven `-Pnative` + runner MSVC | `vswhere` discovers the hosted Visual Studio toolchain; no setup action. |
 
 The matrix has `fail-fast: false` so every platform reports its result. Linux still uses Buildx to run its project Dockerfile, but the target runner matches the image architecture and the workflow does not configure QEMU. Windows ARM64 is not enabled: its hosted runner remains preview and no current release needs that extra artifact.
+
+Shared workflows pin their Linux jobs to `ubuntu-24.04`, not `ubuntu-latest`. A hosted-image change must be an intentional, tested migration in the reusable workflow before it reaches every consumer.
 
 For native projects, `central`, `packages`, and `docker` all need both `release` and `native`. The Docker caller must also grant `actions: read`; it downloads the current run's Linux assets.
 

@@ -1,0 +1,225 @@
+name: "🛍️ CD · Mac App Store"
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: App bundle name.
+        required: true
+        type: string
+      bundle_id:
+        description: Store bundle identifier.
+        required: true
+        type: string
+      ref:
+        description: Checkout ref.
+        required: false
+        default: ''
+        type: string
+      version:
+        description: Store marketing version from the stable release.
+        required: true
+        type: string
+    secrets:
+      MACOS_APP_STORE_APPLICATION_CERTIFICATE:
+        required: true
+      MACOS_APP_STORE_INSTALLER_CERTIFICATE:
+        required: true
+      MACOS_APP_STORE_CERTIFICATE_PASSWORD:
+        required: true
+      MACOS_APP_STORE_PROFILE:
+        required: true
+    outputs:
+      build_number:
+        description: Monotonically increasing App Store build number.
+        value: ${{ jobs.package.outputs.build_number }}
+      version:
+        description: Store marketing version.
+        value: ${{ jobs.package.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: "🛍️ package"
+    runs-on: macos-latest
+    timeout-minutes: 210
+    permissions:
+      contents: read
+    outputs:
+      build_number: ${{ steps.version.outputs.build_number }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: "🧑‍💻 Checkout"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+          submodules: recursive
+
+      - name: "🏷️ Resolve Version"
+        id: version
+        shell: sh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          version="${VERSION}"
+          test -n "${version}"
+          build_number=${GITHUB_RUN_ID}
+          {
+            printf 'version=%s\n' "${version}"
+            printf 'build_number=%s\n' "${build_number}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'version=%s\n' "${version}"
+          printf 'build_number=%s\n' "${build_number}"
+
+      - name: "🔐 Import App Certificate"
+        id: application_certificate
+        uses: Apple-Actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+        with:
+          keychain: ${{ runner.temp }}/app-store-${{ github.run_id }}
+          create-keychain: true
+          p12-file-base64: ${{ secrets.MACOS_APP_STORE_APPLICATION_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_APP_STORE_CERTIFICATE_PASSWORD }}
+
+      - name: "🔐 Import Installer Certificate"
+        uses: Apple-Actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+        with:
+          keychain: ${{ runner.temp }}/app-store-${{ github.run_id }}
+          create-keychain: false
+          keychain-password: ${{ steps.application_certificate.outputs.keychain-password }}
+          p12-file-base64: ${{ secrets.MACOS_APP_STORE_INSTALLER_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_APP_STORE_CERTIFICATE_PASSWORD }}
+
+      - name: "🔐 Setup Store Profile"
+        id: signing
+        shell: sh
+        env:
+          PROFILE: ${{ secrets.MACOS_APP_STORE_PROFILE }}
+        run: |
+          set -eu
+          credentials_dir=$(mktemp -d "${RUNNER_TEMP}/app-store.XXXXXX")
+          profile_path="${credentials_dir}/profile.provisionprofile"
+          profile_plist="${credentials_dir}/profile.plist"
+          keychain="${RUNNER_TEMP}/app-store-${GITHUB_RUN_ID}.keychain"
+          trap 'rm -rf "${credentials_dir}"' EXIT HUP INT TERM
+
+          printf '%s' "${PROFILE}" | base64 -D > "${profile_path}"
+          security cms -D -i "${profile_path}" > "${profile_plist}"
+
+          team_id=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "${profile_plist}")
+          profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "${profile_plist}")
+          profile_identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "${profile_plist}")
+          test "${profile_identifier}" = "${team_id}.${{ inputs.bundle_id }}"
+
+          application_identity=$(security find-identity -v "${keychain}" | awk '/"Mac App Distribution:|"Apple Distribution:|"3rd Party Mac Developer Application:/ {print $2; exit}')
+          installer_identity=$(security find-identity -v "${keychain}" | awk '/"Mac Installer Distribution:|"3rd Party Mac Developer Installer:/ {print $2; exit}')
+          test -n "${application_identity}"
+          test -n "${installer_identity}"
+
+          installed_profile_dir="${HOME}/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "${installed_profile_dir}"
+          installed_profile="${installed_profile_dir}/$(uuidgen).provisionprofile"
+          cp "${profile_path}" "${installed_profile}"
+          {
+            printf 'application_identity=%s\n' "${application_identity}"
+            printf 'installer_identity=%s\n' "${installer_identity}"
+            printf 'profile_name=%s\n' "${profile_name}"
+            printf 'profile_path=%s\n' "${installed_profile}"
+            printf 'team_id=%s\n' "${team_id}"
+          } >> "${GITHUB_OUTPUT}"
+          printf 'application_identity=present\n'
+          printf 'installer_identity=present\n'
+          printf 'profile=valid\n'
+
+      - name: "📦 Build Store App [${{ steps.version.outputs.version }}]"
+        shell: sh
+        env:
+          APP_STORE_BUILD: '1'
+          APP_STORE_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          APP_STORE_BUNDLE_ID: ${{ inputs.bundle_id }}
+          APP_STORE_MARKETING_VERSION: ${{ steps.version.outputs.version }}
+          APP_STORE_TEAM_ID: ${{ steps.signing.outputs.team_id }}
+          MACOS_APP_STORE_APPLICATION_IDENTITY: ${{ steps.signing.outputs.application_identity }}
+          MACOS_APP_STORE_PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
+          MACOS_APP_STORE_PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
+        run: |
+          set -eu
+          test -f scripts/package-app-store.sh
+          sh scripts/package-app-store.sh "${APP_STORE_MARKETING_VERSION}" "${APP_STORE_BUILD_NUMBER}"
+
+      - name: "📦 Build Store Package"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+        run: |
+          set -eu
+          app="dist/app-store/${APP_NAME}.app"
+          unsigned_package="${RUNNER_TEMP}/${APP_NAME}-${GITHUB_RUN_ID}.unsigned.pkg"
+          test -d "${app}"
+          productbuild --component "${app}" /Applications "${unsigned_package}"
+
+      - name: "🔏 Sign Store Package"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          INSTALLER_IDENTITY: ${{ steps.signing.outputs.installer_identity }}
+        run: |
+          set -eu
+          package="dist/app-store/${APP_NAME}.pkg"
+          unsigned_package="${RUNNER_TEMP}/${APP_NAME}-${GITHUB_RUN_ID}.unsigned.pkg"
+          test -f "${unsigned_package}"
+          productsign --sign "${INSTALLER_IDENTITY}" "${unsigned_package}" "${package}"
+
+      - name: "🔍 Check Store Package"
+        shell: sh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: |
+          set -eu
+          app="dist/app-store/${APP_NAME}.app"
+          package="dist/app-store/${APP_NAME}.pkg"
+          test -d "${app}" || { printf '%s\n' "Missing app: ${app}" >&2; exit 1; }
+          test -f "${package}" || { printf '%s\n' "Missing package: ${package}" >&2; exit 1; }
+          app_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app}/Contents/Info.plist") || { printf '%s\n' 'Missing application bundle identifier.' >&2; exit 1; }
+          test "${app_bundle_id}" = "${BUNDLE_ID}" || { printf '%s\n' "Unexpected application bundle identifier: ${app_bundle_id}" >&2; exit 1; }
+          app_category=$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "${app}/Contents/Info.plist") || { printf '%s\n' 'Missing application category.' >&2; exit 1; }
+          test -n "${app_category}" || { printf '%s\n' 'Empty application category.' >&2; exit 1; }
+          find "${app}/Contents/Resources" -type d -name '*.bundle' -print | while IFS= read -r bundle; do
+            info="${bundle}/Contents/Info.plist"
+            test -f "${info}" || { printf '%s\n' "Missing resource bundle metadata: ${bundle}" >&2; exit 1; }
+            resource_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${info}") || { printf '%s\n' "Missing resource bundle identifier: ${bundle}" >&2; exit 1; }
+            test -n "${resource_bundle_id}" || { printf '%s\n' "Empty resource bundle identifier: ${bundle}" >&2; exit 1; }
+          done
+          codesign --verify --deep --strict --verbose=2 "${app}" || { printf '%s\n' 'Invalid application signature.' >&2; exit 1; }
+          codesign -d --entitlements :- "${app}" 2>/dev/null | /usr/bin/grep -A 1 '<key>com.apple.security.app-sandbox</key>' | /usr/bin/grep -F '<true/>' >/dev/null || { printf '%s\n' 'Missing App Sandbox entitlement.' >&2; exit 1; }
+          test -z "$(find "${app}/Contents" -type d -name Sparkle.framework -print -quit)" || { printf '%s\n' 'Store app must not contain Sparkle.' >&2; exit 1; }
+          for forbidden_domain in github.com/sponsors buymeacoffee.com ko-fi.com liberapay.com; do
+            if find "${app}/Contents" -type f ! -path '*/_CodeSignature/*' ! -name embedded.provisionprofile -exec strings {} + | grep -Fq "${forbidden_domain}"; then
+              printf '%s\n' "Store app must not contain ${forbidden_domain}." >&2
+              exit 1
+            fi
+          done
+          pkgutil --check-signature "${package}" || { printf '%s\n' 'Invalid installer package signature.' >&2; exit 1; }
+
+      - name: "📦 Upload Store Package"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: app-store-package
+          if-no-files-found: error
+          retention-days: 1
+          path: dist/app-store/${{ inputs.app_name }}.pkg
+
+      - name: "🧹 Clean Store Signing"
+        if: always()
+        shell: sh
+        env:
+          PROFILE_PATH: ${{ steps.signing.outputs.profile_path }}
+        run: |
+          set -eu
+          if [ -n "${PROFILE_PATH}" ]; then
+            rm -f "${PROFILE_PATH}"
+          fi

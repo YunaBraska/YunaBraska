@@ -1,0 +1,122 @@
+name: "🏷️ CD · .NET GitHub Release"
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        description: Build run that owns the tested assets.
+        required: false
+        default: ''
+        type: string
+      commit_sha:
+        description: Tested source revision.
+        required: true
+        type: string
+      version:
+        description: Unique release version.
+        required: true
+        type: string
+      macos_update_public_key:
+        description: Base64 Ed25519 public key for stable direct macOS updates.
+        required: false
+        default: ''
+        type: string
+    secrets:
+      MACOS_UPDATE_PRIVATE_KEY:
+        required: false
+
+permissions: {}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: "📥 Download Release Assets"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: release-assets-*
+          path: release-assets
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id || github.run_id }}
+
+      - name: "🔐 Sign macOS Update Feeds"
+        if: inputs.macos_update_public_key != '' && !contains(inputs.version, '-')
+        shell: sh
+        env:
+          MACOS_UPDATE_PRIVATE_KEY: ${{ secrets.MACOS_UPDATE_PRIVATE_KEY }}
+          MACOS_UPDATE_PUBLIC_KEY: ${{ inputs.macos_update_public_key }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          test -n "${MACOS_UPDATE_PRIVATE_KEY}"
+          private_key=$(mktemp "${RUNNER_TEMP}/macos-update.XXXXXX")
+          trap 'rm -f "${private_key}"' EXIT INT TERM
+          {
+            printf '\060\056\002\001\000\060\005\006\003\053\145\160\004\042\004\040'
+            printf '%s' "${MACOS_UPDATE_PRIVATE_KEY}" | base64 --decode
+          } > "${private_key}"
+          test "$(wc -c < "${private_key}" | tr -d ' ')" = 48
+          derived_public_key=$(openssl pkey -inform DER -in "${private_key}" -pubout -outform DER | tail -c 32 | base64 --wrap=0)
+          test "${derived_public_key}" = "${MACOS_UPDATE_PUBLIC_KEY}"
+
+          found=false
+          for asset in release-assets/*-macos-*.dmg; do
+            test -f "${asset}" || continue
+            found=true
+            asset_name=${asset##*/}
+            architecture=$(printf '%s\n' "${asset_name}" | sed -n 's/.*-macos-\(arm64\|x64\)\.dmg$/\1/p')
+            test -n "${architecture}"
+            signature=$(openssl pkeyutl -sign -inkey "${private_key}" -keyform DER -rawin -in "${asset}" | base64 --wrap=0)
+            appcast="release-assets/appcast-macos-${architecture}.xml"
+            asset_size=$(wc -c < "${asset}" | tr -d ' ')
+            cat > "${appcast}" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+            <channel>
+              <title>${{ github.repository }} macOS updates</title>
+              <item>
+                <title>Version ${RELEASE_VERSION}</title>
+                <enclosure url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_VERSION}/${asset_name}" sparkle:version="${RELEASE_VERSION}" sparkle:shortVersionString="${RELEASE_VERSION}" sparkle:os="macos" sparkle:edSignature="${signature}" length="${asset_size}" type="application/octet-stream" />
+              </item>
+            </channel>
+          </rss>
+          EOF
+            openssl pkeyutl -sign -inkey "${private_key}" -keyform DER -rawin -in "${appcast}" | base64 --wrap=0 > "${appcast}.signature"
+          done
+          test "${found}" = true
+
+      - name: "🔐 Create Checksums"
+        shell: sh
+        run: |
+          set -eu
+          test -n "$(find release-assets -maxdepth 1 -type f -print -quit)"
+          find release-assets -maxdepth 1 -type f -print | sort | while IFS= read -r asset; do
+            sha256sum "${asset}" | sed 's#  release-assets/#  #'
+          done > release-assets/SHA256SUMS
+
+      - name: "📤 Upload Prepared Release"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: github-release-assets-${{ github.run_id }}
+          path: release-assets
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  release:
+    needs: prepare
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/wc_github_create_release.yml
+    with:
+      artifact_name: github-release-assets-${{ github.run_id }}
+      artifact_path: release-assets
+      commit_sha: ${{ inputs.commit_sha }}
+      run_id: ${{ github.run_id }}
+      version: ${{ inputs.version }}

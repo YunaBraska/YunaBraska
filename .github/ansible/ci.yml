@@ -1,8 +1,0 @@
-- name: Download pipeline templates
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  collections:
-    - lvrfrc87.git_acp
-  roles:
-    - pipelines

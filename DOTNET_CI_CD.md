@@ -4,9 +4,9 @@
 flowchart LR
   PR[Pull request] --> B[Build and test]
   M[Merge] --> S[Snapshot build]
-  S --> N[Native archives]
+  S --> A[One-day native artifacts]
   W[Weekly or manual release] --> R[Release build]
-  R --> N
+  R --> N[Native archives]
   N --> G[GitHub release]
   G --> H[Tap updater]
   H --> P[Homebrew PR]
@@ -15,17 +15,21 @@ flowchart LR
 | Trigger | Version | Result |
 | --- | --- | --- |
 | Pull request | `next_snapshot` from the latest tag, fallback `0.0.1` | Build and test only. |
-| Merge | Same | Build all native archives; retain them for one day. |
+| Merge | `next_snapshot` from the newest reachable stable SemVer tag | Build all native archives and checksums as one-day Actions artifacts. |
 | Weekly release with source changes | UTC `YYYY.M.D` | Tag, GitHub release, archives, and `SHA256SUMS`. |
 | Manual release | Same; `force` permits unchanged source | Same. |
 
 The latest tag is the newest reachable tag by creation time. Release detection ignores documentation, tests, examples, and `.github`; every other tracked source change releases. A version with a hyphen is a GitHub pre-release.
 
+Snapshots never create GitHub tags, GitHub releases, Homebrew updates, or App Store packages. Their stable snapshot coordinate is intentionally reused; the current native archives are retained as one-day Actions artifacts for inspection. Stable tags are the only version source, so an old pre-release or a historical bad snapshot tag cannot change the next snapshot line.
+
 ## Conventions
 
 `global.json` selects the SDK. `scripts/test.sh`, when present, is the test entrypoint; otherwise the workflow runs `dotnet test`. It passes the resolved version in `VERSION`.
 
-Native archives use `scripts/publish.sh <rid>` when present. It must write `out/<repository>-<asset>`. Without that script, the workflow publishes the first executable project it finds. A `scripts/build-macos-app.sh <rid>` script creates a `.app` ZIP for macOS; otherwise macOS is a normal ZIP. No workflow input selects a project, profile, Dockerfile, or assets.
+Native archives publish the first executable project found outside `test` and `tests`. A `scripts/build-macos-app.sh <rid>` script creates a `.app` ZIP for macOS; otherwise macOS is a normal ZIP. No workflow input selects a project, profile, Dockerfile, or assets.
+
+Set `notarize_macos: true` only for a released macOS app. Snapshot builds retain their ad-hoc signature and never read Apple credentials. A released app imports the Developer ID certificate, signs with hardened runtime and timestamp, submits the ZIP to Apple, staples the app ticket, recreates the ZIP, and adds a DMG. It needs all five `MACOS_*` secrets. `MACOS_SIGNING_CERTIFICATE` is base64 PKCS#12. `MACOS_NOTARY_KEY` is raw `.p8` PEM text. The Apple silicon and Intel jobs run independently and use their respective real runners. There is no QEMU.
 
 | Assets | Runner | Reason |
 | --- | --- | --- |
@@ -56,16 +60,10 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_dotnet_build_common.yml@<FULL_COMMIT_SHA>
+  snapshot:
+    uses: YunaBraska/YunaBraska/.github/workflows/wc_dotnet_snapshot.yml@<FULL_COMMIT_SHA>
     with:
       ref: ${{ github.sha }}
-      dry_run: true
-  native:
-    needs: build
-    uses: YunaBraska/YunaBraska/.github/workflows/wc_dotnet_build_native.yml@<FULL_COMMIT_SHA>
-    with:
-      version: ${{ needs.build.outputs.version }}
 ```
 
 ```yaml
@@ -80,6 +78,12 @@ jobs:
     uses: YunaBraska/YunaBraska/.github/workflows/wc_dotnet_release.yml@<FULL_COMMIT_SHA>
     with:
       force: ${{ inputs.force }}
+      notarize_macos: true
+    secrets: inherit
 ```
 
 The app repository never writes Homebrew. Add the normal release and asset markers to the formula or cask; the tap daily updater opens one `bot/maintenance-homebrew` PR and weekly maintenance merges it when green. See [automation ownership](AUTOMATION.md).
+
+## App Store
+
+Direct distribution and the Mac App Store are separate channels. Direct releases use Developer ID notarization and may use an external updater. Store builds use App Store signing and its update channel. Apple requires Mac App Store apps to use Mac App Store update mechanisms: <https://developer.apple.com/app-store/review/guidelines/>.

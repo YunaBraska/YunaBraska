@@ -1,0 +1,24 @@
+name: 🔄 CD · Node Snapshot
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact main-branch revision.
+        required: false
+        default: ''
+        type: string
+    outputs:
+      commit_sha:
+        description: Tested source revision.
+        value: ${{ jobs.build.outputs.commit_sha }}
+
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/wc_node_build_common.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}

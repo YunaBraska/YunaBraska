@@ -8,11 +8,6 @@ on:
         required: false
         default: ''
         type: string
-      semver_strategy:
-        description: Semver next strategy.
-        required: false
-        default: snapshot
-        type: string
       upstream_version:
         description: Upstream version.
         required: false
@@ -43,7 +38,7 @@ permissions: {}
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -59,6 +54,46 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref || github.sha }}
           submodules: recursive
+
+      - name: "🛡️ Validate Workflows"
+        shell: sh
+        run: |
+          set -eu
+          invalid=false
+          for workflow in .github/workflows/*.yml .github/workflows/*.yaml; do
+            test -f "${workflow}" || continue
+            if ! awk '
+              function indentation(line) {
+                match(line, /[^[:space:]]/)
+                return RSTART - 1
+              }
+              pending_with {
+                if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^[[:space:]]*#/) {
+                  next
+                }
+                if (indentation($0) <= with_indent) {
+                  printf "%s:%d: empty with block\n", FILENAME, with_line
+                  invalid = 1
+                }
+                pending_with = 0
+              }
+              /^[[:space:]]*with:[[:space:]]*$/ {
+                pending_with = 1
+                with_indent = indentation($0)
+                with_line = FNR
+              }
+              END {
+                if (pending_with) {
+                  printf "%s:%d: empty with block\n", FILENAME, with_line
+                  invalid = 1
+                }
+                exit invalid
+              }
+            ' "${workflow}"; then
+              invalid=true
+            fi
+          done
+          test "${invalid}" = false
 
       - name: "🧾 Read Commit"
         id: commit_info
@@ -90,7 +125,7 @@ jobs:
         shell: sh
         run: |
           set -eu
-          latest_tag=$(git tag --merged HEAD --sort=-creatordate | sed -n '1p')
+          latest_tag=$(git tag --merged HEAD --sort=-creatordate | awk '/^v?[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
           date_tag=$(printf '%s\n' "${latest_tag}" | sed -nE '/^[0-9]{4}\.([1-9]|1[0-2])\.([1-9]|[12][0-9]|3[01])$/p')
           {
             printf 'date_tag=%s\n' "${date_tag}"
@@ -127,9 +162,6 @@ jobs:
           if [ "${dry_run}" = "true" ]; then
             version="${{ steps.semver_info.outputs.next_snapshot }}"
             test -n "${version}"
-          elif [ -n "${{ inputs.semver_strategy }}" ]; then
-            version="${{ steps.semver_info.outputs[format('next_{0}', inputs.semver_strategy)] }}"
-            test -n "${version}"
           elif [ -z "${{ inputs.upstream_version }}" ] && [ "${{ steps.semver_info.outputs.is_greater_a }}" != "true" ]; then
             dry_run=true
             version="${{ steps.semver_info.outputs.next_snapshot }}"
@@ -144,7 +176,6 @@ jobs:
           printf 'date_tag=%s\n' "${{ steps.latest_tag.outputs.date_tag || 'none' }}"
           printf 'latest_tag=%s\n' "${{ steps.latest_tag.outputs.latest_tag || 'none' }}"
           printf 'dry_run=%s\n' "${dry_run}"
-          printf 'semver_strategy=%s\n' "${{ inputs.semver_strategy }}"
           printf 'version=%s\n' "${version}"
           printf 'upstream_version=%s\n' "${{ inputs.upstream_version }}"
 
@@ -153,14 +184,14 @@ jobs:
         uses: YunaBraska/java-info-action@11a434ffbf6bb3357363d1933be71a4076a90a6b # v3
 
       - name: "☕ Setup Java [${{ steps.java_info.outputs.java_version }}]"
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: ${{ steps.java_info.outputs.java_version }}
           cache: maven
           server-id: github
-          server-username: GITHUB_ACTOR
-          server-password: GITHUB_TOKEN
+          server-username-env-var: GITHUB_ACTOR
+          server-password-env-var: GITHUB_TOKEN
 
       - name: "🏷️ Set Project Version [${{ steps.version_info.outputs.version }}]"
         shell: sh

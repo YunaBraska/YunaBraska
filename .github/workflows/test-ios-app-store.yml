@@ -1,0 +1,23 @@
+name: "🧪 CI · iPhone and iPad Store"
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/wc_ios_app_store.yml
+      - .github/workflows/test-ios-app-store.yml
+      - .github/scripts/python/test/ios_app_storeTest.py
+      - IOS_APP_STORE.md
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+      - name: Verify Store packaging contract
+        run: python3 .github/scripts/python/test/ios_app_storeTest.py -v

@@ -1,0 +1,78 @@
+# Mac App Store CI/CD
+
+The direct and Store channels are separate. Direct releases remain Developer ID signed, notarized, and may use signed Sparkle feeds. A Store package is sandboxed, contains no Sparkle framework, and is signed with Mac App Distribution plus Mac Installer Distribution.
+
+```mermaid
+flowchart LR
+  R[Stable release version] --> V[Store version and GitHub run build number]
+  V --> S[Apple certificate action and profile]
+  S --> A[Repository adapter builds signed app]
+  A --> P[Shared package build and signing]
+  P --> C[Check sandbox, identity, no Sparkle, package signature]
+  C --> R[One-day review artifact]
+  R --> U[Explicit upload workflow]
+```
+
+The package workflow verifies the final Store bundle's identifier, hardened signature, sandbox entitlement, absence of Sparkle, and signed installer package. Its one-day artifact contains only the signed `.pkg`, which is the sole file the upload workflow accepts. GitHub's hosted macOS runners have no usable GUI session, so starting a GUI app there is not a valid acceptance test. User-granted microphone, camera, screen-recording, audio-device, and network behavior remain product acceptance tests in a normal macOS login session.
+
+The package workflow never uploads a build or submits an App Store version by itself. The separate `wc_macos_app_store_upload.yml` validates and uploads its signed package using `xcrun altool`; it never submits a version for App Review. A configured stable Swift release chains both jobs before its GitHub tag and release, so a failed Store upload cannot leave a successful public release behind.
+
+## Contract
+
+Each Store-ready product calls `wc_macos_app_store.yml` with the final stable release version. The product supplies its bundle name and Store bundle identifier. It must provide this executable adapter:
+
+```sh
+scripts/package-app-store.sh "$APP_STORE_MARKETING_VERSION" "$APP_STORE_BUILD_NUMBER"
+```
+
+The adapter receives these environment values:
+
+| Value | Purpose |
+| --- | --- |
+| `APP_STORE_BUNDLE_ID` | Registered Store identifier. |
+| `APP_STORE_MARKETING_VERSION` | Exact stable release version. |
+| `APP_STORE_BUILD_NUMBER` | GitHub run ID. It always increases without a manual counter. |
+| `APP_STORE_BUILD` | `1` for every Store package. Product adapters pass it into their build so Store-only source conditions can remove disallowed features. |
+| `APP_STORE_TEAM_ID` | Team from the selected provisioning profile. |
+| `MACOS_APP_STORE_APPLICATION_IDENTITY` | Imported Mac App Distribution identity. |
+| `MACOS_APP_STORE_PROFILE_NAME` | Imported profile name. |
+| `MACOS_APP_STORE_PROFILE_PATH` | Imported profile path. |
+
+It must create this signed app:
+
+```text
+dist/app-store/<App>.app
+```
+
+The shared workflow then builds the unsigned installer, signs it with the imported Mac Installer Distribution identity, and checks that the bundle ID is exact, the app has the App Sandbox entitlement, no `Sparkle.framework` is embedded, the code signature is valid, and the installer package is signed. It also rejects Store bundles containing donation links to GitHub Sponsors, Buy Me a Coffee, Ko-fi, or Liberapay. Product adapters must compile those links out when `APP_STORE_BUILD=1`. Direct distributions may retain them. The package is retained for one day.
+
+## Secrets
+
+Every participating repository needs these Base64 values. They are Store-specific and do not replace the existing direct-release secrets.
+
+| Secret | Content |
+| --- | --- |
+| `MACOS_APP_STORE_APPLICATION_CERTIFICATE` | PKCS#12 export of Mac App Distribution. |
+| `MACOS_APP_STORE_INSTALLER_CERTIFICATE` | PKCS#12 export of Mac Installer Distribution. |
+| `MACOS_APP_STORE_CERTIFICATE_PASSWORD` | Shared PKCS#12 password for both Store certificates. |
+| `MACOS_APP_STORE_PROFILE` | Provisioning profile for that product's Store identifier. |
+
+Never commit certificates, profiles, passwords, signing identities, or API keys. The pinned Apple certificate action imports both P12 files into one temporary keychain, keeps the runner trust chain available to Apple signing tools, and removes that keychain after the job. Do not replace this with custom `security` setup unless the action cannot support a required Apple tool.
+
+The upload workflow reuses the existing notarization API key. It is already an App Store Connect Team API key and is authorized for both notarization and Store uploads. Do not create duplicate upload-only secrets.
+
+| Secret | Content |
+| --- | --- |
+| `MACOS_NOTARY_KEY_ID` | App Store Connect API key ID. |
+| `MACOS_NOTARY_ISSUER_ID` | App Store Connect issuer ID. |
+| `MACOS_NOTARY_KEY` | Downloaded `.p8` API private key. |
+
+Apple requires an app record to be created in App Store Connect before the first upload. The upload produces a processed build. Screenshots, privacy answers, age rating, price, availability, and App Review submission stay separate product decisions.
+
+## Direct updates
+
+Homebrew owns upgrades for Homebrew installations. Direct GitHub downloads can use the signed macOS feed that is attached to every non-snapshot release. The .NET release workflow creates one feed per macOS architecture only when the product passes `macos_update_public_key` and provides `MACOS_UPDATE_PRIVATE_KEY`. The product embeds only the public key. Store builds do not receive a feed or update key.
+
+## Adapter boundaries
+
+Swift, .NET, and C++ need different archive commands. They share the same input, output, signing, validation, versioning, artifact, and publication boundary. Do not add toolchain switches to the reusable workflow. Keep toolchain setup and archive construction inside the product adapter.
